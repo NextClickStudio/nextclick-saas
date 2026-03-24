@@ -22,7 +22,7 @@ router.post('/login', (req, res) => {
   if (!brand || !bcrypt.compareSync(password, brand.password)) {
     return res.redirect('/login?error=Credenziali+non+valide');
   }
-  db.get().prepare('UPDATE brands SET last_login = datetime("now") WHERE id = ?').run(brand.id);
+  db.get().prepare('UPDATE brands SET last_login = datetime('now') WHERE id = ?').run(brand.id);
   req.session.brandId = brand.id;
   req.session.brandName = brand.name;
 
