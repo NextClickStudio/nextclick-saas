@@ -1,114 +1,57 @@
-const prisma = require('../utils/prisma');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
 /**
- * verifyShopifySession
- *
- * Strategy (in order):
- * 1. Load session from Prisma via shopify.session.getOfflineId()
- * 2. If not found or token missing, fall back to accessToken stored on Shop record
- * 3. If still no token → 401
- *
- * This dual-fallback means the app keeps working even if the session table
- * has stale/missing entries, as long as the Shop.accessToken is current.
+ * Middleware per validare la sessione Shopify.
+ * Gestisce sia i token salvati nel DB che un eventuale token di emergenza in Railway.
  */
-async function verifyShopifySession(req, res, next) {
+const authMiddleware = async (req, res, next) => {
+  // Recupera lo shop dai parametri della query o dal corpo della richiesta
+  const shop = req.query.shop || req.body.shop;
+
+  if (!shop) {
+    console.error('[auth-middleware] Errore: parametro shop mancante');
+    return res.status(400).json({ error: 'Shop parameter is missing' });
+  }
+
   try {
-    const shopify    = req.shopify;
-    const shopDomain = req.query.shop || req.headers['x-shop-domain'];
-
-    if (!shopDomain) {
-      return res.status(401).json({ error: 'Missing shop parameter' });
-    }
-
-    // --- Attempt 1: load from session storage ---
-    let accessToken = null;
-    try {
-      const sessionId = shopify.session.getOfflineId(shopDomain);
-      const session   = await shopify.config.sessionStorage.loadSession(sessionId);
-      if (session?.accessToken) {
-        accessToken = session.accessToken;
-        req.session_data = session;
-      }
-    } catch (e) {
-      console.warn('[auth] session load error (will try DB fallback):', e.message);
-    }
-
-    // --- Attempt 2: fall back to Shop.accessToken in DB ---
-    if (!accessToken) {
-      const shopRecord = await prisma.shop.findUnique({
-        where:  { shopDomain },
-        select: { accessToken: true, isActive: true },
-      });
-
-      if (shopRecord?.accessToken) {
-        accessToken = shopRecord.accessToken;
-        req.session_data = { shop: shopDomain, accessToken };
-        console.warn(`[auth] using DB fallback token for ${shopDomain}`);
-      } else {
-        return res.status(401).json({ error: 'Unauthorized — reinstall app' });
-      }
-    }
-
-    // --- Load full shop with config ---
-    const shop = await prisma.shop.findUnique({
-      where:   { shopDomain },
-      include: { config: true },
+    // 1. Cerca lo shop nel database usando i nomi colonne corretti di Prisma (CamelCase)
+    const shopData = await prisma.shops.findUnique({
+      where: { shopDomain: shop },
     });
 
-    if (!shop) {
-      return res.status(401).json({ error: 'Shop not found — reinstall app' });
+    // 2. Se abbiamo un accessToken nel database, lo usiamo
+    if (shopData && shopData.accessToken) {
+      console.log(`[session] caricata da DB per shop=${shop} (token OK)`);
+      req.session_data = {
+        shop: shop,
+        accessToken: shopData.accessToken,
+      };
+      return next();
     }
-    if (!shop.isActive) {
-      return res.status(403).json({ error: 'Shop inactive' });
+
+    // 3. FALLBACK: Se il DB è vuoto, proviamo a usare il token shpss_ configurato su Railway
+    // Questo permette di far funzionare il sync anche se l'OAuth non è stato completato
+    if (process.env.SHOPIFY_ADMIN_API_ACCESS_TOKEN) {
+      console.log(`[session] fallback su variabile ENV per shop=${shop}`);
+      req.session_data = {
+        shop: shop,
+        accessToken: process.env.SHOPIFY_ADMIN_API_ACCESS_TOKEN,
+      };
+      return next();
     }
 
-    req.shop = shop;
-    next();
-  } catch (err) {
-    console.error('[auth] middleware error:', err.message);
-    res.status(500).json({ error: 'Authentication error' });
-  }
-}
-
-/**
- * verifyWidgetRequest
- * Lighter check for public widget endpoints (no session needed — uses shop domain only).
- */
-async function verifyWidgetRequest(req, res, next) {
-  try {
-    const shopDomain = req.headers['x-shop-domain'] || req.query.shop;
-    if (!shopDomain) return res.status(400).json({ error: 'Missing shop domain' });
-
-    const shop = await prisma.shop.findUnique({
-      where:   { shopDomain },
-      include: { config: true },
+    // 4. Se non troviamo nulla, chiediamo di rifare l'autenticazione
+    console.warn(`[session] Nessun token trovato per lo shop=${shop}. Richiesto re-auth.`);
+    return res.status(401).json({ 
+      error: 'Session not found', 
+      reauth_url: `/auth?shop=${shop}` 
     });
-
-    if (!shop || !shop.isActive) {
-      return res.status(403).json({ error: 'Shop not found or inactive' });
-    }
-
-    const isPreview = req.query.preview === 'true' || req.headers['x-preview'] === 'true';
-
-    if (!isPreview && shop.planStatus !== 'active') {
-      return res.status(403).json({ error: 'Subscription not active' });
-    }
-
-    if (!isPreview && shop.generationsUsed >= shop.generationsLimit) {
-      return res.status(429).json({
-        error:   'generation_limit_reached',
-        used:    shop.generationsUsed,
-        limit:   shop.generationsLimit,
-        message: 'Hai raggiunto il limite di generazioni del tuo piano.',
-      });
-    }
-
-    req.shop = shop;
-    next();
-  } catch (err) {
-    console.error('[auth] widget middleware error:', err.message);
-    res.status(500).json({ error: 'Internal error' });
+    
+  } catch (error) {
+    console.error('[auth-middleware] Errore critico:', error);
+    res.status(500).json({ error: 'Errore interno del server durante l\'autenticazione' });
   }
-}
+};
 
-module.exports = { verifyShopifySession, verifyWidgetRequest };
+module.exports = authMiddleware;
