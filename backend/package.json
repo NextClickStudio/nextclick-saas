@@ -10,7 +10,7 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
+    "@google/generative-ai": "^0.24.0",
     "@prisma/client": "^5.22.0",
     "@shopify/shopify-api": "^11.5.0",
     "axios": "^1.7.7",
