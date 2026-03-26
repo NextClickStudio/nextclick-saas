@@ -51,7 +51,7 @@ router.post('/', verifyWidgetRequest, async (req, res) => {
     // Call Gemini
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash-preview-04-17',
+      model: 'gemini-1.5-flash',
       generationConfig: {
         maxOutputTokens: isRoutine ? 3000 : 1500,
         temperature: 0.7,
