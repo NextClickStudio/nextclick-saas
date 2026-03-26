@@ -60,6 +60,7 @@ const model = genAI.getGenerativeModel({
 
     const result = await model.generateContent(prompt);
     const rawText = result.response.text();
+    console.log('RAW GEMINI RESPONSE:', rawText?.substring(0, 500));
     const tokensUsed = result.response.usageMetadata?.totalTokenCount || 0;
 
     // Parse AI response
