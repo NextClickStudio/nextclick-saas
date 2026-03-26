@@ -53,7 +53,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({
   model: 'gemini-2.5-flash',
   generationConfig: {
-    maxOutputTokens: isRoutine ? 1500 : 800,
+    maxOutputTokens: isRoutine ? 4000 : 1200,
     temperature: 0.7,
   },
 }, { timeout: 60000 });
@@ -68,8 +68,9 @@ const model = genAI.getGenerativeModel({
     try {
       const clean = rawText.replace(/```json|```/g, '').trim();
       parsed = JSON.parse(clean);
-    } catch {
-      return res.status(500).json({ error: 'parse_error', message: 'Errore nella generazione. Riprova.' });
+    } catch(e) {
+  console.log('PARSE ERROR:', e.message, 'RAW:', rawText?.substring(0, 200));
+  return res.status(500).json({ error: 'parse_error', message: 'Errore nella generazione. Riprova.' });
     }
 
     // Save generation record (skip in preview)
