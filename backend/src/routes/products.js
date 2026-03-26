@@ -162,7 +162,7 @@ router.post('/bulk-import', verifyShopifySession, async (req, res) => {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.5-flash',
-    generationConfig: { maxOutputTokens: 1024, temperature: 0.2 },
+    generationConfig: { maxOutputTokens: 4096, temperature: 0.2 },
   }, { timeout: 30000 });
 
   const results = { imported: 0, failed: 0, errors: [] };
@@ -213,9 +213,14 @@ ${clean}`;
 
       const result = await model.generateContent(prompt);
       const rawText = result.response.text().replace(/```json|```/g, '').trim();
-      const data = JSON.parse(rawText);
-
-      if (!data.title) throw new Error('No title extracted');
+      // Try to fix truncated JSON by closing open structures
+let jsonStr = rawText;
+if (!jsonStr.endsWith('}')) {
+  const lastBrace = jsonStr.lastIndexOf('}');
+  jsonStr = lastBrace > 0 ? jsonStr.slice(0, lastBrace + 1) : jsonStr + '}';
+}
+const data = JSON.parse(jsonStr);
+if (!data.title) throw new Error('No title extracted');
 
       const fakeId = 'import_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
       const handle = data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
