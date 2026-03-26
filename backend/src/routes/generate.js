@@ -48,15 +48,15 @@ router.post('/', verifyWidgetRequest, async (req, res) => {
     const isRoutine = config?.featureRoutine || false;
     const prompt = buildPrompt(config, answers, products, isRoutine);
 
-    // Call Gemini
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      generationConfig: {
-        maxOutputTokens: isRoutine ? 3000 : 1500,
-        temperature: 0.7,
-      },
-    });
+   // Call Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({
+  model: 'gemini-2.5-flash',
+  generationConfig: {
+    maxOutputTokens: isRoutine ? 1500 : 800,
+    temperature: 0.7,
+  },
+}, { timeout: 60000 });
 
     const result = await model.generateContent(prompt);
     const rawText = result.response.text();
