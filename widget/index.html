@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+<title>AI Advisor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=block" rel="stylesheet"/>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+
+:root{
+  --p:#0A0A0A;
+  --s:#00E676;
+  --bg:#0A0A0A;
+  --text:#FFFFFF;
+  --btn:#00E676;
+  --btntxt:#0A0A0A;
+  --subtitle:rgba(255,255,255,0.45);
+  --r:12px;
+  --font:'Syne',sans-serif;
+  --body:'DM Sans',sans-serif;
+  --border:rgba(255,255,255,0.08);
+  --card:rgba(255,255,255,0.05);
+  --ease:cubic-bezier(0.4,0,0.2,1);
+}
+
+html{height:100%;}
+body{
+  min-height:100%;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--body);
+  display:flex;
+  align-items:stretch;
+}
+
+/* ── WRAPPER: sfondo pieno sempre ── */
+#wrapper{
+  position:fixed;
+  inset:0;
+  background:var(--bg);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+
+/* ── SHELL: centrato, max-width su desktop ── */
+#shell{
+  position:relative;
+  width:100%;
+  max-width:600px;
+  height:100%;
+  max-height:100%;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+@media(min-width:700px){
+  #shell{
+    height:min(820px, 100vh);
+    border-radius:20px;
+    border:1px solid var(--border);
+    box-shadow:0 40px 120px rgba(0,0,0,0.6);
+  }
+}
+
+/* ── PHASE SYSTEM ── */
+.phase{
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  background:var(--bg);
+  opacity:0;
+  pointer-events:none;
+  transform:translateY(20px);
+  transition:opacity 0.32s var(--ease), transform 0.32s var(--ease);
+}
+.phase.active{opacity:1;pointer-events:all;transform:translateY(0);}
+.phase.exit{opacity:0;transform:translateY(-20px);pointer-events:none;}
+
+/* ════════════════════════════════
+   HERO
+════════════════════════════════ */
+#phase-hero{justify-content:space-between;}
+
+.hero-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:24px 28px 0;
+  flex-shrink:0;
+}
+.hero-brand-name{
+  font-family:var(--font);
+  font-size:.85rem;
+  font-weight:600;
+  letter-spacing:.02em;
+  color:var(--text);
+  opacity:.7;
+}
+.hero-brand-logo{max-height:22px;object-fit:contain;display:none;}
+.hero-powered{
+  font-size:.6rem;
+  font-weight:500;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--subtitle);
+  border:1px solid var(--border);
+  padding:4px 10px;
+  border-radius:99px;
+}
+
+.hero-body{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:32px 32px 0;
+}
+
+.hero-eyebrow{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  font-size:.6rem;
+  font-weight:600;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  color:var(--s);
+  margin-bottom:24px;
+}
+.hero-eyebrow::before{content:'';width:6px;height:6px;background:var(--s);border-radius:50%;}
+
+.hero-title{
+  font-family:var(--font);
+  font-size:clamp(2.8rem,8vw,4.2rem);
+  font-weight:800;
+  line-height:1;
+  letter-spacing:-.03em;
+  color:var(--text);
+  margin-bottom:16px;
+}
+
+.hero-divider{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:20px;
+}
+.hero-line{width:40px;height:1px;background:var(--border);}
+.hero-subtitle{
+  font-size:.68rem;
+  font-weight:500;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--subtitle);
+}
+
+.hero-desc{
+  font-size:.9rem;
+  line-height:1.75;
+  color:var(--subtitle);
+  max-width:340px;
+}
+
+.hero-bottom{
+  padding:28px 28px 36px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:16px;
+  flex-shrink:0;
+}
+
+.hero-stats{
+  display:flex;
+  gap:0;
+  width:100%;
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  overflow:hidden;
+}
+.stat-item{
+  flex:1;
+  text-align:center;
+  padding:14px 8px;
+  border-right:1px solid var(--border);
+}
+.stat-item:last-child{border-right:none;}
+.stat-num{
+  font-family:var(--font);
+  font-size:1.4rem;
+  font-weight:700;
+  line-height:1;
+  color:var(--text);
+}
+.stat-label{
+  font-size:.56rem;
+  font-weight:500;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--subtitle);
+  margin-top:4px;
+}
+
+.cta-btn{
+  width:100%;
+  padding:18px 28px;
+  background:var(--btn);
+  color:var(--btntxt);
+  border:none;
+  border-radius:var(--r);
+  font-family:var(--font);
+  font-size:.75rem;
+  font-weight:700;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  transition:opacity .2s, transform .15s;
+}
+.cta-btn:hover{opacity:.88;transform:translateY(-1px);}
+.cta-btn:active{transform:translateY(0);}
+.cta-arrow{font-size:1.1rem;font-weight:400;}
+
+/* ════════════════════════════════
+   QUESTIONS
+════════════════════════════════ */
+#phase-questions{background:var(--bg);}
+
+.q-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:20px 24px 0;
+  flex-shrink:0;
+}
+.q-brand{
+  font-family:var(--font);
+  font-size:.8rem;
+  font-weight:600;
+  color:var(--text);
+  opacity:.5;
+}
+#qBrandLogo{display:none;max-height:20px;opacity:.5;}
+.q-close{
+  background:none;
+  border:1px solid var(--border);
+  color:var(--subtitle);
+  font-size:.85rem;
+  cursor:pointer;
+  padding:6px 12px;
+  border-radius:99px;
+  font-family:var(--body);
+  transition:.15s;
+  line-height:1;
+}
+.q-close:hover{border-color:rgba(255,255,255,.3);color:var(--text);}
+
+/* Progress bar */
+.q-progress{
+  flex-shrink:0;
+  padding:16px 24px 0;
+  display:flex;
+  gap:4px;
+}
+.q-dot{
+  height:2px;
+  flex:1;
+  border-radius:2px;
+  background:rgba(255,255,255,.1);
+  transition:background .4s;
+}
+.q-dot.done{background:var(--s);}
+.q-dot.active{background:rgba(255,255,255,.4);}
+
+/* Question content */
+.q-content{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  padding:20px 24px 0;
+  overflow:hidden;
+  text-align:center;
+}
+
+.q-step-label{
+  font-size:.58rem;
+  font-weight:600;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  color:var(--s);
+  margin-bottom:12px;
+}
+
+.q-title{
+  font-family:var(--font);
+  font-size:clamp(1.5rem,4.5vw,2rem);
+  font-weight:700;
+  line-height:1.15;
+  color:var(--text);
+  margin-bottom:6px;
+}
+
+.q-hint{
+  font-size:.72rem;
+  color:var(--subtitle);
+  margin-bottom:20px;
+  min-height:18px;
+}
+
+/* Options grid */
+.opts-wrap{
+  flex:1;
+  overflow-y:auto;
+  padding-bottom:8px;
+}
+.opts-wrap::-webkit-scrollbar{width:0;}
+
+.opts{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.opts.col1{grid-template-columns:1fr;}
+
+.opt{
+  position:relative;
+  overflow:hidden;
+  padding:20px 16px 16px;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  cursor:pointer;
+  text-align:center;
+  font-family:var(--body);
+  transition:border-color .15s, background .15s, transform .1s;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+}
+.opt:hover{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.08);}
+.opt:active{transform:scale(.97);}
+.opt.sel{
+  border-color:var(--s);
+  background:rgba(0,230,118,.08);
+}
+
+.opt-icon{
+  font-size:1.8rem;
+  line-height:1;
+  margin-bottom:2px;
+}
+.opt-label{
+  font-family:var(--font);
+  font-size:.82rem;
+  font-weight:600;
+  color:var(--text);
+  line-height:1.2;
+}
+.opt-sub{
+  font-size:.66rem;
+  color:var(--subtitle);
+  line-height:1.4;
+}
+
+.opt-check{
+  position:absolute;
+  top:8px;
+  right:8px;
+  width:16px;
+  height:16px;
+  border-radius:50%;
+  border:1.5px solid var(--border);
+  background:transparent;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:8px;
+  color:transparent;
+  transition:.15s;
+}
+.opt.sel .opt-check{
+  border-color:var(--s);
+  background:var(--s);
+  color:#0A0A0A;
+}
+
+textarea.opt{
+  resize:none;
+  min-height:100px;
+  text-align:left;
+  align-items:flex-start;
+  outline:none;
+  width:100%;
+  font-size:.85rem;
+  color:var(--text);
+  padding:16px;
+}
+textarea.opt::placeholder{color:var(--subtitle);}
+textarea.opt:focus{border-color:rgba(255,255,255,.3);}
+
+/* Nav */
+.q-nav{
+  flex-shrink:0;
+  display:flex;
+  gap:8px;
+  padding:12px 24px 28px;
+}
+.nav-btn{
+  flex:1;
+  padding:14px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--text);
+  font-family:var(--font);
+  font-size:.65rem;
+  font-weight:600;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  cursor:pointer;
+  border-radius:var(--r);
+  transition:.15s;
+}
+.nav-btn:hover:not(:disabled){background:var(--card);}
+.nav-btn:disabled{opacity:.2;cursor:default;}
+.nav-btn.primary{
+  background:var(--btn);
+  border-color:var(--btn);
+  color:var(--btntxt);
+}
+.nav-btn.primary:hover{opacity:.88;}
+
+/* ════════════════════════════════
+   LOADING
+════════════════════════════════ */
+#phase-loading{
+  align-items:center;
+  justify-content:center;
+  gap:0;
+  text-align:center;
+}
+
+.load-inner{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:20px;
+  padding:32px;
+}
+
+.load-ring{
+  width:52px;
+  height:52px;
+  border:1.5px solid var(--border);
+  border-top-color:var(--s);
+  border-radius:50%;
+  animation:spin 1s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.load-label{
+  font-size:.58rem;
+  font-weight:600;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  color:var(--s);
+}
+#loadingText{
+  font-family:var(--font);
+  font-size:1.2rem;
+  font-weight:600;
+  color:var(--text);
+  max-width:260px;
+  line-height:1.4;
+  transition:opacity .4s;
+}
+
+.load-bar{
+  width:180px;
+  height:2px;
+  background:var(--border);
+  border-radius:2px;
+  overflow:hidden;
+}
+.load-bar-fill{
+  height:100%;
+  background:var(--s);
+  width:0%;
+  border-radius:2px;
+  transition:width .5s var(--ease);
+}
+
+/* ════════════════════════════════
+   RESULTS
+════════════════════════════════ */
+#phase-results{}
+
+.res-top{
+  flex-shrink:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:20px 24px 0;
+  border-bottom:1px solid var(--border);
+  padding-bottom:16px;
+}
+.res-brand{
+  font-family:var(--font);
+  font-size:.85rem;
+  font-weight:600;
+  color:var(--text);
+  opacity:.7;
+}
+.res-brand-logo{max-height:22px;object-fit:contain;display:none;}
+.res-tag{
+  font-size:.56rem;
+  font-weight:600;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--s);
+  border:1px solid rgba(0,230,118,.3);
+  padding:4px 10px;
+  border-radius:99px;
+}
+
+.res-header{
+  flex-shrink:0;
+  padding:20px 24px 16px;
+}
+.res-eyebrow{
+  font-size:.58rem;
+  font-weight:600;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--s);
+  margin-bottom:8px;
+}
+.res-title{
+  font-family:var(--font);
+  font-size:1.5rem;
+  font-weight:700;
+  line-height:1.2;
+  color:var(--text);
+}
+.res-intro{
+  font-size:.82rem;
+  line-height:1.7;
+  color:var(--subtitle);
+  margin-top:8px;
+}
+
+.res-scroll{flex:1;overflow-y:auto;padding:16px 24px 32px;}
+.res-scroll::-webkit-scrollbar{width:3px;}
+.res-scroll::-webkit-scrollbar-thumb{background:var(--border);}
+
+.sec-label{
+  font-size:.56rem;
+  font-weight:600;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--s);
+  margin-bottom:10px;
+  margin-top:24px;
+}
+.sec-label:first-child{margin-top:0;}
+
+.step-item{
+  display:flex;
+  gap:14px;
+  align-items:flex-start;
+  padding:14px 16px;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  margin-bottom:8px;
+}
+.step-num{
+  width:26px;height:26px;flex-shrink:0;
+  border-radius:50%;
+  background:var(--s);
+  color:var(--btntxt);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font);font-size:.6rem;font-weight:700;
+}
+.step-action{font-size:.84rem;font-weight:500;line-height:1.3;color:var(--text);}
+.step-tip{font-size:.74rem;color:var(--subtitle);margin-top:3px;line-height:1.5;}
+
+.prod-card{
+  display:grid;
+  grid-template-columns:68px 1fr auto;
+  gap:14px;
+  align-items:center;
+  padding:14px;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  margin-bottom:8px;
+  cursor:pointer;
+  text-decoration:none;
+  color:inherit;
+  transition:border-color .15s, transform .1s;
+}
+.prod-card:hover{border-color:var(--s);transform:translateY(-1px);}
+.prod-card:active{transform:translateY(0);}
+
+.prod-img-wrap{
+  width:68px;height:68px;
+  border-radius:calc(var(--r) - 4px);
+  overflow:hidden;
+  background:rgba(255,255,255,.05);
+  border:1px solid var(--border);
+  flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.prod-img{width:100%;height:100%;object-fit:cover;}
+.prod-img-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;opacity:.3;}
+
+.prod-recommended{
+  font-size:.56rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--s);margin-bottom:4px;display:block;
+}
+.prod-title{font-family:var(--font);font-size:.84rem;font-weight:600;line-height:1.3;color:var(--text);margin-bottom:3px;}
+.prod-reason{font-size:.72rem;color:var(--subtitle);line-height:1.4;}
+.prod-price-row{display:flex;align-items:center;gap:8px;margin-top:6px;}
+.prod-price{font-family:var(--font);font-size:.84rem;font-weight:700;color:var(--text);}
+.prod-compare{font-size:.75rem;color:var(--subtitle);text-decoration:line-through;}
+
+.prod-arrow{
+  width:30px;height:30px;flex-shrink:0;
+  border:1px solid var(--border);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.8rem;color:var(--subtitle);
+  transition:.15s;
+}
+.prod-card:hover .prod-arrow{background:var(--s);border-color:var(--s);color:var(--btntxt);}
+
+.prod-pills{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;}
+.prod-pill{
+  font-size:.54rem;font-weight:500;letter-spacing:.05em;
+  padding:2px 7px;border-radius:99px;
+  background:rgba(0,230,118,.08);color:var(--s);
+  border:1px solid rgba(0,230,118,.15);
+}
+
+.restart-btn{
+  margin-top:24px;width:100%;padding:14px;
+  border:1px solid var(--border);background:transparent;
+  color:var(--subtitle);
+  font-family:var(--font);font-size:.62rem;font-weight:600;
+  letter-spacing:.12em;text-transform:uppercase;
+  cursor:pointer;border-radius:var(--r);
+  transition:.15s;
+}
+.restart-btn:hover{border-color:rgba(255,255,255,.3);color:var(--text);}
+
+.time-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:.56rem;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--subtitle);
+  margin-bottom:10px;margin-top:20px;
+}
+.time-badge:first-child{margin-top:0;}
+
+/* ════════════════════════════════
+   LIMIT
+════════════════════════════════ */
+#phase-limit{
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  padding:40px 32px;
+  gap:16px;
+}
+.limit-icon{font-size:2.5rem;opacity:.4;}
+.limit-title{font-family:var(--font);font-size:1.8rem;font-weight:700;color:var(--text);}
+.limit-sub{font-size:.82rem;color:var(--subtitle);line-height:1.7;max-width:280px;}
+
+/* ════════════════════════════════
+   SKELETON
+════════════════════════════════ */
+.skeleton{
+  background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.08) 50%,rgba(255,255,255,.04) 75%);
+  background-size:200% 100%;
+  animation:shimmer 1.4s infinite;
+  border-radius:4px;
+}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+</style>
+</head>
+<body>
+<div id="wrapper">
+<div id="shell">
+
+  <!-- ══ HERO ══ -->
+  <div class="phase active" id="phase-hero">
+    <div class="hero-top">
+      <div>
+        <img class="hero-brand-logo" id="heroTopBrandLogo" src="" alt=""/>
+        <div class="hero-brand-name" id="heroTopBrandName"></div>
+      </div>
+      <div class="hero-powered">AI Powered</div>
+    </div>
+
+    <div class="hero-body">
+      <div class="hero-eyebrow" id="heroTag">Beauty Advisor</div>
+      <div class="hero-title" id="heroTitle">Trova la tua routine</div>
+      <div class="hero-divider">
+        <div class="hero-line"></div>
+        <div class="hero-subtitle" id="heroSubtitle">personalizzata dall'AI</div>
+        <div class="hero-line"></div>
+      </div>
+      <div class="hero-desc" id="heroDesc">Analisi AI in pochi secondi, basata sul tuo profilo unico.</div>
+    </div>
+
+    <div class="hero-bottom">
+      <div class="hero-stats">
+        <div class="stat-item">
+          <div class="stat-num">AI</div>
+          <div class="stat-label">Powered</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">100%</div>
+          <div class="stat-label">Personalizzato</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">30s</div>
+          <div class="stat-label">Tempo</div>
+        </div>
+      </div>
+      <button class="cta-btn" id="startBtn">
+        <span id="ctaText">Inizia ora</span>
+        <span class="cta-arrow">→</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ QUESTIONS ══ -->
+  <div class="phase" id="phase-questions">
+    <div class="q-top">
+      <div>
+        <img id="qBrandLogo" src="" alt=""/>
+        <div class="q-brand" id="qBrandName"></div>
+      </div>
+      <button class="q-close" id="closeBtn">✕ chiudi</button>
+    </div>
+
+    <div class="q-progress" id="qDots"></div>
+
+    <div class="q-content">
+      <div class="q-step-label" id="stepLabel">Step 01</div>
+      <div class="q-title" id="qTitle"></div>
+      <div class="q-hint" id="qHint"></div>
+      <div class="opts-wrap">
+        <div class="opts" id="opts"></div>
+      </div>
+    </div>
+
+    <div class="q-nav">
+      <button class="nav-btn" id="backBtn">← Indietro</button>
+      <button class="nav-btn primary" id="nextBtn">Avanti →</button>
+    </div>
+  </div>
+
+  <!-- ══ LOADING ══ -->
+  <div class="phase" id="phase-loading">
+    <div class="load-inner">
+      <div class="load-ring"></div>
+      <div class="load-label">Analisi in corso</div>
+      <div id="loadingText">Analizzo il tuo profilo...</div>
+      <div class="load-bar">
+        <div class="load-bar-fill" id="loadFill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ RESULTS ══ -->
+  <div class="phase" id="phase-results">
+    <div class="res-top">
+      <div>
+        <img class="res-brand-logo" id="resBrandLogo" src="" alt=""/>
+        <div class="res-brand" id="resBrandName"></div>
+      </div>
+      <div class="res-tag">AI Advisor</div>
+    </div>
+
+    <div class="res-header">
+      <div class="res-eyebrow">La tua routine personalizzata</div>
+      <div class="res-title" id="resTitle">Ecco cosa abbiamo scelto per te</div>
+      <div class="res-intro" id="resIntro"></div>
+    </div>
+
+    <div class="res-scroll" id="resScroll">
+      <div id="resContent"></div>
+      <button class="restart-btn" id="restartBtn">↺ Ricomincia dall'inizio</button>
+    </div>
+  </div>
+
+  <!-- ══ LIMIT ══ -->
+  <div class="phase" id="phase-limit">
+    <div class="limit-icon">◎</div>
+    <div class="limit-title">Limite raggiunto</div>
+    <div class="limit-sub" id="limitMsg">Consulenze esaurite per oggi. Torna presto!</div>
+  </div>
+
+</div>
+</div>
+
+<script>
+/* ─── STATE ─── */
+const API  = '%%API_HOST%%';
+const SHOP = new URLSearchParams(location.search).get('shop');
+let flow=[], answers={}, step=0, genId=null;
+const SID = Math.random().toString(36).slice(2);
+
+/* ─── I18N ─── */
+const TRANSLATIONS = {
+  it: { back:'← Indietro', next:'Avanti →', restart:"↺ Ricomincia dall'inizio", loadLabel:'Analisi in corso', multiHint:'(puoi selezionare più opzioni)', close:'✕ chiudi', recommended:'✦ Consigliato per te', selectedProducts:'Prodotti selezionati', yourSelection:'La tua selezione', loadingTexts:['Analizzo il tuo profilo...','Seleziono i prodotti migliori...','Costruisco la tua routine...','Ultimi ritocchi...'], stepOf:(n,t)=>`Step ${String(n).padStart(2,'0')} — ${t} domande` },
+  en: { back:'← Back', next:'Next →', restart:'↺ Start over', loadLabel:'Analyzing', multiHint:'(you can select multiple)', close:'✕ close', recommended:'✦ Recommended for you', selectedProducts:'Selected products', yourSelection:'Your selection', loadingTexts:['Analyzing your profile...','Selecting the best products...','Building your routine...','Final touches...'], stepOf:(n,t)=>`Step ${String(n).padStart(2,'0')} — ${t} questions` },
+  fr: { back:'← Retour', next:'Suivant →', restart:'↺ Recommencer', loadLabel:'Analyse en cours', multiHint:'(plusieurs choix possibles)', close:'✕ fermer', recommended:'✦ Recommandé pour vous', selectedProducts:'Produits sélectionnés', yourSelection:'Votre sélection', loadingTexts:['Analyse de votre profil...','Sélection des meilleurs produits...','Construction de votre routine...','Dernières retouches...'], stepOf:(n,t)=>`Étape ${String(n).padStart(2,'0')} — ${t} questions` },
+  es: { back:'← Atrás', next:'Siguiente →', restart:'↺ Empezar de nuevo', loadLabel:'Analizando', multiHint:'(puedes seleccionar varios)', close:'✕ cerrar', recommended:'✦ Recomendado para ti', selectedProducts:'Productos seleccionados', yourSelection:'Tu selección', loadingTexts:['Analizando tu perfil...','Seleccionando los mejores productos...','Creando tu rutina...','Últimos toques...'], stepOf:(n,t)=>`Paso ${String(n).padStart(2,'0')} — ${t} preguntas` },
+  de: { back:'← Zurück', next:'Weiter →', restart:'↺ Neu starten', loadLabel:'Analyse läuft', multiHint:'(mehrere auswählbar)', close:'✕ schließen', recommended:'✦ Empfohlen für dich', selectedProducts:'Ausgewählte Produkte', yourSelection:'Deine Auswahl', loadingTexts:['Dein Profil wird analysiert...','Beste Produkte werden ausgewählt...','Deine Routine wird erstellt...','Letzte Feinheiten...'], stepOf:(n,t)=>`Schritt ${String(n).padStart(2,'0')} — ${t} Fragen` },
+};
+let T = TRANSLATIONS.it;
+
+/* ─── PHASE ─── */
+let currentPhase = 'phase-hero';
+function show(id) {
+  const prev = document.getElementById(currentPhase);
+  const next = document.getElementById(id);
+  if (prev && prev !== next) {
+    prev.classList.add('exit');
+    setTimeout(() => { prev.classList.remove('active','exit'); }, 340);
+  }
+  if (next) { next.classList.add('active'); currentPhase = id; }
+  updateDots();
+  // Sync wrapper bg to active phase bg
+  const wrapper = document.getElementById('wrapper');
+  wrapper.style.background = getComputedStyle(document.documentElement).getPropertyValue('--bg');
+}
+
+/* ─── DOTS ─── */
+function buildDots() {
+  const wrap = document.getElementById('qDots');
+  wrap.innerHTML = '';
+  flow.forEach(() => {
+    const d = document.createElement('div');
+    d.className = 'q-dot';
+    wrap.appendChild(d);
+  });
+}
+function updateDots() {
+  document.querySelectorAll('.q-dot').forEach((d,i) => {
+    d.className = 'q-dot' + (i < step ? ' done' : (i === step ? ' active' : ''));
+  });
+}
+
+/* ─── INIT ─── */
+async function init() {
+  document.getElementById('shell').style.visibility = 'hidden';
+  try {
+    const r = await fetch(`${API}/api/widget/config?shop=${SHOP}`);
+    const d = await r.json();
+    if (d.error === 'inactive' || d.error === 'plan_inactive') {
+      document.getElementById('limitMsg').textContent = d.message || 'Piano non attivo.';
+      document.getElementById('shell').style.visibility = 'visible';
+      show('phase-limit'); return;
+    }
+    flow = (d.config?.questionFlow?.length > 0) ? d.config.questionFlow : defaultFlow();
+    applyTheme(d.config);
+    populateUI(d.config);
+    buildDots();
+    if (d.generationsRemaining <= 0) {
+      document.getElementById('shell').style.visibility = 'visible';
+      show('phase-limit'); return;
+    }
+    show('phase-hero');
+  } catch(e) {
+    flow = defaultFlow();
+    buildDots();
+    show('phase-hero');
+  }
+  document.getElementById('shell').style.visibility = 'visible';
+}
+
+/* ─── THEME ─── */
+function luminance(hex) {
+  const c = hex.replace('#','');
+  const r = parseInt(c.slice(0,2),16)/255;
+  const g = parseInt(c.slice(2,4),16)/255;
+  const b = parseInt(c.slice(4,6),16)/255;
+  return 0.2126*r + 0.7152*g + 0.0722*b;
+}
+
+function applyTheme(c) {
+  if (!c) return;
+  const s = document.documentElement.style;
+  if (c.primaryColor)    s.setProperty('--p', c.primaryColor);
+  if (c.secondaryColor)  s.setProperty('--s', c.secondaryColor);
+  if (c.bgColor)         { s.setProperty('--bg', c.bgColor); document.getElementById('wrapper').style.background = c.bgColor; }
+  if (c.textColor)       s.setProperty('--text', c.textColor);
+  if (c.buttonColor)     s.setProperty('--btn', c.buttonColor);
+  if (c.buttonTextColor) s.setProperty('--btntxt', c.buttonTextColor);
+  if (c.borderRadius)    s.setProperty('--r', c.borderRadius);
+
+  if (c.subtitleColor) {
+    s.setProperty('--subtitle', c.subtitleColor);
+  } else if (c.bgColor) {
+    const isDark = luminance(c.bgColor) < 0.18;
+    s.setProperty('--subtitle', isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)');
+    s.setProperty('--border', isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.10)');
+    s.setProperty('--card', isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)');
+  }
+
+  if (c.fontFamily) {
+    const f = c.fontFamily;
+    const lk = document.createElement('link');
+    lk.rel = 'stylesheet';
+    lk.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(f)}:ital,wght@0,400;0,500;0,600;0,700;0,800&display=block`;
+    document.head.appendChild(lk);
+    s.setProperty('--font', `'${f}',sans-serif`);
+    s.setProperty('--body', `'${f}',sans-serif`);
+  }
+
+  // Applica lingua UI
+  if (c.aiLanguage) {
+    T = TRANSLATIONS[c.aiLanguage] || TRANSLATIONS.it;
+    const backBtn = document.getElementById('backBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const restartBtn = document.getElementById('restartBtn');
+    const loadLabel = document.querySelector('.load-label');
+    const closeBtn = document.getElementById('closeBtn');
+    if (backBtn) backBtn.textContent = T.back;
+    if (nextBtn) nextBtn.textContent = T.next;
+    if (restartBtn) restartBtn.textContent = T.restart;
+    if (loadLabel) loadLabel.textContent = T.loadLabel;
+    if (closeBtn) closeBtn.textContent = T.close;
+  }
+}
+
+/* ─── POPULATE UI ─── */
+function populateUI(c) {
+  if (!c) return;
+  document.title = c.brandName || 'AI Advisor';
+  const bn = c.brandName || '';
+
+  // Hero
+  if (c.logoUrl) {
+    const l = document.getElementById('heroTopBrandLogo');
+    l.src = c.logoUrl; l.style.display = 'block';
+    document.getElementById('heroTopBrandName').style.display = 'none';
+  } else { document.getElementById('heroTopBrandName').textContent = bn; }
+
+  // Question
+  if (c.logoUrl) {
+    const l = document.getElementById('qBrandLogo');
+    l.src = c.logoUrl; l.style.display = 'block';
+    document.getElementById('qBrandName').style.display = 'none';
+  } else { document.getElementById('qBrandName').textContent = bn; }
+
+  // Results
+  if (c.logoUrl) {
+    const l = document.getElementById('resBrandLogo');
+    l.src = c.logoUrl; l.style.display = 'block';
+    document.getElementById('resBrandName').style.display = 'none';
+  } else { document.getElementById('resBrandName').textContent = bn; }
+
+  if (c.heroTitle)    document.getElementById('heroTitle').textContent = c.heroTitle;
+  if (c.heroSubtitle) document.getElementById('heroSubtitle').textContent = c.heroSubtitle;
+  if (c.ctaText)      document.getElementById('ctaText').textContent = c.ctaText;
+  if (c.loadingText)  document.getElementById('loadingText').textContent = c.loadingText;
+
+  const cat = c.category;
+  if (cat) {
+    const labels = { beauty:'Beauty Advisor', skincare:'Skincare Advisor', nutrition:'Nutrition Advisor', baby:'Baby Advisor', pet:'Pet Advisor', wellness:'Wellness Advisor', fitness:'Fitness Advisor' };
+    const eyebrow = document.getElementById('heroTag');
+    if (eyebrow) eyebrow.textContent = labels[cat] || 'AI Advisor';
+  }
+}
+
+/* ─── RENDER QUESTION ─── */
+function renderQ() {
+  const s = flow[step]; if (!s) return;
+  document.getElementById('stepLabel').textContent = T.stepOf(step+1, flow.length);
+  document.getElementById('qTitle').innerHTML = s.title || '';
+  document.getElementById('qHint').textContent = s.type === 'multi' ? T.multiHint : '';
+
+  const wrap = document.getElementById('opts');
+  wrap.innerHTML = '';
+
+  const curVal = answers[s.id];
+  const sel = Array.isArray(curVal) ? curVal : (curVal ? [curVal] : []);
+
+  if (s.type === 'text') {
+    wrap.classList.add('col1');
+    const ta = document.createElement('textarea');
+    ta.className = 'opt';
+    ta.placeholder = s.placeholder || 'Scrivi qui...';
+    ta.value = answers[s.id] || '';
+    ta.rows = 5;
+    ta.addEventListener('input', () => { answers[s.id] = ta.value; });
+    wrap.appendChild(ta);
+  } else {
+    const long = (s.options || []).some(o => (o.label || o).length > 14) || (s.options || []).length <= 3;
+    wrap.classList.toggle('col1', long);
+    wrap.classList.remove('col1');
+
+    (s.options || []).forEach(rawOpt => {
+      const isObj = typeof rawOpt === 'object' && rawOpt !== null;
+      const label = isObj ? rawOpt.label : rawOpt;
+      const icon  = isObj ? rawOpt.icon  : null;
+      const sub   = isObj ? rawOpt.sub   : null;
+      const val   = label;
+
+      const btn = document.createElement('button');
+      btn.className = 'opt' + (sel.includes(val) ? ' sel' : '');
+
+      if (icon) {
+        const ic = document.createElement('div');
+        ic.className = 'opt-icon'; ic.textContent = icon;
+        btn.appendChild(ic);
+      }
+      const lbl = document.createElement('div');
+      lbl.className = 'opt-label'; lbl.textContent = label;
+      btn.appendChild(lbl);
+
+      if (sub) {
+        const sb = document.createElement('div');
+        sb.className = 'opt-sub'; sb.textContent = sub;
+        btn.appendChild(sb);
+      }
+
+      const chk = document.createElement('div');
+      chk.className = 'opt-check'; chk.textContent = '✓';
+      btn.appendChild(chk);
+
+      btn.addEventListener('click', () => {
+        if (s.type === 'multi') {
+          const i = sel.indexOf(val);
+          if (i > -1) sel.splice(i,1); else sel.push(val);
+          answers[s.id] = [...sel];
+        } else {
+          answers[s.id] = val;
+        }
+        renderQ();
+        if (s.type === 'single') setTimeout(next, 240);
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  updateDots();
+  show('phase-questions');
+  document.getElementById('backBtn').disabled = step === 0;
+}
+
+/* ─── NAV ─── */
+function next() {
+  if (step < flow.length - 1) { step++; renderQ(); }
+  else generate();
+}
+function back() {
+  if (step > 0) { step--; renderQ(); }
+  else show('phase-hero');
+}
+
+/* ─── GENERATE ─── */
+async function generate() {
+  show('phase-loading');
+  startLoadingAnimation();
+  try {
+    const r = await fetch(`${API}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-shop-domain': SHOP },
+      body: JSON.stringify({ answers, sessionId: SID })
+    });
+    const d = await r.json();
+    stopLoadingAnimation();
+    if (d.error === 'generation_limit_reached') { show('phase-limit'); return; }
+    if (!r.ok) throw new Error(d.message || 'Errore');
+    genId = d.generationId;
+    renderResults(d);
+    show('phase-results');
+  } catch(e) {
+    stopLoadingAnimation();
+    alert(e.message || 'Si è verificato un errore. Riprova.');
+    show('phase-questions');
+  }
+}
+
+/* ─── LOADING ANIMATION ─── */
+const loadingTexts = (T && T.loadingTexts) ? T.loadingTexts : ['Analizzo il tuo profilo...','Seleziono i prodotti migliori...','Costruisco la tua routine...','Ultimi ritocchi...'];
+let loadInterval, loadProgInterval;
+function startLoadingAnimation() {
+  let i = 0;
+  const el = document.getElementById('loadingText');
+  const fill = document.getElementById('loadFill');
+  fill.style.width = '0%';
+  let pct = 0;
+  el.textContent = loadingTexts[0];
+  loadInterval = setInterval(() => {
+    i = (i + 1) % loadingTexts.length;
+    el.style.opacity = '0';
+    setTimeout(() => { el.textContent = loadingTexts[i]; el.style.opacity = '1'; }, 300);
+  }, 2200);
+  loadProgInterval = setInterval(() => {
+    pct = Math.min(pct + Math.random() * 4, 92);
+    fill.style.width = pct + '%';
+  }, 180);
+}
+function stopLoadingAnimation() {
+  clearInterval(loadInterval);
+  clearInterval(loadProgInterval);
+  document.getElementById('loadFill').style.width = '100%';
+}
+
+/* ─── RENDER RESULTS ─── */
+function renderResults(data) {
+  document.getElementById('resIntro').textContent = data.message || '';
+  const c = document.getElementById('resContent');
+  c.innerHTML = '';
+
+  if (data.sections?.length > 0) {
+    data.sections.forEach(sec => {
+      const isMorning = /matin|morning|giorno|am/i.test(sec.title || '');
+      const badge = document.createElement('div');
+      badge.className = 'time-badge';
+      const sunSvg = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+      const moonSvg = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>`;
+      badge.innerHTML = (isMorning ? sunSvg : moonSvg) + ' ' + sec.title;
+      c.appendChild(badge);
+
+      (sec.steps || []).forEach((s, i) => {
+        const el = document.createElement('div'); el.className = 'step-item';
+        el.innerHTML = `<div class="step-num">${String(s.order || i+1).padStart(2,'0')}</div><div class="step-body"><div class="step-action">${s.action}</div>${s.tip ? `<div class="step-tip">${s.tip}</div>` : ''}</div>`;
+        c.appendChild(el);
+      });
+    });
+  }
+
+  if (data.products?.length > 0) {
+    const lbl = document.createElement('div');
+    lbl.className = 'sec-label';
+    lbl.textContent = data.sections?.length > 0 ? T.selectedProducts : T.yourSelection;
+    c.appendChild(lbl);
+
+    data.products.forEach(p => {
+      const card = document.createElement('div'); card.className = 'prod-card';
+      const imgWrap = document.createElement('div'); imgWrap.className = 'prod-img-wrap';
+      if (p.imageUrl) {
+        const img = document.createElement('img'); img.className = 'prod-img'; img.src = p.imageUrl; img.alt = p.title;
+        imgWrap.appendChild(img);
+      } else {
+        const ph = document.createElement('div'); ph.className = 'prod-img-placeholder'; ph.textContent = '✦';
+        imgWrap.appendChild(ph);
+      }
+      card.appendChild(imgWrap);
+
+      const info = document.createElement('div'); info.className = 'prod-info';
+      const pills = [...(p.tags || []).slice(0,3)];
+      info.innerHTML = `<span class="prod-recommended">${T.recommended}</span><div class="prod-title">${p.title}</div>${p.reason ? `<div class="prod-reason">${p.reason}</div>` : ''}${pills.length ? `<div class="prod-pills">${pills.map(t => `<span class="prod-pill">${t}</span>`).join('')}</div>` : ''}<div class="prod-price-row">${p.price ? `<div class="prod-price">€${Number(p.price).toFixed(2)}</div>` : ''}${p.comparePrice ? `<div class="prod-compare">€${Number(p.comparePrice).toFixed(2)}</div>` : ''}</div>`;
+      card.appendChild(info);
+
+      const arrow = document.createElement('div'); arrow.className = 'prod-arrow'; arrow.textContent = '→';
+      card.appendChild(arrow);
+
+      card.addEventListener('click', () => { trackClick(p); if (p.url && p.url !== '#') (window.top || window).open(p.url, '_blank'); });
+      c.appendChild(card);
+    });
+  }
+}
+
+/* ─── CLICK TRACKING ─── */
+async function trackClick(p) {
+  if (!genId) return;
+  fetch(`${API}/api/generate/click`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ generationId: genId, shopifyId: p.shopifyId, productTitle: p.title, price: p.price })
+  }).catch(() => {});
+}
+
+/* ─── DEFAULT FLOW ─── */
+function defaultFlow() {
+  return [
+    {
+      id: 'category', title: 'Cosa stai cercando <span style="color:var(--s)">oggi</span>?', type: 'single',
+      options: [
+        { label: 'Viso', icon: '✨', sub: 'Trattamenti, idratanti, sieri' },
+        { label: 'Make Up', icon: '💄', sub: 'Fondotinta, correttori' },
+        { label: 'Fotoprotezione', icon: '☀️', sub: 'Solari viso e corpo' },
+        { label: 'Dermatologici', icon: '🔬', sub: 'Eczema, acne, rosacea' },
+        { label: 'Integratori', icon: '🧴', sub: 'Bellezza dall\'interno' },
+        { label: 'Corpo', icon: '🌿', sub: 'Idratanti, rassodanti' },
+        { label: 'Capelli', icon: '🦁', sub: 'Shampoo, trattamenti' },
+        { label: 'Baby', icon: '🍼', sub: 'Linea neonati e bambini' },
+      ]
+    },
+    {
+      id: 'skintype', title: 'Qual è il tuo tipo di <span style="color:var(--s)">pelle</span>?', type: 'single',
+      options: [
+        { label: 'Secca', icon: '🏜️', sub: 'Tende a tirare' },
+        { label: 'Normale', icon: '✅', sub: 'Equilibrata' },
+        { label: 'Grassa', icon: '💧', sub: 'Lucida, pori dilatati' },
+        { label: 'Mista', icon: '⚖️', sub: 'Zona T grassa' },
+        { label: 'Sensibile', icon: '🌸', sub: 'Si irrita facilmente' },
+        { label: 'Matura', icon: '🌺', sub: 'Linee, perdita tono' },
+      ]
+    },
+    {
+      id: 'goal', title: 'Il tuo <span style="color:var(--s)">obiettivo</span> principale?', type: 'multi',
+      options: [
+        { label: 'Idratazione', icon: '💦' },
+        { label: 'Anti-età', icon: '⏳' },
+        { label: 'Luminosità', icon: '✨' },
+        { label: 'Imperfezioni', icon: '🎯' },
+        { label: 'Lenitivo', icon: '🌿' },
+        { label: 'Nutrizione', icon: '🫐' },
+      ]
+    },
+    {
+      id: 'budget', title: 'Budget per <span style="color:var(--s)">prodotto</span>?', type: 'single',
+      options: [
+        { label: 'Fino a €20', icon: '💚' },
+        { label: '€20–€40', icon: '💛' },
+        { label: '€40–€60', icon: '🧡' },
+        { label: 'Oltre €60', icon: '💜' },
+      ]
+    },
+    {
+      id: 'notes', title: 'Vuoi aggiungere <span style="color:var(--s)">qualcosa</span>?', type: 'text',
+      placeholder: 'Allergie, preferenze, ingredienti da evitare...'
+    }
+  ];
+}
+
+/* ─── EVENTS ─── */
+document.getElementById('startBtn').addEventListener('click', () => { step = 0; answers = {}; renderQ(); });
+document.getElementById('nextBtn').addEventListener('click', next);
+document.getElementById('backBtn').addEventListener('click', back);
+document.getElementById('closeBtn').addEventListener('click', () => { show('phase-hero'); });
+document.getElementById('restartBtn').addEventListener('click', () => { step = 0; answers = {}; genId = null; show('phase-hero'); });
+
+/* ─── POSTMESSAGE (live preview) ─── */
+window.addEventListener('message', (e) => {
+  if (e.data?.type === 'NEXTCLICK_THEME') {
+    applyTheme(e.data.config);
+    const shell = document.getElementById('shell');
+    shell.style.transition = 'opacity .12s';
+    shell.style.opacity = '0.7';
+    setTimeout(() => { shell.style.opacity = '1'; }, 130);
+  }
+});
+
+init();
+</script>
+</body>
+</html>
