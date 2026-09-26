@@ -1,97 +1,64 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { GarmentSVG } from "@/components/GarmentSVG";
+import { useMemo, useState } from "react";
+import { DOWN, Sparkline, TrendCard, UP } from "@/components/TrendCard";
 import { Wordmark } from "@/components/Wordmark";
 import { GAME_CONFIG, RARITIES, Rarity } from "@/config/game";
-import { generateGarment } from "@/lib/garment/generate";
-import { randomSeed } from "@/lib/garment/rng";
-import { GARMENT_TYPES, GARMENT_TYPE_LABELS, GarmentParams, GarmentType } from "@/lib/garment/types";
+import { Card, FAMILIES, FAMILY_LABELS, Family, TRENDS, cardValue, drawCard, marketStats, sellValue } from "@/lib/cards/catalog";
+import { randomSeed } from "@/lib/rng";
 
-interface Entry {
-  seed: string;
-  type?: GarmentType;
-  rarity?: Rarity;
-}
+const pct = (v: number) => `${v >= 0 ? "▲" : "▼"} ${Math.abs(v * 100).toFixed(1)}%`;
 
-const KEPT_KEY = "maison.lab.kept";
-
-function loadKept(): Entry[] {
-  try {
-    return JSON.parse(localStorage.getItem(KEPT_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveKept(entries: Entry[]) {
-  try {
-    localStorage.setItem(KEPT_KEY, JSON.stringify(entries));
-  } catch {
-    /* private mode: keeping works for this visit only */
-  }
-}
-
-const keyOf = (e: Entry) => `${e.seed}|${e.type ?? "*"}|${e.rarity ?? "*"}`;
-
+/**
+ * Card lab: the new trend cards, the market and the maison dashboard,
+ * with demo data. Nothing is saved yet (that's Phase 1–2).
+ */
 export function LabClient() {
   const [batch, setBatch] = useState("maison");
+  const [family, setFamily] = useState<Family | "all">("all");
   const [rarity, setRarity] = useState<Rarity | "all">("all");
-  const [type, setType] = useState<GarmentType | "all">("all");
-  const [figure, setFigure] = useState(true);
-  const [handDrawn, setHandDrawn] = useState(true);
-  const [view, setView] = useState<"grid" | "kept">("grid");
-  const [kept, setKept] = useState<Entry[]>([]);
-  const [open, setOpen] = useState<GarmentParams | null>(null);
+  const [open, setOpen] = useState<Card | null>(null);
+  const [flipped, setFlipped] = useState(false);
 
-  useEffect(() => {
-    // Read favourites after mount (localStorage only exists in the browser).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setKept(loadKept());
+  const cards = useMemo(
+    () =>
+      Array.from({ length: GAME_CONFIG.lab.gridSize }, (_, i) =>
+        drawCard(`${batch}-${i}`, { family: family === "all" ? undefined : family, rarity: rarity === "all" ? undefined : rarity }),
+      ),
+    [batch, family, rarity],
+  );
+
+  // Demo runway: one card per family.
+  const runway = useMemo(
+    () => FAMILIES.map((f, i) => drawCard(`${batch}-runway-${i}`, { family: f })),
+    [batch],
+  );
+
+  const maison = useMemo(() => {
+    const days = GAME_CONFIG.market.historyDays;
+    const series = Array.from({ length: days }, (_, d) =>
+      runway.reduce(
+        (sum, c) => sum + marketStats(c.trend.id).history[d] * GAME_CONFIG.rarityMultiplier[c.rarity] * GAME_CONFIG.market.creditsPerPoint,
+        0,
+      ),
+    );
+    const revenue = series[days - 1];
+    return { series, revenue, day: revenue / series[days - 2] - 1, week: revenue / series[days - 8] - 1 };
+  }, [runway]);
+
+  const movers = useMemo(() => {
+    const all = TRENDS.map((t) => ({ t, s: marketStats(t.id) })).sort((a, b) => b.s.change - a.s.change);
+    return { up: all.slice(0, 3), down: all.slice(-3).reverse() };
   }, []);
 
-  const entries: Entry[] = useMemo(() => {
-    if (view === "kept") return kept;
-    return Array.from({ length: GAME_CONFIG.lab.gridSize }, (_, i) => ({
-      seed: `${batch}-${i}`,
-      type: type === "all" ? undefined : type,
-      rarity: rarity === "all" ? undefined : rarity,
-    }));
-  }, [batch, rarity, type, view, kept]);
+  const rival = { name: "Maison Ardent", day: maison.day - 0.012 };
+  const winning = maison.day >= rival.day;
 
-  const garments = useMemo(() => entries.map((e) => ({ entry: e, params: generateGarment(e.seed, { type: e.type, rarity: e.rarity }) })), [entries]);
-
-  const keptKeys = useMemo(() => new Set(kept.map(keyOf)), [kept]);
-
-  const toggleKeep = useCallback((e: Entry) => {
-    setKept((prev) => {
-      const k = keyOf(e);
-      const next = prev.some((p) => keyOf(p) === k) ? prev.filter((p) => keyOf(p) !== k) : [...prev, e];
-      saveKept(next);
-      return next;
-    });
-  }, []);
-
-  const exportKept = () => {
-    const data = kept.map((e) => ({ ...e, params: generateGarment(e.seed, { type: e.type, rarity: e.rarity }) }));
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "maison-kept-garments.json";
-    a.click();
-    URL.revokeObjectURL(a.href);
+  const openCard = (c: Card) => {
+    setOpen(c);
+    setFlipped(false);
   };
-
-  const regenerate = () => {
-    setView("grid");
-    setBatch(randomSeed());
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const openEntry = open ? entries.find((e) => e.seed === open.seed) : undefined;
-
-  const counts = RARITIES.map((r) => [r, garments.filter((g) => g.params.rarity === r).length] as const);
 
   return (
     <main className="mx-auto max-w-6xl px-5 pb-24 sm:px-8">
@@ -100,132 +67,138 @@ export function LabClient() {
         <span className="eyebrow rounded-full bg-surface px-4 py-2.5">Lab</span>
       </header>
 
+      {/* Maison dashboard */}
       <section className="mt-8">
-        <p className="eyebrow">Atelier lab</p>
-        <h1 className="headline mt-3 text-5xl sm:text-6xl">{view === "kept" ? "Your keeps" : "Fifty looks"}</h1>
-        <p className="mt-3 max-w-lg text-lg leading-snug text-muted">
-          Drawn from a seed, new on every regenerate. Keep the ones you&rsquo;d send down the runway.
+        <p className="eyebrow">Your maison · today</p>
+        <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2">
+          <h1 className="headline text-6xl tabular-nums sm:text-7xl">{Math.round(maison.revenue).toLocaleString("en-US")}</h1>
+          <span className="mb-2 rounded-full bg-surface px-3 py-1.5 text-base font-extrabold tabular-nums" style={{ color: maison.day >= 0 ? UP : DOWN }}>
+            {pct(maison.day)}
+          </span>
+        </div>
+        <p className="mt-2 text-lg text-muted">
+          Revenue in credits · <span style={{ color: maison.week >= 0 ? UP : DOWN }}>{pct(maison.week)}</span> this week
         </p>
+        <div className="mt-4 h-24 rounded-3xl bg-surface px-4 py-3">
+          <Sparkline values={maison.series} up={maison.week >= 0} className="h-full w-full" />
+        </div>
       </section>
 
-      {/* Summary card */}
-      <section className="mt-6 rounded-3xl bg-surface p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="eyebrow">This batch</p>
-            <p className="headline mt-2 text-2xl">
-              {garments.length} looks · {kept.length} kept
-            </p>
+      <section className="mt-3 grid gap-3 md:grid-cols-2">
+        {/* Daily duel */}
+        <div className="rounded-3xl bg-surface p-5">
+          <div className="flex items-center justify-between">
+            <p className="eyebrow">Today&rsquo;s duel</p>
+            <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${winning ? "bg-ivory text-bg" : "bg-accent text-ivory"}`}>
+              {winning ? "Winning" : "Losing"}
+            </span>
           </div>
-          <button
-            onClick={() => setView((v) => (v === "kept" ? "grid" : "kept"))}
-            className="shrink-0 rounded-full bg-bg px-4 py-2 text-sm font-bold"
-          >
-            {view === "kept" ? "All looks" : "Keeps"}
-          </button>
-        </div>
-        <div className="mt-5 grid grid-cols-4 gap-2">
-          {counts.map(([r, n]) => (
-            <div key={r}>
-              <div className="h-1.5 rounded-full bg-surface-2">
-                <div
-                  className={`h-full rounded-full ${r === "legendary" ? "bg-gold" : r === "epic" ? "bg-accent" : "bg-ivory"}`}
-                  style={{ width: `${garments.length ? Math.max(n ? 8 : 0, (n / garments.length) * 100) : 0}%` }}
-                />
-              </div>
-              <p className="mt-2 text-xs text-muted capitalize">
-                {r} <span className="font-bold text-ivory">{n}</span>
+          <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+            <div>
+              <p className="text-lg font-extrabold">You</p>
+              <p className="text-2xl font-extrabold tabular-nums" style={{ color: maison.day >= 0 ? UP : DOWN }}>
+                {pct(maison.day)}
               </p>
+            </div>
+            <span className="font-mono text-sm text-muted">vs</span>
+            <div className="text-right">
+              <p className="truncate text-lg font-extrabold">{rival.name}</p>
+              <p className="text-2xl font-extrabold tabular-nums" style={{ color: rival.day >= 0 ? UP : DOWN }}>
+                {pct(rival.day)}
+              </p>
+            </div>
+          </div>
+          <p className="mt-4 text-sm text-muted">Closes at midnight. Winner takes {GAME_CONFIG.duel.winCredits} cr.</p>
+        </div>
+
+        {/* Movers */}
+        <div className="rounded-3xl bg-surface p-5">
+          <p className="eyebrow">Market movers</p>
+          <ul className="mt-3 divide-y divide-line">
+            {[...movers.up, ...movers.down].map(({ t, s }) => (
+              <li key={t.id} className="flex items-center justify-between py-2">
+                <span className="min-w-0">
+                  <span className="block truncate font-extrabold">{t.name}</span>
+                  <span className="font-mono text-xs text-muted">{FAMILY_LABELS[t.family]}</span>
+                </span>
+                <span className="font-extrabold tabular-nums" style={{ color: s.change >= 0 ? UP : DOWN }}>
+                  {pct(s.change)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* Runway */}
+      <section className="mt-10">
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="eyebrow">On the runway</p>
+            <h2 className="headline mt-2 text-3xl">Your five</h2>
+          </div>
+          <p className="text-sm text-muted">One per family</p>
+        </div>
+        <div className="no-scrollbar -mx-5 mt-4 flex snap-x gap-3 overflow-x-auto px-5 pb-2 sm:mx-0 sm:grid sm:grid-cols-5 sm:px-0">
+          {runway.map((c, i) => (
+            <div key={i} className="w-[46vw] shrink-0 snap-start sm:w-auto">
+              <TrendCard card={c} onClick={() => openCard(c)} />
             </div>
           ))}
         </div>
-        <div className="mt-5 flex gap-2">
-          <button onClick={regenerate} className="flex-1 rounded-2xl bg-ivory py-3.5 text-base font-bold text-bg transition-transform active:scale-[0.98]">
-            Regenerate
-          </button>
-          {kept.length > 0 && (
-            <button onClick={exportKept} className="rounded-2xl bg-surface-2 px-5 py-3.5 text-base font-bold transition-transform active:scale-[0.98]">
-              Export
-            </button>
-          )}
-        </div>
       </section>
 
-      {/* Filters */}
+      {/* Every card */}
+      <section className="mt-10 flex items-end justify-between gap-4">
+        <div>
+          <p className="eyebrow">Card lab</p>
+          <h2 className="headline mt-2 text-3xl">Every card</h2>
+        </div>
+        <button
+          onClick={() => setBatch(randomSeed())}
+          className="rounded-2xl bg-ivory px-6 py-3 text-base font-bold text-bg transition-transform active:scale-[0.97]"
+        >
+          Draw again
+        </button>
+      </section>
+
       <section className="sticky top-0 z-20 -mx-5 mt-4 bg-bg/90 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8">
         <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 sm:mx-0 sm:px-0">
-          <Chip active={rarity === "all"} onClick={() => setRarity("all")}>
+          <Chip active={family === "all"} onClick={() => setFamily("all")}>
             All
+          </Chip>
+          {FAMILIES.map((f) => (
+            <Chip key={f} active={family === f} onClick={() => setFamily(f)}>
+              {FAMILY_LABELS[f]}
+            </Chip>
+          ))}
+        </div>
+        <div className="no-scrollbar -mx-5 mt-2 flex gap-2 overflow-x-auto px-5 sm:mx-0 sm:px-0">
+          <Chip active={rarity === "all"} onClick={() => setRarity("all")}>
+            Any rarity
           </Chip>
           {RARITIES.map((r) => (
             <Chip key={r} active={rarity === r} onClick={() => setRarity(r)}>
               <span className="capitalize">{r}</span>
             </Chip>
           ))}
-          <span className="mx-1 w-px shrink-0 bg-line" />
-          <Chip active={figure} onClick={() => setFigure((v) => !v)}>
-            Figure
-          </Chip>
-          <Chip active={handDrawn} onClick={() => setHandDrawn((v) => !v)}>
-            Hand-drawn
-          </Chip>
-        </div>
-        <div className="no-scrollbar -mx-5 mt-2 flex gap-2 overflow-x-auto px-5 sm:mx-0 sm:px-0">
-          <Chip active={type === "all"} onClick={() => setType("all")}>
-            All pieces
-          </Chip>
-          {GARMENT_TYPES.map((t) => (
-            <Chip key={t} active={type === t} onClick={() => setType(t)}>
-              {GARMENT_TYPE_LABELS[t]}
-            </Chip>
-          ))}
         </div>
       </section>
 
-      {view === "kept" && kept.length === 0 && (
-        <div className="mt-6 rounded-3xl bg-surface p-8 text-center text-muted">Nothing kept yet. Tap Keep under a look you love.</div>
-      )}
-
-      {/* Grid */}
-      <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {garments.map(({ entry, params }, i) => {
-          const isKept = keptKeys.has(keyOf(entry));
-          return (
-            <motion.article
-              key={keyOf(entry) + figure + handDrawn}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: Math.min(i, 16) * 0.03, ease: [0.22, 1, 0.36, 1] }}
-              className="flex flex-col rounded-3xl bg-surface p-2.5"
-            >
-              <button
-                onClick={() => setOpen(params)}
-                className={`relative block aspect-[5/8] w-full overflow-hidden rounded-2xl bg-paper ring-${params.rarity}`}
-                aria-label={`Open ${params.name}`}
-              >
-                <span className={`absolute bottom-2.5 left-2.5 z-10 rounded-full px-2.5 py-1 text-[11px] font-bold capitalize ${RARITY_PILL[params.rarity]}`}>
-                  {params.rarity}
-                </span>
-                <GarmentSVG params={params} figure={figure} handDrawn={handDrawn} background={false} className="h-full w-full" />
-              </button>
-              <div className="flex flex-1 flex-col px-1.5 pt-3 pb-1">
-                <h2 className="text-[15px] leading-tight font-extrabold tracking-tight">{params.name}</h2>
-                <div className="mt-auto flex items-center justify-between gap-2 pt-3">
-                  <span className="font-mono text-[11px] text-muted">{params.seed}</span>
-                  <button
-                    onClick={() => toggleKeep(entry)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${isKept ? "bg-ivory text-bg" : "bg-bg text-ivory"}`}
-                  >
-                    {isKept ? "Kept" : "Keep"}
-                  </button>
-                </div>
-              </div>
-            </motion.article>
-          );
-        })}
+      <section className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {cards.map((c, i) => (
+          <motion.div
+            key={`${batch}-${i}-${family}-${rarity}`}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: Math.min(i, 12) * 0.035, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <TrendCard card={c} onClick={() => openCard(c)} />
+          </motion.div>
+        ))}
       </section>
 
-      {/* Detail */}
+      {/* Detail sheet */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -235,42 +208,7 @@ export function LabClient() {
             exit={{ opacity: 0, y: 24 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="mx-auto max-w-5xl px-5 pt-6 pb-12 sm:px-8">
-              <button onClick={() => setOpen(null)} className="flex items-center gap-2 text-lg font-bold text-muted hover:text-ivory">
-                <span aria-hidden>&lsaquo;</span> Back
-              </button>
-              <div className="mt-6 flex flex-col gap-6 md:flex-row">
-                <div className="rounded-3xl bg-surface p-3 md:w-[420px]">
-                  <div className={`aspect-[5/8] w-full overflow-hidden rounded-2xl bg-paper ring-${open.rarity}`}>
-                    <GarmentSVG params={open} figure={figure} handDrawn={handDrawn} background={false} className="h-full w-full" />
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <p className="eyebrow">
-                    {open.rarity} · {GARMENT_TYPE_LABELS[open.type]}
-                  </p>
-                  <h2 className="headline mt-3 text-4xl sm:text-5xl">{open.name}</h2>
-                  <div className="mt-6 grid grid-cols-2 gap-3">
-                    <Stat label="Intensity" value={`${Math.round(open.intensity * 100)}`} bar={open.intensity} />
-                    <Stat label="Seed" value={open.seed} mono />
-                    <Stat label="Material" value={open.material.id} />
-                    <Stat label="Finish" value={open.finish} />
-                  </div>
-                  {openEntry && (
-                    <button
-                      onClick={() => toggleKeep(openEntry)}
-                      className="mt-6 w-full rounded-2xl bg-ivory py-4 text-lg font-bold text-bg transition-transform active:scale-[0.98]"
-                    >
-                      {keptKeys.has(keyOf(openEntry)) ? "Kept" : "Keep this look"}
-                    </button>
-                  )}
-                  <details className="mt-6 rounded-3xl bg-surface p-5">
-                    <summary className="eyebrow cursor-pointer">Parameters</summary>
-                    <pre className="mt-4 overflow-x-auto font-mono text-[11px] leading-relaxed text-muted">{JSON.stringify(open, null, 2)}</pre>
-                  </details>
-                </div>
-              </div>
-            </div>
+            <CardSheet card={open} flipped={flipped} onFlip={() => setFlipped((v) => !v)} onClose={() => setOpen(null)} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -278,20 +216,61 @@ export function LabClient() {
   );
 }
 
-const RARITY_PILL: Record<Rarity, string> = {
-  common: "bg-bg/80 text-ivory",
-  rare: "bg-bg text-ivory",
-  epic: "bg-accent text-ivory",
-  legendary: "bg-gold text-bg",
-};
+function CardSheet({ card, flipped, onFlip, onClose }: { card: Card; flipped: boolean; onFlip: () => void; onClose: () => void }) {
+  const s = marketStats(card.trend.id);
+  const value = cardValue(card, s);
+  const sell = sellValue(card, s);
+  const expiry = Math.floor(value * GAME_CONFIG.cards.expirySellRate);
+  return (
+    <div className="mx-auto max-w-5xl px-5 pt-6 pb-12 sm:px-8">
+      <button onClick={onClose} className="flex items-center gap-2 text-lg font-bold text-muted hover:text-ivory">
+        <span aria-hidden>&lsaquo;</span> Back
+      </button>
+      <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-start">
+        <div className="mx-auto w-full max-w-[340px] md:mx-0">
+          <TrendCard card={card} flipped={flipped} onClick={onFlip} />
+          <p className="mt-3 text-center text-sm text-muted">Tap the card to flip it</p>
+        </div>
+        <div className="flex-1">
+          <p className="eyebrow">
+            {FAMILY_LABELS[card.trend.family]} · {card.rarity} · ×{GAME_CONFIG.rarityMultiplier[card.rarity]}
+          </p>
+          <h2 className="headline mt-3 text-5xl">{card.trend.name}</h2>
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <Stat label="Worth now" value={`${value.toLocaleString("en-US")} cr`} />
+            <Stat label="Today" value={pct(s.change)} color={s.change >= 0 ? UP : DOWN} />
+            <Stat label="Last 7 days" value={pct(s.week)} color={s.week >= 0 ? UP : DOWN} />
+            <Stat label="Contract" value={`${card.daysLeft} days`} bar={card.daysLeft / GAME_CONFIG.cards.lifespanDays} />
+          </div>
+          <div className="mt-3 rounded-3xl bg-surface p-5">
+            <p className="text-sm leading-relaxed text-muted">
+              Sell now for <span className="font-extrabold text-ivory">{sell.toLocaleString("en-US")} cr</span> (
+              {Math.round(GAME_CONFIG.cards.sellFee * 100)}% fee), or hold and ride the trend. If it expires, it&rsquo;s sold at{" "}
+              {Math.round(GAME_CONFIG.cards.expirySellRate * 100)}%: {expiry.toLocaleString("en-US")} cr.
+            </p>
+          </div>
+          <div className="mt-4 flex gap-3">
+            <button className="flex-1 rounded-2xl bg-ivory py-4 text-lg font-bold text-bg transition-transform active:scale-[0.98]">Put on runway</button>
+            <button className="flex-1 rounded-2xl bg-surface-2 py-4 text-lg font-bold transition-transform active:scale-[0.98]">
+              Sell · {sell.toLocaleString("en-US")}
+            </button>
+          </div>
+          <p className="mt-3 text-center font-mono text-xs text-muted">Demo: buttons go live in Phase 2</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-function Stat({ label, value, bar, mono }: { label: string; value: string; bar?: number; mono?: boolean }) {
+function Stat({ label, value, color, bar }: { label: string; value: string; color?: string; bar?: number }) {
   return (
     <div className="rounded-3xl bg-surface p-5">
-      <p className={`text-2xl font-extrabold tracking-tight capitalize ${mono ? "font-mono text-lg normal-case" : ""}`}>{value}</p>
+      <p className="text-2xl font-extrabold tracking-tight tabular-nums" style={color ? { color } : undefined}>
+        {value}
+      </p>
       {bar !== undefined && (
         <div className="mt-3 h-1.5 rounded-full bg-surface-2">
-          <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(4, bar * 100)}%` }} />
+          <div className={`h-full rounded-full ${bar <= 0.25 ? "bg-accent" : "bg-ivory"}`} style={{ width: `${Math.max(4, bar * 100)}%` }} />
         </div>
       )}
       <p className="mt-2 text-sm text-muted">{label}</p>

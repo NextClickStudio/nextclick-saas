@@ -1,28 +1,26 @@
 # Maison
 
-A fashion collectible card game. Mobile-first web app (Next.js + Tailwind, later Supabase + Vercel).
+The stock market of fashion, as a card game. Mobile-first web app (Next.js + Tailwind, later Supabase + Vercel).
 
-## Phase 0 — Atelier Lab
+Every card is a **trend** (a piece, colour, material, detail or aesthetic) with a market index that moves
+every day. Players open a daily pack, put five cards on their runway, and their maison's revenue follows
+the market. Cards are contracts: they expire, and can be sold early.
 
-`/lab` shows 50 procedurally generated garments. Every garment is drawn from a **seed**:
-same seed = same garment, so a card only needs to store a few bytes.
+## Run it
 
 ```
 npm install
-npm run dev              # http://localhost:3000/lab
-npm run check:determinism
+npm run dev      # http://localhost:3000/lab
 ```
 
-### Where things live
+## Where things live
 
 | Path | What |
 | --- | --- |
-| `src/config/game.ts` | Every game number (rarity odds, how extreme each rarity is…) |
-| `src/lib/garment/generate.ts` | Seed → garment parameters (silhouette, sleeves, colour, material…) |
-| `src/lib/garment/parts/*` | The drawing parts: body, top, sleeves, skirt, trousers, outerwear, details |
-| `src/lib/garment/palette.ts` | Curated fashion colours |
-| `src/lib/garment/render.ts` | Parameters → SVG (materials, finishes, hand-drawn filter) |
-| `src/app/lab/` | The lab page |
+| `src/config/game.ts` | Every game number: pack odds, rarity multipliers, card lifespan, sell fee, duel rewards |
+| `src/lib/cards/catalog.ts` | Trend catalogue, demo market data, card value / sell value |
+| `src/lib/cards/materials.ts` | Fabric textures for Material cards (SVG patterns) |
+| `src/components/TrendCard.tsx` | The card (front, back, flip, rarity finishes) |
+| `src/app/lab/` | Lab page: maison dashboard, duel, movers, runway, every card |
 
-Every part hangs on fixed anchor points of the figure (`parts/body.ts`), so a generated
-part can later be replaced by a hand-drawn SVG part without touching the rest.
+Market numbers in the lab are demo data (`sampleHistory`). Real values come from the database in Phase 1–2.

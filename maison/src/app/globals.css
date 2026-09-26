@@ -54,11 +54,7 @@ body {
   color: var(--muted);
 }
 
-.garment svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
+
 
 .no-scrollbar {
   scrollbar-width: none;
@@ -67,23 +63,61 @@ body {
   display: none;
 }
 
-/* Rarity rings around the paper inset */
-.ring-common {
-  box-shadow: 0 0 0 1px var(--line);
+/* ---------- Card rarity finishes ---------- */
+@property --spin {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
 }
-.ring-rare {
-  box-shadow: 0 0 0 2px #cfcac1;
+
+.edge-rare {
+  background: linear-gradient(160deg, rgba(242, 238, 230, 0.7), rgba(242, 238, 230, 0.12) 45%, rgba(242, 238, 230, 0.55));
 }
-.ring-epic {
-  box-shadow:
-    0 0 0 2px var(--ivory),
-    0 0 0 5px var(--surface),
-    0 0 0 6px var(--ivory);
+.edge-epic {
+  background: linear-gradient(160deg, #ff7a5c, #e5452d 35%, #5a1830 70%, #ff7a5c);
 }
-.ring-legendary {
-  box-shadow:
-    0 0 0 2px var(--gold),
-    0 0 0 5px var(--surface),
-    0 0 0 6px var(--gold),
-    0 0 24px 2px rgba(212, 173, 85, 0.25);
+.edge-legendary {
+  background: conic-gradient(from var(--spin), #d4ad55, #fff1c2, #b8863b, #f7dc8f, #8c6424, #d4ad55);
+  animation: holo-spin 5s linear infinite;
+}
+@keyframes holo-spin {
+  to {
+    --spin: 360deg;
+  }
+}
+
+/* Light sweep across legendary artwork */
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.45) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: sweep 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes sweep {
+  0%,
+  35% {
+    transform: translateX(-120%);
+  }
+  75%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edge-legendary,
+  .shimmer::after {
+    animation: none;
+  }
 }

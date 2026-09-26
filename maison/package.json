@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "check:determinism": "tsx scripts/check-determinism.ts"
+    "lint": "eslint"
   },
   "dependencies": {
     "framer-motion": "^13.4.4",
@@ -23,7 +22,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.6",
     "tailwindcss": "^4",
-    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
