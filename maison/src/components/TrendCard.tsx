@@ -2,8 +2,9 @@
 
 import { motion } from "framer-motion";
 import { useId, useMemo } from "react";
-import { GAME_CONFIG } from "@/config/game";
-import { Card, FAMILY_LABELS, cardValue, marketStats, position } from "@/lib/cards/catalog";
+import type { Rarity } from "@/config/game";
+import { FAMILY_LABELS } from "@/lib/cards/catalog";
+import { CardView, cardNumbers } from "@/lib/cards/view";
 import { materialPattern } from "@/lib/cards/materials";
 import { luminance } from "@/lib/cards/palette";
 
@@ -11,7 +12,7 @@ export const UP = "#5fd08a";
 export const DOWN = "#ff5a3d";
 
 interface Props {
-  card: Card;
+  card: CardView;
   flipped?: boolean;
   onClick?: () => void;
   className?: string;
@@ -26,7 +27,7 @@ export function TrendCard({ card, flipped = false, onClick, className = "" }: Pr
     <button
       type="button"
       onClick={onClick}
-      aria-label={`${card.trend.name}, ${card.rarity}`}
+      aria-label={`${card.name}, ${card.rarity}`}
       className={`group relative block aspect-[5/7] w-full [perspective:1200px] ${className}`}
     >
       <motion.div
@@ -45,7 +46,7 @@ export function TrendCard({ card, flipped = false, onClick, className = "" }: Pr
   );
 }
 
-function Edge({ rarity, children }: { rarity: Card["rarity"]; children: React.ReactNode }) {
+function Edge({ rarity, children }: { rarity: Rarity; children: React.ReactNode }) {
   if (rarity === "common") {
     return <div className="h-full w-full rounded-[26px] bg-surface ring-1 ring-line">{children}</div>;
   }
@@ -57,20 +58,18 @@ function Edge({ rarity, children }: { rarity: Card["rarity"]; children: React.Re
   );
 }
 
-export function CardFront({ card }: { card: Card }) {
-  const stats = useMemo(() => marketStats(card.trend.id), [card.trend.id]);
-  const up = stats.change >= 0;
-  const value = cardValue(card, stats);
-  const mult = GAME_CONFIG.rarityMultiplier[card.rarity];
+export function CardFront({ card }: { card: CardView }) {
+  const n = useMemo(() => cardNumbers(card), [card]);
+  const up = n.change >= 0;
   const expiring = card.daysLeft <= 3;
-  const pos = position(card, stats);
+  const pos = n;
 
   return (
     <Edge rarity={card.rarity}>
       <div className="@container flex h-full flex-col p-[4.5cqw] text-left">
         {/* Top row */}
         <div className="flex items-center justify-between">
-          <span className="font-mono text-[3.6cqw] tracking-[0.2em] text-muted uppercase">{FAMILY_LABELS[card.trend.family]}</span>
+          <span className="font-mono text-[3.6cqw] tracking-[0.2em] text-muted uppercase">{FAMILY_LABELS[card.family]}</span>
           <RarityPill rarity={card.rarity} />
         </div>
 
@@ -90,7 +89,7 @@ export function CardFront({ card }: { card: Card }) {
         {/* Market */}
         <div className="mt-[3.5cqw] flex items-end justify-between gap-[2cqw]">
           <div className="min-w-0">
-            <p className="text-[9.5cqw] leading-none font-extrabold tracking-[-0.04em] tabular-nums">{stats.value.toFixed(1)}</p>
+            <p className="text-[9.5cqw] leading-none font-extrabold tracking-[-0.04em] tabular-nums">{card.value.toFixed(1)}</p>
             <p className="mt-[1cqw] font-mono text-[3.2cqw] text-muted">index · 30d</p>
           </div>
           <div className="shrink-0 text-right">
@@ -98,16 +97,20 @@ export function CardFront({ card }: { card: Card }) {
               className="inline-block rounded-full bg-bg px-[3cqw] py-[1.4cqw] text-[4.4cqw] font-extrabold tabular-nums"
               style={{ color: up ? UP : DOWN }}
             >
-              {up ? "▲" : "▼"} {Math.abs(stats.change * 100).toFixed(1)}%
+              {up ? "▲" : "▼"} {Math.abs(n.change * 100).toFixed(1)}%
             </span>
             <p className="mt-[1cqw] font-mono text-[3.2cqw] text-muted">today</p>
           </div>
         </div>
-        <Sparkline values={stats.history} up={stats.history[stats.history.length - 1] >= stats.history[0]} />
+        {card.history.length > 1 ? (
+          <Sparkline values={card.history} up={card.history[card.history.length - 1] >= card.history[0]} />
+        ) : (
+          <div className="mt-[2.5cqw] h-[11cqw]" />
+        )}
 
         {/* Footer */}
         <div className="mt-[2.5cqw] flex items-center justify-between font-mono text-[3.3cqw] text-muted">
-          <span title={`Worth ${value.toLocaleString("en-US")} cr${mult > 1 ? ` · ×${mult}` : ""}`}>
+          <span title={`Worth ${n.worth.toLocaleString("en-US")} cr${n.multiplier > 1 ? ` · ×${n.multiplier}` : ""}`}>
             <span className="font-bold" style={{ color: pos.pnl >= 0 ? UP : DOWN }}>
               {pos.pnl >= 0 ? "+" : "−"}
               {Math.abs(pos.pnl * 100).toFixed(0)}%
@@ -129,7 +132,7 @@ function Badge({ children, className = "", style }: { children: React.ReactNode;
   );
 }
 
-function RarityPill({ rarity }: { rarity: Card["rarity"] }) {
+function RarityPill({ rarity }: { rarity: Rarity }) {
   const cls = {
     common: "bg-surface-2 text-muted",
     rare: "bg-ivory text-bg",
@@ -145,8 +148,8 @@ function nameSize(name: string, max = 15) {
   return Math.min(max, 70 / (longest * 0.6));
 }
 
-function Artwork({ card }: { card: Card }) {
-  const t = card.trend;
+function Artwork({ card }: { card: CardView }) {
+  const t = card;
   const size = nameSize(t.name);
   const title = (color: string) => (
     <h3 className="pb-[1cqw] text-balance break-words" style={{ fontSize: `${size}cqw`, lineHeight: 0.95, letterSpacing: "-0.045em", fontWeight: 900, color }}>
@@ -175,18 +178,19 @@ function Artwork({ card }: { card: Card }) {
         </div>
       );
     case "color": {
-      const ink = luminance(t.hex!) > 0.5 ? "#0e0e0d" : "#f2eee6";
+      const hex = t.style.hex ?? "#777777";
+      const ink = luminance(hex) > 0.5 ? "#0e0e0d" : "#f2eee6";
       return (
-        <div className="flex h-full flex-col justify-between p-[4cqw]" style={{ background: t.hex }}>
+        <div className="flex h-full flex-col justify-between p-[4cqw]" style={{ background: hex }}>
           <span className="font-mono text-[3.2cqw] tracking-[0.12em] uppercase" style={{ color: ink, opacity: 0.75 }}>
-            {t.hex}
+            {hex}
           </span>
           {title(ink)}
         </div>
       );
     }
     case "aesthetic": {
-      const [a, b] = t.mood!;
+      const [a, b] = t.style.mood ?? ["#444444", "#222222"];
       const ink = luminance(a) * 0.4 + luminance(b) * 0.6 > 0.5 ? "#0e0e0d" : "#f2eee6";
       return (
         <div className="flex h-full flex-col justify-between p-[4cqw]" style={{ background: `radial-gradient(120% 90% at 20% 10%, ${a}, ${b})` }}>
@@ -200,10 +204,10 @@ function Artwork({ card }: { card: Card }) {
   }
 }
 
-function MaterialArt({ card, title }: { card: Card; title: (c: string) => React.ReactNode }) {
-  const m = card.trend.material!;
+function MaterialArt({ card, title }: { card: CardView; title: (c: string) => React.ReactNode }) {
+  const m = card.style.material ?? { id: "plain" as const, main: "#555555", accent: "#999999" };
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
-  const pattern = materialPattern(m, uid, m.main, m.accent, card.trend.id);
+  const pattern = materialPattern(m, uid, m.main, m.accent, card.trendId);
   const sheen = m.id === "satin" || m.id === "leather";
   return (
     <div className="relative h-full" style={{ background: m.main }}>

@@ -2,7 +2,8 @@
  * MAISON — game configuration.
  *
  * Every number of the game lives here: probabilities, multipliers, thresholds,
- * durations. Change a value here and the whole app follows.
+ * durations. The server enforces the same numbers from the `maison_config`
+ * table: run `npm run config:sql` and apply the output after changing this file.
  */
 
 export const RARITIES = ["common", "rare", "epic", "legendary"] as const;
@@ -14,6 +15,15 @@ export const GAME_CONFIG = {
     cardsPerPack: 5,
     /** Base odds per card (must sum to 1). */
     rarityOdds: { common: 0.7, rare: 0.22, epic: 0.07, legendary: 0.01 } as Record<Rarity, number>,
+    /** Each day of streak moves this much probability from common to the rarer tiers… */
+    streakBonusPerDay: 0.01,
+    /** …up to this cap. */
+    streakBonusCap: 0.1,
+  },
+
+  /** A new maison starts with these credits. */
+  house: {
+    startCredits: 1000,
   },
 
   /** Rarity boosts a card's market score: a legendary card doubles its trend's move. */

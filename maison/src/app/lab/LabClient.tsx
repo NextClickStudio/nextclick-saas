@@ -7,6 +7,7 @@ import { Wordmark } from "@/components/Wordmark";
 import { GAME_CONFIG, RARITIES, Rarity } from "@/config/game";
 import { Card, FAMILIES, FAMILY_LABELS, Family, TRENDS, cardValue, drawCard, marketStats, position, sellValue } from "@/lib/cards/catalog";
 import { randomSeed } from "@/lib/rng";
+import { demoView } from "@/lib/cards/view";
 
 const pct = (v: number) => `${v >= 0 ? "▲" : "▼"} ${Math.abs(v * 100).toFixed(1)}%`;
 
@@ -142,7 +143,7 @@ export function LabClient() {
         <div className="no-scrollbar -mx-5 mt-4 flex snap-x gap-3 overflow-x-auto px-5 pb-2 sm:mx-0 sm:grid sm:grid-cols-5 sm:px-0">
           {runway.map((c, i) => (
             <div key={i} className="w-[46vw] shrink-0 snap-start sm:w-auto">
-              <TrendCard card={c} onClick={() => openCard(c)} />
+              <TrendCard card={demoView(c)} onClick={() => openCard(c)} />
             </div>
           ))}
         </div>
@@ -193,7 +194,7 @@ export function LabClient() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: Math.min(i, 12) * 0.035, ease: [0.22, 1, 0.36, 1] }}
           >
-            <TrendCard card={c} onClick={() => openCard(c)} />
+            <TrendCard card={demoView(c)} onClick={() => openCard(c)} />
           </motion.div>
         ))}
       </section>
@@ -231,7 +232,7 @@ function CardSheet({ card, flipped, onFlip, onClose }: { card: Card; flipped: bo
       </button>
       <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-start">
         <div className="mx-auto w-full max-w-[340px] md:mx-0">
-          <TrendCard card={card} flipped={flipped} onClick={onFlip} />
+          <TrendCard card={demoView(card)} flipped={flipped} onClick={onFlip} />
           <p className="mt-3 text-center text-sm text-muted">Tap the card to flip it</p>
         </div>
         <div className="flex-1">

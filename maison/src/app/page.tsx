@@ -1,23 +1,23 @@
-import Link from "next/link";
-import { Wordmark } from "@/components/Wordmark";
+import { redirect } from "next/navigation";
+import { Intro } from "@/components/Intro";
+import { loadHistories, loadTrends, trendView } from "@/lib/game/data";
+import { supabaseServer } from "@/lib/supabase/server";
 
-export default function Home() {
-  return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col px-5 pt-6 pb-10">
-      <Wordmark />
-      <div className="mt-auto">
-        <p className="eyebrow">Phase 0</p>
-        <h1 className="headline mt-3 text-5xl">The atelier opens soon.</h1>
-        <p className="mt-4 text-lg leading-snug text-muted">
-          The game starts only when the garments are beautiful. Step into the lab and judge them.
-        </p>
-        <Link
-          href="/lab"
-          className="mt-10 block rounded-2xl bg-ivory py-4 text-center text-lg font-bold text-bg transition-transform active:scale-[0.98]"
-        >
-          Enter the lab
-        </Link>
-      </div>
-    </main>
-  );
+export default async function Home() {
+  const supabase = await supabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    const { data: house } = await supabase.from("maison_houses").select("user_id").eq("user_id", user.id).maybeSingle();
+    redirect(house ? "/home" : "/onboarding");
+  }
+
+  // Three live cards for the intro.
+  const trends = (await loadTrends(supabase, ["mary-janes", "cobalt", "houndstooth"])).sort((a, b) => a.name.localeCompare(b.name));
+  const histories = await loadHistories(supabase, trends);
+  const rarities = ["rare", "legendary", "epic"] as const;
+  const cards = trends.map((t, i) => trendView(t, histories.get(t.id) ?? [], rarities[i % 3]));
+
+  return <Intro cards={cards} />;
 }

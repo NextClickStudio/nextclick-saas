@@ -22,6 +22,8 @@ export interface Trend {
   id: string;
   name: string;
   family: Family;
+  /** What we search for on the trend data source (e.g. Google Trends). */
+  query?: string;
   /** Colour cards: the colour itself. */
   hex?: string;
   /** Material cards: texture + its colours. */
@@ -108,6 +110,66 @@ export const TRENDS: Trend[] = [
   aesthetic("western", "Western", ["#b5773e", "#e8d3b0"]),
   aesthetic("coastal", "Coastal", ["#a9c6d6", "#f2ead8"]),
 ];
+
+/** Search keyword for each trend: fashion-specific so "Bordeaux" isn't the city. */
+const QUERY_OVERRIDES: Record<string, string> = {
+  "long-sleeve": "long sleeve top",
+  cape: "cape coat",
+  "wide-leg": "wide leg pants",
+  mocha: "mocha mousse",
+  sage: "sage green dress",
+  chocolate: "chocolate brown dress",
+  mint: "mint green dress",
+  crochet: "crochet top",
+  tweed: "tweed jacket",
+  satin: "satin dress",
+  pinstripe: "pinstripe suit",
+  plisse: "pleated skirt",
+  sequins: "sequin dress",
+  polka: "polka dot dress",
+  florals: "floral dress",
+  gingham: "gingham dress",
+  bows: "bow top",
+  fringe: "fringe jacket",
+  studs: "studded boots",
+  ruffles: "ruffle dress",
+  buckles: "belt buckle",
+  peplum: "peplum top",
+  "cut-outs": "cut out dress",
+  "drop-waist": "drop waist dress",
+  collars: "statement collar",
+  pearls: "pearl necklace",
+  chains: "chain necklace",
+  feathers: "feather dress",
+  y2k: "y2k fashion",
+  minimal: "minimalist fashion",
+  western: "western boots",
+  coastal: "coastal grandmother",
+  "mob-wife": "mob wife aesthetic",
+  "old-money": "old money outfit",
+  "quiet-luxury": "quiet luxury",
+  "indie-sleaze": "indie sleaze",
+  "office-siren": "office siren",
+  balletcore: "balletcore",
+  gorpcore: "gorpcore",
+};
+
+export function trendQuery(t: Trend): string {
+  if (t.query) return t.query;
+  if (QUERY_OVERRIDES[t.id]) return QUERY_OVERRIDES[t.id];
+  const n = t.name.toLowerCase();
+  switch (t.family) {
+    case "piece":
+      return n;
+    case "color":
+      return `${n} dress`;
+    case "material":
+    case "detail":
+      return n;
+    case "aesthetic":
+      return `${n} aesthetic`;
+  }
+}
 
 export const trendById = (id: string) => TRENDS.find((t) => t.id === id);
 
