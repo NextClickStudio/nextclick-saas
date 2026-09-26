@@ -143,6 +143,36 @@ export function marketStats(trendId: string): MarketStats {
   return { value, change: value / prev - 1, week: value / weekAgo - 1, history };
 }
 
+/** Days the player has held the card. */
+export const daysHeld = (card: Card) => GAME_CONFIG.cards.lifespanDays - card.daysLeft;
+
+export interface Position {
+  /** Index when the card was pulled from the pack. */
+  boughtAt: number;
+  /** Gain since the pull, e.g. 0.34 = +34%. */
+  pnl: number;
+  /** Credits gained (or lost) since the pull, before the sell fee. */
+  pnlCredits: number;
+  /** Index is at its highest in the chart window. */
+  ath: boolean;
+  hype: "pumping" | "dumping" | null;
+}
+
+/** How the card has done since it was pulled, like a coin in a wallet. */
+export function position(card: Card, stats = marketStats(card.trend.id)): Position {
+  const h = stats.history;
+  const boughtAt = h[Math.max(0, h.length - 1 - daysHeld(card))];
+  const perPoint = GAME_CONFIG.rarityMultiplier[card.rarity] * GAME_CONFIG.market.creditsPerPoint;
+  const t = GAME_CONFIG.cards.hypeThreshold;
+  return {
+    boughtAt,
+    pnl: stats.value / boughtAt - 1,
+    pnlCredits: Math.round((stats.value - boughtAt) * perPoint),
+    ath: stats.value >= Math.max(...h),
+    hype: stats.change >= t ? "pumping" : stats.change <= -t ? "dumping" : null,
+  };
+}
+
 /** Credits a card is worth right now. */
 export function cardValue(card: Card, stats = marketStats(card.trend.id)): number {
   return Math.round(stats.value * GAME_CONFIG.rarityMultiplier[card.rarity] * GAME_CONFIG.market.creditsPerPoint);

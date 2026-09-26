@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { useId, useMemo } from "react";
 import { GAME_CONFIG } from "@/config/game";
-import { Card, FAMILY_LABELS, cardValue, marketStats } from "@/lib/cards/catalog";
+import { Card, FAMILY_LABELS, cardValue, marketStats, position } from "@/lib/cards/catalog";
 import { materialPattern } from "@/lib/cards/materials";
 import { luminance } from "@/lib/cards/palette";
 
@@ -63,6 +63,7 @@ export function CardFront({ card }: { card: Card }) {
   const value = cardValue(card, stats);
   const mult = GAME_CONFIG.rarityMultiplier[card.rarity];
   const expiring = card.daysLeft <= 3;
+  const pos = position(card, stats);
 
   return (
     <Edge rarity={card.rarity}>
@@ -76,6 +77,14 @@ export function CardFront({ card }: { card: Card }) {
         {/* Artwork */}
         <div className={`relative mt-[3cqw] flex-1 overflow-hidden rounded-[18px] ${card.rarity === "legendary" ? "shimmer" : ""}`}>
           <Artwork card={card} />
+          <div className="absolute top-[3cqw] right-[3cqw] flex gap-[1.5cqw]">
+            {pos.ath && <Badge className="bg-ivory text-bg">ATH</Badge>}
+            {pos.hype && (
+              <Badge className="bg-bg" style={{ color: pos.hype === "pumping" ? UP : DOWN }}>
+                {pos.hype === "pumping" ? "Pumping" : "Dumping"}
+              </Badge>
+            )}
+          </div>
         </div>
 
         {/* Market */}
@@ -98,13 +107,25 @@ export function CardFront({ card }: { card: Card }) {
 
         {/* Footer */}
         <div className="mt-[2.5cqw] flex items-center justify-between font-mono text-[3.3cqw] text-muted">
-          <span>
-            <span className="font-bold text-ivory">{value.toLocaleString("en-US")}</span> cr{mult > 1 ? ` · ×${mult}` : ""}
+          <span title={`Worth ${value.toLocaleString("en-US")} cr${mult > 1 ? ` · ×${mult}` : ""}`}>
+            <span className="font-bold" style={{ color: pos.pnl >= 0 ? UP : DOWN }}>
+              {pos.pnl >= 0 ? "+" : "−"}
+              {Math.abs(pos.pnl * 100).toFixed(0)}%
+            </span>{" "}
+            since pull
           </span>
           <span className={expiring ? "font-bold text-accent" : ""}>{card.daysLeft}d left</span>
         </div>
       </div>
     </Edge>
+  );
+}
+
+function Badge({ children, className = "", style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
+  return (
+    <span className={`rounded-full px-[2.4cqw] py-[0.9cqw] text-[3.2cqw] font-extrabold ${className}`} style={style}>
+      {children}
+    </span>
   );
 }
 

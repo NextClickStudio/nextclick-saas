@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { DOWN, Sparkline, TrendCard, UP } from "@/components/TrendCard";
 import { Wordmark } from "@/components/Wordmark";
 import { GAME_CONFIG, RARITIES, Rarity } from "@/config/game";
-import { Card, FAMILIES, FAMILY_LABELS, Family, TRENDS, cardValue, drawCard, marketStats, sellValue } from "@/lib/cards/catalog";
+import { Card, FAMILIES, FAMILY_LABELS, Family, TRENDS, cardValue, drawCard, marketStats, position, sellValue } from "@/lib/cards/catalog";
 import { randomSeed } from "@/lib/rng";
 
 const pct = (v: number) => `${v >= 0 ? "▲" : "▼"} ${Math.abs(v * 100).toFixed(1)}%`;
@@ -221,6 +221,9 @@ function CardSheet({ card, flipped, onFlip, onClose }: { card: Card; flipped: bo
   const value = cardValue(card, s);
   const sell = sellValue(card, s);
   const expiry = Math.floor(value * GAME_CONFIG.cards.expirySellRate);
+  const pos = position(card, s);
+  const profit = pos.pnl >= 0;
+  const signed = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toLocaleString("en-US")}`;
   return (
     <div className="mx-auto max-w-5xl px-5 pt-6 pb-12 sm:px-8">
       <button onClick={onClose} className="flex items-center gap-2 text-lg font-bold text-muted hover:text-ivory">
@@ -237,6 +240,12 @@ function CardSheet({ card, flipped, onFlip, onClose }: { card: Card; flipped: bo
           </p>
           <h2 className="headline mt-3 text-5xl">{card.trend.name}</h2>
           <div className="mt-6 grid grid-cols-2 gap-3">
+            <Stat
+              label={`Since you pulled it at ${pos.boughtAt.toFixed(1)}`}
+              value={`${profit ? "+" : "−"}${Math.abs(pos.pnl * 100).toFixed(1)}%`}
+              color={profit ? UP : DOWN}
+            />
+            <Stat label="Profit / loss" value={`${signed(pos.pnlCredits)} cr`} color={profit ? UP : DOWN} />
             <Stat label="Worth now" value={`${value.toLocaleString("en-US")} cr`} />
             <Stat label="Today" value={pct(s.change)} color={s.change >= 0 ? UP : DOWN} />
             <Stat label="Last 7 days" value={pct(s.week)} color={s.week >= 0 ? UP : DOWN} />
@@ -244,16 +253,19 @@ function CardSheet({ card, flipped, onFlip, onClose }: { card: Card; flipped: bo
           </div>
           <div className="mt-3 rounded-3xl bg-surface p-5">
             <p className="text-sm leading-relaxed text-muted">
-              Sell now for <span className="font-extrabold text-ivory">{sell.toLocaleString("en-US")} cr</span> (
-              {Math.round(GAME_CONFIG.cards.sellFee * 100)}% fee), or hold and ride the trend. If it expires, it&rsquo;s sold at{" "}
-              {Math.round(GAME_CONFIG.cards.expirySellRate * 100)}%: {expiry.toLocaleString("en-US")} cr.
+              {profit ? "It's up. Take the profit now, or hold for more and risk the drop." : "It's down. Cut the loss now, or hold and wait for the rebound."}{" "}
+              Selling pays <span className="font-extrabold text-ivory">{sell.toLocaleString("en-US")} cr</span> ({Math.round(GAME_CONFIG.cards.sellFee * 100)}% fee).
+              If it expires, it&rsquo;s sold at {Math.round(GAME_CONFIG.cards.expirySellRate * 100)}%: {expiry.toLocaleString("en-US")} cr.
             </p>
           </div>
           <div className="mt-4 flex gap-3">
-            <button className="flex-1 rounded-2xl bg-ivory py-4 text-lg font-bold text-bg transition-transform active:scale-[0.98]">Put on runway</button>
-            <button className="flex-1 rounded-2xl bg-surface-2 py-4 text-lg font-bold transition-transform active:scale-[0.98]">
-              Sell · {sell.toLocaleString("en-US")}
+            <button
+              className="flex-1 rounded-2xl py-4 text-lg font-bold text-bg transition-transform active:scale-[0.98]"
+              style={{ background: profit ? UP : "#f2eee6" }}
+            >
+              {profit ? "Take profit" : "Cut loss"} · {sell.toLocaleString("en-US")}
             </button>
+            <button className="flex-1 rounded-2xl bg-surface-2 py-4 text-lg font-bold transition-transform active:scale-[0.98]">Hold on runway</button>
           </div>
           <p className="mt-3 text-center font-mono text-xs text-muted">Demo: buttons go live in Phase 2</p>
         </div>

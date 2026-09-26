@@ -32,8 +32,10 @@ export const GAME_CONFIG = {
   cards: {
     /** Days a card stays active after it's unpacked. At expiry it's auto-sold. */
     lifespanDays: 14,
-    /** Selling early costs a fee (0.1 = you get 90% of the value). */
+    /** Cards can be sold any time, rising or falling. Selling costs a fee (0.1 = you keep 90%). */
     sellFee: 0.1,
+    /** Day moves above this show "Pumping" / below minus this show "Dumping". */
+    hypeThreshold: 0.03,
     /** At expiry the card is sold at this share of its value. */
     expirySellRate: 0.5,
   },
