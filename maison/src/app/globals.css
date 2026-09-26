@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+/* Maison palette: ivory, ink, warm grey. Colour only comes from the cards. */
+:root {
+  --ivory: #f4efe6;
+  --paper: #faf7f1;
+  --ink: #161514;
+  --warm-grey: #8a8279;
+  --line: #d9d1c4;
+  --gold: #b8943f;
+}
+
+@theme inline {
+  --color-ivory: var(--ivory);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-warm: var(--warm-grey);
+  --color-line: var(--line);
+  --color-gold: var(--gold);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+}
+
+html,
+body {
+  background: var(--ivory);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+}
+
+/* Small caps label with wide tracking */
+.label {
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.garment svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Rarity frames: thin lines, never heavy. */
+.frame-common,
+.frame-rare,
+.frame-epic,
+.frame-legendary {
+  position: relative;
+}
+.frame-common {
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.frame-rare {
+  box-shadow:
+    inset 0 0 0 1px var(--ink),
+    inset 0 0 0 4px var(--paper),
+    inset 0 0 0 5px var(--line);
+}
+.frame-epic {
+  box-shadow:
+    inset 0 0 0 1px var(--ink),
+    inset 0 0 0 4px var(--paper),
+    inset 0 0 0 5px var(--ink);
+}
+.frame-legendary {
+  box-shadow:
+    inset 0 0 0 1px var(--gold),
+    inset 0 0 0 4px var(--paper),
+    inset 0 0 0 5px var(--gold),
+    inset 0 0 0 6px var(--paper),
+    inset 0 0 0 7px var(--gold);
+}
