@@ -92,16 +92,27 @@ export function LabClient() {
 
   return (
     <main className="mx-auto max-w-7xl px-4 pb-24 sm:px-8">
-      <header className="flex flex-col items-center pt-12 pb-8 text-center">
-        <p className="label text-warm">Atelier Lab</p>
-        <h1 className="font-display mt-4 text-4xl tracking-[0.18em] uppercase sm:text-6xl">Maison</h1>
-        <p className="mt-4 max-w-md text-sm leading-relaxed text-warm">
-          Fifty garments, drawn from a seed. Keep the ones you would put on the runway.
-        </p>
+      {/* Masthead: cover-page energy */}
+      <header className="-mx-4 bg-ink px-4 pt-6 pb-8 text-ivory sm:-mx-8 sm:px-8 sm:pt-8">
+        <div className="flex items-center justify-between border-b border-ivory/30 pb-3">
+          <span className="label">Issue 00</span>
+          <span className="label">Atelier Lab</span>
+          <span className="label">{new Date().getFullYear()}</span>
+        </div>
+        <h1 className="masthead mt-6 text-center text-[20.5vw] sm:text-[19vw] xl:text-[15rem]">Maison</h1>
+        <div className="mt-6 flex items-end justify-between gap-6">
+          <p className="font-display max-w-xs text-lg leading-tight italic sm:text-2xl">
+            Fifty looks, drawn from a seed. Keep the ones you&rsquo;d send down the runway.
+          </p>
+          <p className="font-poster shrink-0 text-right text-5xl leading-none sm:text-7xl">
+            {GAME_CONFIG.lab.gridSize}
+            <span className="block text-sm tracking-[0.3em]">Looks</span>
+          </p>
+        </div>
       </header>
 
       {/* Controls */}
-      <section className="z-20 -mx-4 border-y lg:sticky lg:top-0 border-line bg-ivory/95 px-4 py-4 backdrop-blur sm:-mx-8 sm:px-8">
+      <section className="z-20 -mx-4 border-b-2 border-ink bg-ivory/95 px-4 py-4 backdrop-blur sm:-mx-8 sm:px-8 lg:sticky lg:top-0">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div className="-mx-4 flex gap-x-1 overflow-x-auto px-4 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:px-0">
             <Chip active={rarity === "all"} onClick={() => setRarity("all")}>
@@ -125,7 +136,7 @@ export function LabClient() {
           </div>
         </div>
         <div className="mt-3 flex items-center gap-2 overflow-x-auto [scrollbar-width:none]">
-          <button onClick={regenerate} className="label shrink-0 bg-ink px-5 py-2.5 text-ivory transition-opacity hover:opacity-80">
+          <button onClick={regenerate} className="font-poster shrink-0 bg-ink px-6 py-2.5 text-lg text-ivory transition-transform hover:-translate-y-0.5">
             Regenerate
           </button>
           <Chip active={figure} onClick={() => setFigure((v) => !v)}>
@@ -151,7 +162,7 @@ export function LabClient() {
       )}
 
       {/* Grid */}
-      <section className="mt-8 grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-5">
+      <section className="mt-8 grid grid-cols-2 gap-x-3 gap-y-10 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-5">
         {garments.map(({ entry, params }, i) => (
           <motion.article
             key={keyOf(entry) + figure + handDrawn}
@@ -160,14 +171,19 @@ export function LabClient() {
             transition={{ duration: 0.6, delay: Math.min(i, 20) * 0.025, ease: [0.22, 1, 0.36, 1] }}
             className="flex flex-col"
           >
-            <button onClick={() => setOpen(params)} className={`relative block aspect-[5/8] w-full bg-ivory p-2 frame-${params.rarity}`} aria-label={`Open ${params.name}`}>
-              <GarmentSVG params={params} figure={figure} handDrawn={handDrawn} background={false} className="h-full w-full" />
+            <button
+              onClick={() => setOpen(params)}
+              className={`group relative block aspect-[5/8] w-full overflow-hidden bg-ivory p-2 frame-${params.rarity}`}
+              aria-label={`Open ${params.name}`}
+            >
+              <span className="font-poster pointer-events-none absolute top-1 left-3 z-10 text-4xl text-ink/90 sm:text-5xl">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span className={`label absolute top-3 right-3 z-10 px-1.5 py-0.5 text-[0.55rem] ${RARITY_TAG[params.rarity]}`}>{params.rarity}</span>
+              <GarmentSVG params={params} figure={figure} handDrawn={handDrawn} background={false} className="h-full w-full transition-transform duration-700 group-hover:scale-[1.03]" />
             </button>
-            <div className="mt-3 flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className={`label ${params.rarity === "legendary" ? "text-gold" : "text-warm"}`}>{params.rarity}</p>
-                <h2 className="font-display mt-1 text-[0.95rem] leading-snug">{params.name}</h2>
-              </div>
+            <div className="mt-3 flex items-start justify-between gap-2 border-t-2 border-ink pt-2">
+              <h2 className="font-display min-w-0 text-[1rem] leading-[1.15] font-bold italic">{params.name}</h2>
               <button
                 onClick={() => toggleKeep(entry)}
                 className={`label shrink-0 border px-2 py-1 transition-colors ${keptKeys.has(keyOf(entry)) ? "border-ink bg-ink text-ivory" : "border-line text-warm hover:border-ink hover:text-ink"}`}
@@ -202,7 +218,9 @@ export function LabClient() {
                 <p className={`label ${open.rarity === "legendary" ? "text-gold" : "text-warm"}`}>
                   {open.rarity} · {GARMENT_TYPE_LABELS[open.type]}
                 </p>
-                <h2 className="font-display mt-3 text-3xl leading-tight">{open.name}</h2>
+                <h2 className="masthead mt-3 text-5xl sm:text-6xl" style={{ letterSpacing: "-0.03em", lineHeight: 0.9 }}>
+                  {open.name}
+                </h2>
                 <dl className="mt-8 grid grid-cols-2 gap-y-3 border-t border-line pt-6 text-sm">
                   <dt className="label text-warm">Seed</dt>
                   <dd className="font-mono">{open.seed}</dd>
@@ -216,7 +234,7 @@ export function LabClient() {
                 {openEntry && (
                   <button
                     onClick={() => toggleKeep(openEntry)}
-                    className="label mt-8 border border-ink px-6 py-3 transition-colors hover:bg-ink hover:text-ivory"
+                    className="font-poster mt-8 bg-ink px-8 py-3 text-xl text-ivory transition-transform hover:-translate-y-0.5"
                   >
                     {keptKeys.has(keyOf(openEntry)) ? "Kept" : "Keep this piece"}
                   </button>
@@ -234,12 +252,19 @@ export function LabClient() {
   );
 }
 
+const RARITY_TAG: Record<Rarity, string> = {
+  common: "border border-ink/40 text-ink/70",
+  rare: "bg-ink text-ivory",
+  epic: "bg-ink text-ivory outline outline-1 outline-offset-2 outline-ink",
+  legendary: "bg-gold text-ink",
+};
+
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`label shrink-0 whitespace-nowrap border px-3 py-2 transition-colors ${active ? "border-ink text-ink" : "border-transparent text-warm hover:text-ink"}`}
+      className={`font-poster shrink-0 whitespace-nowrap px-3 py-1.5 text-base transition-colors ${active ? "bg-ink text-ivory" : "text-ink/45 hover:text-ink"}`}
     >
       {children}
     </button>

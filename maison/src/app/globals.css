@@ -19,6 +19,7 @@
   --color-gold: var(--gold);
   --font-display: var(--font-display);
   --font-sans: var(--font-sans);
+  --font-poster: var(--font-poster);
 }
 
 html,
@@ -34,6 +35,22 @@ body {
 
 .font-display {
   font-family: var(--font-display), Georgia, serif;
+}
+
+/* Condensed poster type for numbers and headlines */
+.font-poster {
+  font-family: var(--font-poster), Impact, sans-serif;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+/* Masthead: heavy high-contrast serif, tight */
+.masthead {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 0.82;
+  text-transform: uppercase;
 }
 
 /* Small caps label with wide tracking */
