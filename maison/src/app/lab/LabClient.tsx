@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GarmentSVG } from "@/components/GarmentSVG";
+import { Wordmark } from "@/components/Wordmark";
 import { GAME_CONFIG, RARITIES, Rarity } from "@/config/game";
 import { generateGarment } from "@/lib/garment/generate";
 import { randomSeed } from "@/lib/garment/rng";
@@ -90,159 +91,184 @@ export function LabClient() {
 
   const openEntry = open ? entries.find((e) => e.seed === open.seed) : undefined;
 
+  const counts = RARITIES.map((r) => [r, garments.filter((g) => g.params.rarity === r).length] as const);
+
   return (
-    <main className="mx-auto max-w-7xl px-4 pb-24 sm:px-8">
-      {/* Masthead: cover-page energy */}
-      <header className="-mx-4 bg-ink px-4 pt-6 pb-8 text-ivory sm:-mx-8 sm:px-8 sm:pt-8">
-        <div className="flex items-center justify-between border-b border-ivory/30 pb-3">
-          <span className="label">Issue 00</span>
-          <span className="label">Atelier Lab</span>
-          <span className="label">{new Date().getFullYear()}</span>
-        </div>
-        <h1 className="masthead mt-6 text-center text-[20.5vw] sm:text-[19vw] xl:text-[15rem]">Maison</h1>
-        <div className="mt-6 flex items-end justify-between gap-6">
-          <p className="font-display max-w-xs text-lg leading-tight italic sm:text-2xl">
-            Fifty looks, drawn from a seed. Keep the ones you&rsquo;d send down the runway.
-          </p>
-          <p className="font-poster shrink-0 text-right text-5xl leading-none sm:text-7xl">
-            {GAME_CONFIG.lab.gridSize}
-            <span className="block text-sm tracking-[0.3em]">Looks</span>
-          </p>
-        </div>
+    <main className="mx-auto max-w-6xl px-5 pb-24 sm:px-8">
+      <header className="flex items-center justify-between pt-6">
+        <Wordmark />
+        <span className="eyebrow rounded-full bg-surface px-4 py-2.5">Lab</span>
       </header>
 
-      {/* Controls */}
-      <section className="z-20 -mx-4 border-b-2 border-ink bg-ivory/95 px-4 py-4 backdrop-blur sm:-mx-8 sm:px-8 lg:sticky lg:top-0">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div className="-mx-4 flex gap-x-1 overflow-x-auto px-4 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:px-0">
-            <Chip active={rarity === "all"} onClick={() => setRarity("all")}>
-              All rarities
-            </Chip>
-            {RARITIES.map((r) => (
-              <Chip key={r} active={rarity === r} onClick={() => setRarity(r)}>
-                {r}
-              </Chip>
-            ))}
+      <section className="mt-8">
+        <p className="eyebrow">Atelier lab</p>
+        <h1 className="headline mt-3 text-5xl sm:text-6xl">{view === "kept" ? "Your keeps" : "Fifty looks"}</h1>
+        <p className="mt-3 max-w-lg text-lg leading-snug text-muted">
+          Drawn from a seed, new on every regenerate. Keep the ones you&rsquo;d send down the runway.
+        </p>
+      </section>
+
+      {/* Summary card */}
+      <section className="mt-6 rounded-3xl bg-surface p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="eyebrow">This batch</p>
+            <p className="headline mt-2 text-2xl">
+              {garments.length} looks · {kept.length} kept
+            </p>
           </div>
-          <div className="-mx-4 flex gap-x-1 overflow-x-auto px-4 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:px-0">
-            <Chip active={type === "all"} onClick={() => setType("all")}>
-              All pieces
-            </Chip>
-            {GARMENT_TYPES.map((t) => (
-              <Chip key={t} active={type === t} onClick={() => setType(t)}>
-                {GARMENT_TYPE_LABELS[t]}
-              </Chip>
-            ))}
-          </div>
+          <button
+            onClick={() => setView((v) => (v === "kept" ? "grid" : "kept"))}
+            className="shrink-0 rounded-full bg-bg px-4 py-2 text-sm font-bold"
+          >
+            {view === "kept" ? "All looks" : "Keeps"}
+          </button>
         </div>
-        <div className="mt-3 flex items-center gap-2 overflow-x-auto [scrollbar-width:none]">
-          <button onClick={regenerate} className="font-poster shrink-0 bg-ink px-6 py-2.5 text-lg text-ivory transition-transform hover:-translate-y-0.5">
+        <div className="mt-5 grid grid-cols-4 gap-2">
+          {counts.map(([r, n]) => (
+            <div key={r}>
+              <div className="h-1.5 rounded-full bg-surface-2">
+                <div
+                  className={`h-full rounded-full ${r === "legendary" ? "bg-gold" : r === "epic" ? "bg-accent" : "bg-ivory"}`}
+                  style={{ width: `${garments.length ? Math.max(n ? 8 : 0, (n / garments.length) * 100) : 0}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-muted capitalize">
+                {r} <span className="font-bold text-ivory">{n}</span>
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 flex gap-2">
+          <button onClick={regenerate} className="flex-1 rounded-2xl bg-ivory py-3.5 text-base font-bold text-bg transition-transform active:scale-[0.98]">
             Regenerate
           </button>
-          <Chip active={figure} onClick={() => setFigure((v) => !v)}>
-            Figure
-          </Chip>
-          <Chip active={handDrawn} onClick={() => setHandDrawn((v) => !v)}>
-            Hand-drawn
-          </Chip>
-          <span className="mx-1 hidden h-4 w-px bg-line sm:block" />
-          <Chip active={view === "kept"} onClick={() => setView((v) => (v === "kept" ? "grid" : "kept"))}>
-            Kept · {kept.length}
-          </Chip>
           {kept.length > 0 && (
-            <button onClick={exportKept} className="label px-2 py-2 text-warm underline-offset-4 hover:underline">
+            <button onClick={exportKept} className="rounded-2xl bg-surface-2 px-5 py-3.5 text-base font-bold transition-transform active:scale-[0.98]">
               Export
             </button>
           )}
         </div>
       </section>
 
+      {/* Filters */}
+      <section className="sticky top-0 z-20 -mx-5 mt-4 bg-bg/90 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8">
+        <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 sm:mx-0 sm:px-0">
+          <Chip active={rarity === "all"} onClick={() => setRarity("all")}>
+            All
+          </Chip>
+          {RARITIES.map((r) => (
+            <Chip key={r} active={rarity === r} onClick={() => setRarity(r)}>
+              <span className="capitalize">{r}</span>
+            </Chip>
+          ))}
+          <span className="mx-1 w-px shrink-0 bg-line" />
+          <Chip active={figure} onClick={() => setFigure((v) => !v)}>
+            Figure
+          </Chip>
+          <Chip active={handDrawn} onClick={() => setHandDrawn((v) => !v)}>
+            Hand-drawn
+          </Chip>
+        </div>
+        <div className="no-scrollbar -mx-5 mt-2 flex gap-2 overflow-x-auto px-5 sm:mx-0 sm:px-0">
+          <Chip active={type === "all"} onClick={() => setType("all")}>
+            All pieces
+          </Chip>
+          {GARMENT_TYPES.map((t) => (
+            <Chip key={t} active={type === t} onClick={() => setType(t)}>
+              {GARMENT_TYPE_LABELS[t]}
+            </Chip>
+          ))}
+        </div>
+      </section>
+
       {view === "kept" && kept.length === 0 && (
-        <p className="py-24 text-center text-sm text-warm">Nothing kept yet. Tap “Keep” under a garment you love.</p>
+        <div className="mt-6 rounded-3xl bg-surface p-8 text-center text-muted">Nothing kept yet. Tap Keep under a look you love.</div>
       )}
 
       {/* Grid */}
-      <section className="mt-8 grid grid-cols-2 gap-x-3 gap-y-10 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-5">
-        {garments.map(({ entry, params }, i) => (
-          <motion.article
-            key={keyOf(entry) + figure + handDrawn}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: Math.min(i, 20) * 0.025, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-col"
-          >
-            <button
-              onClick={() => setOpen(params)}
-              className={`group relative block aspect-[5/8] w-full overflow-hidden bg-ivory p-2 frame-${params.rarity}`}
-              aria-label={`Open ${params.name}`}
+      <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {garments.map(({ entry, params }, i) => {
+          const isKept = keptKeys.has(keyOf(entry));
+          return (
+            <motion.article
+              key={keyOf(entry) + figure + handDrawn}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: Math.min(i, 16) * 0.03, ease: [0.22, 1, 0.36, 1] }}
+              className="flex flex-col rounded-3xl bg-surface p-2.5"
             >
-              <span className="font-poster pointer-events-none absolute top-1 left-3 z-10 text-4xl text-ink/90 sm:text-5xl">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <span className={`label absolute top-3 right-3 z-10 px-1.5 py-0.5 text-[0.55rem] ${RARITY_TAG[params.rarity]}`}>{params.rarity}</span>
-              <GarmentSVG params={params} figure={figure} handDrawn={handDrawn} background={false} className="h-full w-full transition-transform duration-700 group-hover:scale-[1.03]" />
-            </button>
-            <div className="mt-3 flex items-start justify-between gap-2 border-t-2 border-ink pt-2">
-              <h2 className="font-display min-w-0 text-[1rem] leading-[1.15] font-bold italic">{params.name}</h2>
               <button
-                onClick={() => toggleKeep(entry)}
-                className={`label shrink-0 border px-2 py-1 transition-colors ${keptKeys.has(keyOf(entry)) ? "border-ink bg-ink text-ivory" : "border-line text-warm hover:border-ink hover:text-ink"}`}
+                onClick={() => setOpen(params)}
+                className={`relative block aspect-[5/8] w-full overflow-hidden rounded-2xl bg-paper ring-${params.rarity}`}
+                aria-label={`Open ${params.name}`}
               >
-                {keptKeys.has(keyOf(entry)) ? "Kept" : "Keep"}
+                <span className={`absolute bottom-2.5 left-2.5 z-10 rounded-full px-2.5 py-1 text-[11px] font-bold capitalize ${RARITY_PILL[params.rarity]}`}>
+                  {params.rarity}
+                </span>
+                <GarmentSVG params={params} figure={figure} handDrawn={handDrawn} background={false} className="h-full w-full" />
               </button>
-            </div>
-          </motion.article>
-        ))}
+              <div className="flex flex-1 flex-col px-1.5 pt-3 pb-1">
+                <h2 className="text-[15px] leading-tight font-extrabold tracking-tight">{params.name}</h2>
+                <div className="mt-auto flex items-center justify-between gap-2 pt-3">
+                  <span className="font-mono text-[11px] text-muted">{params.seed}</span>
+                  <button
+                    onClick={() => toggleKeep(entry)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${isKept ? "bg-ivory text-bg" : "bg-bg text-ivory"}`}
+                  >
+                    {isKept ? "Kept" : "Keep"}
+                  </button>
+                </div>
+              </div>
+            </motion.article>
+          );
+        })}
       </section>
 
       {/* Detail */}
       <AnimatePresence>
         {open && (
           <motion.div
-            className="fixed inset-0 z-50 overflow-y-auto bg-ivory"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
+            className="fixed inset-0 z-50 overflow-y-auto bg-bg"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 24 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="sticky top-0 z-10 flex justify-end bg-ivory/95 px-4 py-3 backdrop-blur sm:px-8">
-              <button onClick={() => setOpen(null)} className="label px-2 py-2 text-warm hover:text-ink">
-                Close
+            <div className="mx-auto max-w-5xl px-5 pt-6 pb-12 sm:px-8">
+              <button onClick={() => setOpen(null)} className="flex items-center gap-2 text-lg font-bold text-muted hover:text-ivory">
+                <span aria-hidden>&lsaquo;</span> Back
               </button>
-            </div>
-            <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 pb-12 sm:px-8 md:flex-row">
-              <div className={`mx-auto aspect-[5/8] w-full max-w-md bg-ivory p-3 frame-${open.rarity}`}>
-                <GarmentSVG params={open} figure={figure} handDrawn={handDrawn} background={false} className="h-full w-full" />
-              </div>
-              <div className="flex-1">
-                <p className={`label ${open.rarity === "legendary" ? "text-gold" : "text-warm"}`}>
-                  {open.rarity} · {GARMENT_TYPE_LABELS[open.type]}
-                </p>
-                <h2 className="masthead mt-3 text-5xl sm:text-6xl" style={{ letterSpacing: "-0.03em", lineHeight: 0.9 }}>
-                  {open.name}
-                </h2>
-                <dl className="mt-8 grid grid-cols-2 gap-y-3 border-t border-line pt-6 text-sm">
-                  <dt className="label text-warm">Seed</dt>
-                  <dd className="font-mono">{open.seed}</dd>
-                  <dt className="label text-warm">Intensity</dt>
-                  <dd>{Math.round(open.intensity * 100)} / 100</dd>
-                  <dt className="label text-warm">Material</dt>
-                  <dd className="capitalize">{open.material.id}</dd>
-                  <dt className="label text-warm">Finish</dt>
-                  <dd className="capitalize">{open.finish}</dd>
-                </dl>
-                {openEntry && (
-                  <button
-                    onClick={() => toggleKeep(openEntry)}
-                    className="font-poster mt-8 bg-ink px-8 py-3 text-xl text-ivory transition-transform hover:-translate-y-0.5"
-                  >
-                    {keptKeys.has(keyOf(openEntry)) ? "Kept" : "Keep this piece"}
-                  </button>
-                )}
-                <details className="mt-8 border-t border-line pt-4">
-                  <summary className="label cursor-pointer text-warm">Parameters</summary>
-                  <pre className="mt-4 overflow-x-auto bg-paper p-4 text-[11px] leading-relaxed">{JSON.stringify(open, null, 2)}</pre>
-                </details>
+              <div className="mt-6 flex flex-col gap-6 md:flex-row">
+                <div className="rounded-3xl bg-surface p-3 md:w-[420px]">
+                  <div className={`aspect-[5/8] w-full overflow-hidden rounded-2xl bg-paper ring-${open.rarity}`}>
+                    <GarmentSVG params={open} figure={figure} handDrawn={handDrawn} background={false} className="h-full w-full" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <p className="eyebrow">
+                    {open.rarity} · {GARMENT_TYPE_LABELS[open.type]}
+                  </p>
+                  <h2 className="headline mt-3 text-4xl sm:text-5xl">{open.name}</h2>
+                  <div className="mt-6 grid grid-cols-2 gap-3">
+                    <Stat label="Intensity" value={`${Math.round(open.intensity * 100)}`} bar={open.intensity} />
+                    <Stat label="Seed" value={open.seed} mono />
+                    <Stat label="Material" value={open.material.id} />
+                    <Stat label="Finish" value={open.finish} />
+                  </div>
+                  {openEntry && (
+                    <button
+                      onClick={() => toggleKeep(openEntry)}
+                      className="mt-6 w-full rounded-2xl bg-ivory py-4 text-lg font-bold text-bg transition-transform active:scale-[0.98]"
+                    >
+                      {keptKeys.has(keyOf(openEntry)) ? "Kept" : "Keep this look"}
+                    </button>
+                  )}
+                  <details className="mt-6 rounded-3xl bg-surface p-5">
+                    <summary className="eyebrow cursor-pointer">Parameters</summary>
+                    <pre className="mt-4 overflow-x-auto font-mono text-[11px] leading-relaxed text-muted">{JSON.stringify(open, null, 2)}</pre>
+                  </details>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -252,19 +278,33 @@ export function LabClient() {
   );
 }
 
-const RARITY_TAG: Record<Rarity, string> = {
-  common: "border border-ink/40 text-ink/70",
-  rare: "bg-ink text-ivory",
-  epic: "bg-ink text-ivory outline outline-1 outline-offset-2 outline-ink",
-  legendary: "bg-gold text-ink",
+const RARITY_PILL: Record<Rarity, string> = {
+  common: "bg-bg/80 text-ivory",
+  rare: "bg-bg text-ivory",
+  epic: "bg-accent text-ivory",
+  legendary: "bg-gold text-bg",
 };
+
+function Stat({ label, value, bar, mono }: { label: string; value: string; bar?: number; mono?: boolean }) {
+  return (
+    <div className="rounded-3xl bg-surface p-5">
+      <p className={`text-2xl font-extrabold tracking-tight capitalize ${mono ? "font-mono text-lg normal-case" : ""}`}>{value}</p>
+      {bar !== undefined && (
+        <div className="mt-3 h-1.5 rounded-full bg-surface-2">
+          <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(4, bar * 100)}%` }} />
+        </div>
+      )}
+      <p className="mt-2 text-sm text-muted">{label}</p>
+    </div>
+  );
+}
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`font-poster shrink-0 whitespace-nowrap px-3 py-1.5 text-base transition-colors ${active ? "bg-ink text-ivory" : "text-ink/45 hover:text-ink"}`}
+      className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold whitespace-nowrap transition-colors ${active ? "bg-ivory text-bg" : "bg-surface text-muted hover:text-ivory"}`}
     >
       {children}
     </button>

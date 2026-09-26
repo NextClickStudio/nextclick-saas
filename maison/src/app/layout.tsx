@@ -1,23 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Anton, Bodoni_Moda, Manrope } from "next/font/google";
+import { DM_Mono, Figtree } from "next/font/google";
 import "./globals.css";
 
-const display = Bodoni_Moda({
-  variable: "--font-display",
-  subsets: ["latin"],
-  style: ["normal", "italic"],
-  weight: ["400", "700", "900"],
-});
-
-const poster = Anton({
-  variable: "--font-poster",
-  subsets: ["latin"],
-  weight: "400",
-});
-
-const sans = Manrope({
+const sans = Figtree({
   variable: "--font-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+});
+
+const mono = DM_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
@@ -26,12 +20,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f4efe6",
+  themeColor: "#0e0e0d",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${display.variable} ${poster.variable} ${sans.variable} h-full`}>
+    <html lang="en" className={`${sans.variable} ${mono.variable} h-full`}>
       <body className="min-h-full">{children}</body>
     </html>
   );
