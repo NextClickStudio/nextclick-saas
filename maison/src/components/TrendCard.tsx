@@ -3,13 +3,13 @@
 import { motion } from "framer-motion";
 import { useId, useMemo } from "react";
 import type { Rarity } from "@/config/game";
-import { FAMILY_LABELS } from "@/lib/cards/catalog";
+import { FAMILY_LABELS } from "@/lib/cards/families";
 import { CardView, cardNumbers } from "@/lib/cards/view";
+import { DOWN, UP } from "@/lib/format";
 import { materialPattern } from "@/lib/cards/materials";
 import { luminance } from "@/lib/cards/palette";
 
-export const UP = "#5fd08a";
-export const DOWN = "#ff5a3d";
+export { DOWN, UP };
 
 interface Props {
   card: CardView;
@@ -23,6 +23,13 @@ interface Props {
  * numbers are the drama. Sizes use container units, so the card scales cleanly.
  */
 export function TrendCard({ card, flipped = false, onClick, className = "" }: Props) {
+  if (!flipped && !onClick) {
+    return (
+      <div className={`relative block aspect-[5/7] w-full ${className}`}>
+        <CardFront card={card} />
+      </div>
+    );
+  }
   return (
     <button
       type="button"
@@ -61,7 +68,6 @@ function Edge({ rarity, children }: { rarity: Rarity; children: React.ReactNode 
 export function CardFront({ card }: { card: CardView }) {
   const n = useMemo(() => cardNumbers(card), [card]);
   const up = n.change >= 0;
-  const expiring = card.daysLeft <= 3;
   const pos = n;
 
   return (
@@ -79,8 +85,8 @@ export function CardFront({ card }: { card: CardView }) {
           <div className="absolute top-[3cqw] right-[3cqw] flex gap-[1.5cqw]">
             {pos.ath && <Badge className="bg-ivory text-bg">ATH</Badge>}
             {pos.hype && (
-              <Badge className="bg-bg" style={{ color: pos.hype === "pumping" ? UP : DOWN }}>
-                {pos.hype === "pumping" ? "Pumping" : "Dumping"}
+              <Badge className="bg-bg" style={{ color: pos.hype === "hot" ? UP : DOWN }}>
+                {pos.hype === "hot" ? "Hot" : "Cooling"}
               </Badge>
             )}
           </div>
@@ -90,7 +96,7 @@ export function CardFront({ card }: { card: CardView }) {
         <div className="mt-[3.5cqw] flex items-end justify-between gap-[2cqw]">
           <div className="min-w-0">
             <p className="text-[9.5cqw] leading-none font-extrabold tracking-[-0.04em] tabular-nums">{card.value.toFixed(1)}</p>
-            <p className="mt-[1cqw] font-mono text-[3.2cqw] text-muted">index · 30d</p>
+            <p className="mt-[1cqw] font-mono text-[3.2cqw] text-muted">price</p>
           </div>
           <div className="shrink-0 text-right">
             <span
@@ -110,14 +116,24 @@ export function CardFront({ card }: { card: CardView }) {
 
         {/* Footer */}
         <div className="mt-[2.5cqw] flex items-center justify-between font-mono text-[3.3cqw] text-muted">
-          <span title={`Worth ${n.worth.toLocaleString("en-US")} cr${n.multiplier > 1 ? ` · ×${n.multiplier}` : ""}`}>
-            <span className="font-bold" style={{ color: pos.pnl >= 0 ? UP : DOWN }}>
-              {pos.pnl >= 0 ? "+" : "−"}
-              {Math.abs(pos.pnl * 100).toFixed(0)}%
-            </span>{" "}
-            since pull
-          </span>
-          <span className={expiring ? "font-bold text-accent" : ""}>{card.daysLeft}d left</span>
+          {card.boughtAt !== undefined ? (
+            <span>
+              <span className="font-bold" style={{ color: n.pnl >= 0 ? UP : DOWN }}>
+                {n.pnl >= 0 ? "+" : "−"}
+                {Math.abs(n.pnl * 100).toFixed(1)}%
+              </span>{" "}
+              since you got it
+            </span>
+          ) : (
+            <span>
+              <span className="font-bold" style={{ color: n.month >= 0 ? UP : DOWN }}>
+                {n.month >= 0 ? "+" : "−"}
+                {Math.abs(n.month * 100).toFixed(0)}%
+              </span>{" "}
+              in 30 days
+            </span>
+          )}
+          <span className="font-bold text-ivory tabular-nums">{n.worth.toLocaleString("en-US")} cr</span>
         </div>
       </div>
     </Edge>
@@ -158,7 +174,7 @@ function Artwork({ card }: { card: CardView }) {
   );
   const serial = (color: string) => (
     <span className="font-mono text-[3.2cqw] tracking-[0.12em]" style={{ color }}>
-      No. {String(card.serial).padStart(4, "0")}
+      {card.serial ? `No. ${String(card.serial).padStart(4, "0")}` : "Market"}
     </span>
   );
 
@@ -168,6 +184,27 @@ function Artwork({ card }: { card: CardView }) {
         <div className="flex h-full flex-col justify-between bg-ivory p-[4cqw]">
           {serial("#6b665e")}
           {title("#0e0e0d")}
+        </div>
+      );
+    case "shoes":
+      return (
+        <div className="flex h-full flex-col justify-between p-[4cqw]" style={{ background: "#e3d2b8" }}>
+          {serial("#6b5a44")}
+          {title("#1b1714")}
+        </div>
+      );
+    case "accessory":
+      return (
+        <div className="flex h-full flex-col justify-between p-[4cqw] ring-1 ring-gold/40 ring-inset" style={{ background: "#141312" }}>
+          {serial("#a88a4a")}
+          {title("#d4ad55")}
+        </div>
+      );
+    case "beauty":
+      return (
+        <div className="flex h-full flex-col justify-between p-[4cqw]" style={{ background: "radial-gradient(120% 90% at 80% 0%, #f7e3dc, #e8b4ae)" }}>
+          {serial("#8a5a55")}
+          {title("#2a1414")}
         </div>
       );
     case "detail":

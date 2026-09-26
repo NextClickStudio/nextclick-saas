@@ -2,80 +2,48 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { Rarity } from "@/config/game";
-import type { Family } from "@/lib/cards/catalog";
-import type { CardView, TrendStyle } from "@/lib/cards/view";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import { GAME_CONFIG } from "@/config/game";
+import type { CardView } from "@/lib/cards/view";
+import { cr, num, vibrate } from "@/lib/format";
+import { trendCard, useGame } from "@/lib/game/store";
 import { PackArt } from "./PackArt";
 import { TrendCard } from "./TrendCard";
 
 type Stage = "idle" | "loading" | "tearing" | "reveal" | "summary";
 
-interface Props {
-  freeReady: boolean;
-  credits: number;
-  price: number;
-  streak: number;
-  firstPack: boolean;
-}
-
-const vibrate = (p: number | number[]) => {
-  try {
-    navigator.vibrate?.(p);
-  } catch {
-    /* not supported */
-  }
-};
-
 /** The daily pack: tear it, flip five cards one by one. The last one can be the big one. */
-export function PackOpener({ freeReady, credits, price, streak, firstPack }: Props) {
-  const router = useRouter();
+export function PackOpener() {
+  const { state, market, openPack, openSheet } = useGame();
   const [stage, setStage] = useState<Stage>("idle");
   const [cards, setCards] = useState<CardView[]>([]);
+  const [fresh, setFresh] = useState<Set<string>>(new Set());
   const [i, setI] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [error, setError] = useState("");
+  const [firstOpen, setFirstOpen] = useState<boolean | null>(null);
+  if (!state || !market) return null;
+
+  const freeReady = state.house.last_pack_day !== state.today;
+  const credits = state.house.credits;
+  const price = GAME_CONFIG.pack.extraPackCredits;
+  const streak = state.house.streak;
+  const firstPack = firstOpen ?? Object.keys(state.archive).length === 0;
 
   const open = async (paid: boolean) => {
     setError("");
+    setFirstOpen(Object.keys(state.archive).length === 0);
+    const before = new Set(Object.keys(state.archive));
     setStage("loading");
     vibrate(20);
-    const sb = supabaseBrowser();
-    const { data, error } = await sb.rpc(paid ? "maison_buy_pack" : "maison_open_pack");
-    if (error || !data) {
-      setError(error?.message.includes("already_opened") ? "Today's pack is already open. Come back tomorrow." : error?.message.includes("not_enough_credits") ? "Not enough credits yet." : (error?.message ?? "Something went wrong."));
+    const res = await openPack(paid);
+    if (res.error !== undefined) {
+      setError(res.error);
       setStage("idle");
       return;
     }
-    const rows = data as { id: string; trend_id: string; rarity: Rarity; serial: number; bought_at: number; expires_at: string; on_runway: boolean }[];
-    const ids = [...new Set(rows.map((r) => r.trend_id))];
-    const [{ data: trends }, { data: hist }] = await Promise.all([
-      sb.from("maison_trends").select("id, name, family, style, value, day_open").in("id", ids),
-      sb.rpc("maison_history", { p_ids: ids, p_days: 30 }),
-    ]);
-    const tMap = new Map((trends ?? []).map((t) => [t.id as string, t]));
-    const hMap = new Map(((hist ?? []) as { trend_id: string; points: number[] }[]).map((h) => [h.trend_id, h.points.map(Number)]));
-    const views: CardView[] = rows.map((r) => {
-      const t = tMap.get(r.trend_id)!;
-      const h = hMap.get(r.trend_id) ?? [];
-      return {
-        id: r.id,
-        trendId: r.trend_id,
-        name: t.name as string,
-        family: t.family as Family,
-        style: (t.style ?? {}) as TrendStyle,
-        rarity: r.rarity,
-        serial: r.serial,
-        daysLeft: Math.ceil((new Date(r.expires_at).getTime() - Date.now()) / 86_400_000),
-        value: Number(t.value),
-        dayOpen: Number(t.day_open),
-        boughtAt: Number(r.bought_at),
-        history: h.length ? h : [Number(t.value)],
-        onRunway: r.on_runway,
-      };
-    });
+    const views = res.cards.filter((c) => market.has(c.trend_id)).map((c) => trendCard(market.get(c.trend_id)!, c));
+    setFresh(new Set(res.cards.map((c) => c.trend_id).filter((id) => !before.has(id))));
     setCards(views);
     setI(0);
     setFlipped(false);
@@ -102,7 +70,23 @@ export function PackOpener({ freeReady, credits, price, streak, firstPack }: Pro
       setFlipped(false);
     } else {
       setStage("summary");
-      router.refresh();
+    }
+  };
+
+  const best = cards.reduce<CardView | null>((b, c) => {
+    const r = (x: CardView) => ["common", "rare", "epic", "legendary"].indexOf(x.rarity);
+    return !b || r(c) > r(b) ? c : b;
+  }, null);
+  const packWorth = cards.reduce((s, c) => s + Math.round(c.value * GAME_CONFIG.rarityMultiplier[c.rarity] * GAME_CONFIG.market.creditsPerPoint), 0);
+
+  const share = async () => {
+    if (!best) return;
+    const text = `I just pulled a ${best.rarity} ${best.name} card on Maison, the fashion trend market.`;
+    try {
+      if (navigator.share) await navigator.share({ title: "Maison", text, url: location.origin });
+      else await navigator.clipboard.writeText(`${text} ${location.origin}`);
+    } catch {
+      /* cancelled */
     }
   };
 
@@ -112,7 +96,7 @@ export function PackOpener({ freeReady, credits, price, streak, firstPack }: Pro
       {(stage === "idle" || stage === "loading") && (
         <div className="flex w-full flex-1 flex-col items-center justify-center">
           <p className="eyebrow">{freeReady ? (firstPack ? "Your first pack" : "Today's pack") : "Extra pack"}</p>
-          <h1 className="headline mt-2 text-center text-4xl">{freeReady ? "Five cards. One could be legendary." : "Come back tomorrow."}</h1>
+          <h1 className="headline mt-2 text-center text-4xl">{freeReady ? "Five cards. One could be legendary." : "Want more cards?"}</h1>
           <motion.div
             className="mt-8 w-[62vw] max-w-[260px]"
             animate={stage === "loading" ? { rotate: [-2, 2, -2, 2, 0], scale: [1, 1.02, 1] } : { y: [0, -8, 0] }}
@@ -120,7 +104,12 @@ export function PackOpener({ freeReady, credits, price, streak, firstPack }: Pro
           >
             <PackArt label={freeReady ? "Daily pack" : "Extra pack"} date={new Date().toISOString().slice(0, 10)} />
           </motion.div>
-          {streak > 1 && freeReady && <p className="mt-6 text-sm font-bold text-muted">{streak}-day streak · better odds for rares</p>}
+          {freeReady && (
+            <p className="mt-6 text-center text-sm font-bold text-muted">
+              {streak > 0 ? `Open it today to make it a ${streak + 1}-day streak. Every day of streak boosts your odds of rare cards.` : "Open one every day: your streak boosts the odds of rare cards."}
+            </p>
+          )}
+          {!freeReady && <p className="mt-6 text-center text-sm font-bold text-muted">Your free pack is back at midnight UTC. Or open an extra one now.</p>}
           <div className="mt-8 w-full space-y-3">
             {freeReady ? (
               <button
@@ -136,7 +125,7 @@ export function PackOpener({ freeReady, credits, price, streak, firstPack }: Pro
                 disabled={stage === "loading" || credits < price}
                 className="w-full rounded-2xl bg-ivory py-4 text-lg font-bold text-bg transition-transform active:scale-[0.98] disabled:opacity-40"
               >
-                {credits < price ? `Extra pack · ${price.toLocaleString("en-US")} cr (you have ${credits.toLocaleString("en-US")})` : `Open an extra pack · ${price.toLocaleString("en-US")} cr`}
+                {credits < price ? `Extra pack · ${num(price)} cr (you have ${num(credits)})` : `Open an extra pack · ${num(price)} cr`}
               </button>
             )}
           </div>
@@ -215,26 +204,33 @@ export function PackOpener({ freeReady, credits, price, streak, firstPack }: Pro
 
       {/* SUMMARY */}
       {stage === "summary" && (
-        <motion.div className="w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          <p className="eyebrow">Added to your maison</p>
-          <h1 className="headline mt-2 text-4xl">{firstPack ? "Your first collection." : "Five new cards."}</h1>
-          {firstPack && (
-            <p className="mt-3 text-base leading-snug text-muted">
-              One card per family went straight onto your runway. Their trends move every hour, following real search interest. Sell a card when it&rsquo;s up, or hold it and
-              ride the trend. Tonight at midnight your first duel begins.
-            </p>
-          )}
+        <motion.div className="w-full pb-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <p className="eyebrow">Added to your maison · worth {cr(packWorth)}</p>
+          <h1 className="headline mt-2 text-4xl">{firstPack ? "Your first five trends." : fresh.size ? `${fresh.size} new in your archive.` : "Five more cards."}</h1>
+          <p className="mt-3 text-base leading-snug text-muted">
+            {firstPack
+              ? "Their prices move with Google searches, every hour. Sell a card when it's up, hold it if you think the trend is only starting. Tap a card to see its chart."
+              : "Tap a card to see its chart, sell it or keep it."}
+          </p>
           <div className="mt-6 grid grid-cols-2 gap-3">
             {cards.map((c) => (
-              <TrendCard key={c.id} card={c} />
+              <div key={c.id} className="relative">
+                <TrendCard card={c} onClick={() => openSheet(c.trendId, c.id)} />
+                {fresh.has(c.trendId) && <span className="absolute -top-2 -left-1 z-10 rounded-full bg-accent px-2 py-0.5 text-[10px] font-black text-ivory uppercase">New</span>}
+              </div>
             ))}
           </div>
-          <div className="mt-6 space-y-3 pb-6">
-            <Link href="/home" className="block w-full rounded-2xl bg-ivory py-4 text-center text-lg font-bold text-bg">
-              See my maison
+          <div className="mt-6 space-y-3">
+            {best && best.rarity !== "common" && (
+              <button onClick={share} className="block w-full rounded-2xl bg-gold py-4 text-center text-lg font-bold text-bg">
+                Share my {best.rarity} {best.name}
+              </button>
+            )}
+            <Link href="/today#forecast" className="block w-full rounded-2xl bg-ivory py-4 text-center text-lg font-bold text-bg">
+              {firstPack ? "Next: make your first calls" : "Back to today"}
             </Link>
-            <Link href="/cards" className="block w-full rounded-2xl bg-surface py-4 text-center text-lg font-bold">
-              Manage my cards
+            <Link href="/maison" className="block w-full rounded-2xl bg-surface py-4 text-center text-lg font-bold">
+              See my maison
             </Link>
           </div>
         </motion.div>

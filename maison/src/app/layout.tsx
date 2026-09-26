@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Mono, Figtree } from "next/font/google";
+import { GameProvider } from "@/lib/game/store";
 import "./globals.css";
 
 const sans = Figtree({
@@ -15,18 +16,23 @@ const mono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Maison",
-  description: "Open your daily pack, build collections, read the trends before everyone else.",
+  title: "Maison · the fashion trend market",
+  description: "Every fashion trend has a price, live from Google searches. Collect, trade and call the trends. The richest maison wins the week.",
+  applicationName: "Maison",
+  appleWebApp: { capable: true, title: "Maison", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
   themeColor: "#0e0e0d",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable} h-full`}>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <GameProvider>{children}</GameProvider>
+      </body>
     </html>
   );
 }

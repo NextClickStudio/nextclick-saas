@@ -1,6 +1,10 @@
 import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** Supabase client for the browser (client components). */
+let client: SupabaseClient | null = null;
+
+/** Supabase client for the browser: one instance per tab, the session lives in cookies. */
 export function supabaseBrowser() {
-  return createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+  client ??= createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+  return client;
 }

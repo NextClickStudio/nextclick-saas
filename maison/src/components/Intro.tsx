@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { INTRO, INTRO_CTA } from "@/content/intro";
 import type { CardView } from "@/lib/cards/view";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { PackArt } from "./PackArt";
 import { DOWN, TrendCard, UP } from "./TrendCard";
 import { Wordmark } from "./Wordmark";
 
@@ -45,12 +44,8 @@ export function Intro({ cards }: { cards: CardView[] }) {
           <section key={i} className="relative flex h-full w-full shrink-0 snap-center flex-col justify-end px-6 pt-24 pb-36">
             <div className="flex flex-1 items-center justify-center">
               {s.kind === "cards" && <FannedCards cards={cards} />}
-              {s.kind === "pack" && (
-                <motion.div animate={{ rotate: [-3, 3, -3], y: [0, -8, 0] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }} className="w-[46vw] max-w-[220px]">
-                  <PackArt />
-                </motion.div>
-              )}
               {s.kind === "market" && <MiniMarket cards={cards} />}
+              {s.kind === "call" && cards[0] && <CallDemo card={cards[0]} />}
             </div>
             <div className="mx-auto w-full max-w-md">
               {s.eyebrow && <p className="eyebrow">{s.eyebrow}</p>}
@@ -135,16 +130,36 @@ function FannedCards({ cards }: { cards: CardView[] }) {
   );
 }
 
+function CallDemo({ card }: { card: CardView }) {
+  return (
+    <div className="w-[52vw] max-w-[230px]">
+      <motion.div animate={{ x: [0, 18, 0, -18, 0], rotate: [0, 3, 0, -3, 0] }} transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}>
+        <TrendCard card={card} />
+      </motion.div>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <span className="rounded-2xl py-3 text-center font-extrabold text-bg" style={{ background: DOWN }}>
+          ▼ Falls
+        </span>
+        <span className="rounded-2xl py-3 text-center font-extrabold text-bg" style={{ background: UP }}>
+          ▲ Rises
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function MiniMarket({ cards }: { cards: CardView[] }) {
   return (
     <div className="w-full max-w-sm rounded-3xl bg-surface p-5">
       <p className="eyebrow">Live now</p>
       <ul className="mt-3 divide-y divide-line">
+        {cards.length === 0 && <li className="h-40 animate-pulse" />}
         {cards.map((c) => {
           const ch = c.dayOpen ? c.value / c.dayOpen - 1 : 0;
           return (
             <li key={c.trendId} className="flex items-center justify-between py-3">
               <span className="text-lg font-extrabold">{c.name}</span>
+              <span className="ml-auto pr-4 font-mono text-sm text-muted tabular-nums">{c.value.toFixed(1)}</span>
               <span className="font-extrabold tabular-nums" style={{ color: ch >= 0 ? UP : DOWN }}>
                 {ch >= 0 ? "▲" : "▼"} {Math.abs(ch * 100).toFixed(1)}%
               </span>

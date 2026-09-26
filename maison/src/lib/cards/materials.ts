@@ -19,6 +19,15 @@ export const MATERIALS = [
   "plisse",
   "sequins",
   "tweed",
+  "leopard",
+  "zebra",
+  "snake",
+  "camo",
+  "argyle",
+  "checker",
+  "tiedye",
+  "lace",
+  "mesh",
 ] as const;
 export type MaterialId = (typeof MATERIALS)[number];
 
@@ -97,6 +106,63 @@ export function materialPattern(m: MaterialSpec, id: string, main: string, accen
         `<circle cx="${x}" cy="${y}" r="2.3" fill="${hi}" fill-opacity="0.55" stroke="${lo}" stroke-width="0.4"/><circle cx="${x - 0.7}" cy="${y - 0.7}" r="0.6" fill="#fff" fill-opacity="0.7"/>`;
       return `<pattern id="${id}-mat" patternUnits="userSpaceOnUse" width="6" height="6">` + dot(0, 0) + dot(6, 0) + dot(0, 6) + dot(6, 6) + dot(3, 3) + close;
     }
+    case "leopard": {
+      const rng = createRng(seed + "leopard");
+      let spots = "";
+      for (let i = 0; i < 7; i++) {
+        const x = rng.range(1, 17).toFixed(1);
+        const y = rng.range(1, 17).toFixed(1);
+        const r = rng.range(1.6, 2.6);
+        spots += `<ellipse cx="${x}" cy="${y}" rx="${r.toFixed(1)}" ry="${(r * 0.75).toFixed(1)}" fill="${darken(main, 0.25)}" stroke="${accent}" stroke-width="0.9" stroke-dasharray="3 1.4" transform="rotate(${rng.int(0, 180)} ${x} ${y})"/>`;
+      }
+      return `<pattern id="${id}-mat" patternUnits="userSpaceOnUse" width="18" height="18" patternTransform="scale(${s.toFixed(2)})">` + spots + close;
+    }
+    case "zebra":
+      return (
+        open(16, 16, 20) +
+        `<path d="M0 2C4 0 8 5 16 2L16 5C9 7 5 3 0 6Z M0 10C5 8 10 13 16 9L16 12C10 16 5 11 0 14Z" fill="${accent}"/>` +
+        close
+      );
+    case "snake":
+      return (
+        open(8, 7, 0) +
+        `<path d="M0 3.5L4 0L8 3.5L4 7Z" fill="${lighten(main, 0.18)}" stroke="${accent}" stroke-opacity="0.55" stroke-width="0.5"/>` +
+        `<path d="M-4 3.5L0 0L4 3.5L0 7ZM4 3.5L8 0L12 3.5L8 7Z" fill="none" stroke="${accent}" stroke-opacity="0.35" stroke-width="0.4"/>` +
+        close
+      );
+    case "camo":
+      return (
+        open(24, 24, 0) +
+        `<path d="M2 3C6 1 9 5 7 8C5 11 1 9 2 3Z M13 2C18 0 22 4 19 7C16 9 12 6 13 2Z M5 14C9 12 14 15 12 19C10 22 4 20 5 14Z M16 13C20 12 23 16 21 19C19 21 15 18 16 13Z" fill="${accent}"/>` +
+        `<path d="M9 9C12 8 14 11 12 13C10 14 8 12 9 9Z M19 20C21 19 23 21 22 23C20 24 18 22 19 20Z" fill="${lighten(main, 0.25)}"/>` +
+        close
+      );
+    case "argyle":
+      return (
+        open(16, 20, 0) +
+        `<path d="M8 0L16 10L8 20L0 10Z" fill="${accent}" fill-opacity="0.55"/>` +
+        `<path d="M0 0L16 20M16 0L0 20" stroke="${ink}" stroke-opacity="0.5" stroke-width="0.4" stroke-dasharray="1.2 1"/>` +
+        close
+      );
+    case "checker":
+      return open(12, 12, 0) + `<rect width="6" height="6" fill="${accent}"/><rect x="6" y="6" width="6" height="6" fill="${accent}"/>` + close;
+    case "tiedye":
+      return (
+        `<pattern id="${id}-mat" patternUnits="userSpaceOnUse" width="60" height="60">` +
+        `<circle cx="30" cy="30" r="26" fill="none" stroke="${accent}" stroke-width="7" stroke-opacity="0.55"/>` +
+        `<circle cx="30" cy="30" r="12" fill="none" stroke="${lighten(accent, 0.3)}" stroke-width="5" stroke-opacity="0.6"/>` +
+        `<circle cx="0" cy="0" r="14" fill="${darken(main, 0.1)}" fill-opacity="0.6"/><circle cx="60" cy="60" r="14" fill="${darken(main, 0.1)}" fill-opacity="0.6"/>` +
+        close
+      );
+    case "lace":
+      return (
+        open(12, 12, 0) +
+        `<circle cx="6" cy="6" r="3.2" fill="none" stroke="${accent}" stroke-width="0.6"/><circle cx="6" cy="6" r="1.1" fill="${accent}"/>` +
+        `<path d="M0 0Q3 3 0 6M12 0Q9 3 12 6M0 12Q3 9 0 6M12 12Q9 9 12 6" fill="none" stroke="${accent}" stroke-width="0.5" stroke-opacity="0.8"/>` +
+        close
+      );
+    case "mesh":
+      return open(4, 4, 45) + `<path d="M0 0H4M0 0V4" stroke="${accent}" stroke-opacity="0.55" stroke-width="0.35"/>` + close;
     case "tweed": {
       const rng = createRng(seed + "tweed");
       const cols = [accent, CHALK, INK, lighten(main, 0.3)];

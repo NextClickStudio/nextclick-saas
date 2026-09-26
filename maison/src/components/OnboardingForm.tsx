@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { COLORS } from "@/lib/cards/palette";
+import { useGame } from "@/lib/game/store";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Wordmark } from "./Wordmark";
 
@@ -15,6 +16,7 @@ const ERRORS: Record<string, string> = {
 /** Create your maison: name, monogram, three colours, a manifesto. */
 export function OnboardingForm({ firstName }: { firstName: string }) {
   const router = useRouter();
+  const { refresh } = useGame();
   const [name, setName] = useState(firstName ? `Maison ${firstName}` : "");
   const [mono, setMono] = useState("");
   const [palette, setPalette] = useState<string[]>(["#f2eee6", "#651828", "#191817"]);
@@ -54,8 +56,8 @@ export function OnboardingForm({ firstName }: { firstName: string }) {
       setBusy(false);
       return;
     }
-    router.push("/pack?first=1");
-    router.refresh();
+    await refresh();
+    router.replace("/pack");
   };
 
   const valid = name.trim().length >= 2 && name.trim().length <= 32;

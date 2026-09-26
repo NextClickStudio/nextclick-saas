@@ -1,6 +1,12 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Monogram } from "@/components/Monogram";
-import { SignOutButton } from "@/components/SignOutButton";
-import { requireHouse } from "@/lib/game/data";
+import { GAME_CONFIG } from "@/config/game";
+import { num, pct, timeLeft, tone } from "@/lib/format";
+import { useGame } from "@/lib/game/store";
+import { supabaseBrowser } from "@/lib/supabase/client";
+import { useNow } from "@/lib/useNow";
 
 interface Entry {
   user_id: string;
@@ -8,84 +14,137 @@ interface Entry {
   monogram: string;
   palette: string[];
   worth: number;
-  duel_streak: number;
+  calls_won: number;
+  calls_total: number;
+  trophies: number;
 }
 
-export default async function RanksPage() {
-  const { supabase, user, house } = await requireHouse();
-  const { data: board } = await supabase.rpc("maison_leaderboard", { lim: 50 });
-  const entries = (board ?? []) as Entry[];
-  const myRank = entries.findIndex((e) => e.user_id === user.id) + 1;
+interface Past {
+  season: number;
+  rank: number;
+  worth: number;
+  maison_houses: { name: string; monogram: string; palette: string[] } | null;
+}
 
-  const { data: duels } = await supabase
-    .from("maison_duels")
-    .select("id, day, a, b, a_score, b_score, winner, settled")
-    .or(`a.eq.${user.id},b.eq.${user.id}`)
-    .eq("settled", true)
-    .order("day", { ascending: false })
-    .limit(10);
-  const oppIds = [...new Set((duels ?? []).map((d) => (d.a === user.id ? d.b : d.a)).filter(Boolean))] as string[];
-  const { data: opps } = oppIds.length ? await supabase.from("maison_houses").select("user_id, name").in("user_id", oppIds) : { data: [] };
-  const oppName = new Map((opps ?? []).map((o) => [o.user_id, o.name]));
-  const wins = (duels ?? []).filter((d) => d.winner === user.id).length;
+type Tab = "season" | "forecast" | "fame";
+
+export default function RanksPage() {
+  const { state } = useGame();
+  const [tab, setTab] = useState<Tab>("season");
+  const [board, setBoard] = useState<Entry[] | null>(null);
+  const [fame, setFame] = useState<Past[] | null>(null);
+  const now = useNow();
+
+  useEffect(() => {
+    const sb = supabaseBrowser();
+    sb.rpc("maison_leaderboard", { lim: 100 }).then(({ data }) => setBoard((data ?? []) as Entry[]));
+    sb.from("maison_trophies")
+      .select("season, rank, worth, maison_houses(name, monogram, palette)")
+      .lte("rank", GAME_CONFIG.season.trophies)
+      .order("season", { ascending: false })
+      .order("rank")
+      .limit(30)
+      .then(({ data }) => setFame((data ?? []) as unknown as Past[]));
+  }, []);
+
+  if (!state) return null;
+  const me = state.house.user_id;
+  const start = GAME_CONFIG.season.startCredits;
+  const nose = (board ?? [])
+    .filter((e) => e.calls_total >= GAME_CONFIG.forecast.minCallsForBoard)
+    .sort((a, b) => b.calls_won / b.calls_total - a.calls_won / a.calls_total || b.calls_total - a.calls_total);
 
   return (
-    <main className="mx-auto max-w-3xl px-5 pt-6 sm:px-8">
-      <p className="eyebrow">Ranks</p>
-      <h1 className="headline mt-2 text-5xl">{myRank ? `You're #${myRank}` : "The houses"}</h1>
-      <p className="mt-2 text-lg text-muted">Ranked by maison value: cash plus every card, at market price.</p>
+    <main className="mx-auto max-w-3xl px-5 sm:px-8">
+      <header className="pt-[max(env(safe-area-inset-top),24px)]">
+        <p className="eyebrow">
+          Season {state.season.id} · ends in {timeLeft(new Date(state.season.ends_at).getTime() - now)}
+        </p>
+        <h1 className="headline mt-3 text-5xl">You&rsquo;re #{state.rank}</h1>
+        <p className="mt-2 text-base text-muted">
+          of {state.players} maisons. Top {GAME_CONFIG.season.trophies} at the end of the season take a trophy, then everyone restarts from {num(start)} cr.
+        </p>
+      </header>
 
-      <ol className="mt-6 divide-y divide-line rounded-3xl bg-surface px-5">
-        {entries.map((e, i) => (
-          <li key={e.user_id} className={`flex items-center gap-3 py-3 ${e.user_id === user.id ? "font-extrabold" : ""}`}>
-            <span className="w-7 font-mono text-sm text-muted">{i + 1}</span>
-            <Monogram house={e} size={36} />
-            <span className="min-w-0 flex-1 truncate text-base font-extrabold">{e.name}</span>
-            {e.duel_streak > 1 && <span className="rounded-full bg-bg px-2 py-0.5 text-xs font-extrabold text-muted">{e.duel_streak} wins</span>}
-            <span className="text-base font-extrabold tabular-nums">{e.worth.toLocaleString("en-US")}</span>
-          </li>
+      <div className="mt-6 flex gap-2">
+        {(
+          [
+            ["season", "Richest"],
+            ["forecast", "Best forecasters"],
+            ["fame", "Hall of fame"],
+          ] as const
+        ).map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-extrabold ${tab === id ? "bg-ivory text-bg" : "bg-surface text-muted"}`}>
+            {label}
+          </button>
         ))}
-      </ol>
-
-      <section className="mt-10">
-        <p className="eyebrow">Your duels</p>
-        <h2 className="headline mt-2 text-3xl">{duels?.length ? `${wins} won of ${duels.length}` : "No duels yet"}</h2>
-        {!!duels?.length && (
-          <ul className="mt-4 divide-y divide-line rounded-3xl bg-surface px-5">
-            {duels.map((d) => {
-              const meA = d.a === user.id;
-              const me = Number(meA ? d.a_score : d.b_score) * 100;
-              const them = Number(meA ? d.b_score : d.a_score) * 100;
-              const won = d.winner === user.id;
-              return (
-                <li key={d.id} className="flex items-center justify-between py-3">
-                  <span className="min-w-0">
-                    <span className="block truncate font-extrabold">vs {(meA ? oppName.get(d.b ?? "") : oppName.get(d.a)) ?? "the market"}</span>
-                    <span className="font-mono text-xs text-muted">{d.day}</span>
-                  </span>
-                  <span className="text-right">
-                    <span className={`block font-extrabold ${won ? "" : "text-accent"}`}>{won ? "Won" : "Lost"}</span>
-                    <span className="font-mono text-xs text-muted">
-                      {me.toFixed(1)}% vs {them.toFixed(1)}%
-                    </span>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section className="mt-10 flex items-center gap-4 rounded-3xl bg-surface p-5">
-        <Monogram house={house} size={56} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-xl font-extrabold">{house.name}</p>
-          <p className="line-clamp-2 text-sm text-muted">{house.manifesto || "No manifesto yet."}</p>
-        </div>
-      </section>
-      <div className="mt-4 mb-6 text-center">
-        <SignOutButton />
       </div>
+
+      {!board ? (
+        <div className="mt-6 h-64 animate-pulse rounded-3xl bg-surface" />
+      ) : tab === "season" ? (
+        <ol className="mt-4 divide-y divide-line rounded-3xl bg-surface px-4">
+          {board.map((e, i) => (
+            <Row key={e.user_id} i={i} e={e} me={e.user_id === me}>
+              <span className="text-right">
+                <span className="block font-extrabold tabular-nums">{num(e.worth)}</span>
+                <span className="text-xs font-bold tabular-nums" style={{ color: tone(e.worth / start - 1) }}>
+                  {pct(e.worth / start - 1)}
+                </span>
+              </span>
+            </Row>
+          ))}
+        </ol>
+      ) : tab === "forecast" ? (
+        nose.length ? (
+          <ol className="mt-4 divide-y divide-line rounded-3xl bg-surface px-4">
+            {nose.map((e, i) => (
+              <Row key={e.user_id} i={i} e={e} me={e.user_id === me}>
+                <span className="text-right">
+                  <span className="block font-extrabold tabular-nums">{Math.round((e.calls_won / e.calls_total) * 100)}%</span>
+                  <span className="font-mono text-xs text-muted">
+                    {e.calls_won}/{e.calls_total}
+                  </span>
+                </span>
+              </Row>
+            ))}
+          </ol>
+        ) : (
+          <p className="mt-10 text-center text-muted">After {GAME_CONFIG.forecast.minCallsForBoard} settled calls you appear here.</p>
+        )
+      ) : fame && fame.length ? (
+        <ol className="mt-4 divide-y divide-line rounded-3xl bg-surface px-4">
+          {fame.map((p) => (
+            <li key={`${p.season}-${p.rank}`} className="flex items-center gap-3 py-3">
+              <span className={`w-16 shrink-0 font-mono text-xs ${p.rank === 1 ? "text-gold" : "text-muted"}`}>
+                S{p.season} · #{p.rank}
+              </span>
+              {p.maison_houses && <Monogram house={p.maison_houses} size={32} />}
+              <span className="min-w-0 flex-1 truncate font-bold">{p.maison_houses?.name ?? "A maison"}</span>
+              <span className="font-extrabold tabular-nums">{num(p.worth)}</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="mt-10 text-center text-muted">The first season is still running. Its winners will be written here.</p>
+      )}
     </main>
+  );
+}
+
+function Row({ i, e, me, children }: { i: number; e: Entry; me: boolean; children: React.ReactNode }) {
+  return (
+    <li className={`flex items-center gap-3 py-3 ${me ? "-mx-4 bg-surface-2 px-4" : ""}`}>
+      <span className={`w-7 shrink-0 font-mono text-sm ${i < GAME_CONFIG.season.trophies ? "font-bold text-gold" : "text-muted"}`}>{i + 1}</span>
+      <Monogram house={e} size={36} />
+      <span className="min-w-0 flex-1">
+        <span className={`block truncate ${me ? "font-black" : "font-bold"}`}>
+          {e.name}
+          {me && " · you"}
+        </span>
+        {e.trophies > 0 && <span className="font-mono text-[11px] text-gold">{e.trophies} {e.trophies === 1 ? "trophy" : "trophies"}</span>}
+      </span>
+      {children}
+    </li>
   );
 }

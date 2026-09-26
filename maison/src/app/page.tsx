@@ -1,23 +1,33 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo } from "react";
 import { Intro } from "@/components/Intro";
-import { loadHistories, loadTrends, trendView } from "@/lib/game/data";
-import { supabaseServer } from "@/lib/supabase/server";
+import { Splash } from "@/components/Splash";
+import { trendCard, useGame, useListed } from "@/lib/game/store";
 
-export default async function Home() {
-  const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) {
-    const { data: house } = await supabase.from("maison_houses").select("user_id").eq("user_id", user.id).maybeSingle();
-    redirect(house ? "/home" : "/onboarding");
-  }
+export default function Home() {
+  const { status } = useGame();
+  const listed = useListed();
+  const router = useRouter();
 
-  // Three live cards for the intro.
-  const trends = (await loadTrends(supabase, ["mary-janes", "cobalt", "houndstooth"])).sort((a, b) => a.name.localeCompare(b.name));
-  const histories = await loadHistories(supabase, trends);
-  const rarities = ["rare", "legendary", "epic"] as const;
-  const cards = trends.map((t, i) => trendView(t, histories.get(t.id) ?? [], rarities[i % 3]));
+  useEffect(() => {
+    if (status === "ready") router.replace("/today");
+    if (status === "no-house") router.replace("/onboarding");
+  }, [status, router]);
 
+  // Three live cards from different families, strongest movers first.
+  const cards = useMemo(() => {
+    const seen = new Set<string>();
+    const rarities = ["rare", "legendary", "epic"] as const;
+    return [...listed]
+      .filter((t) => t.history.length > 5)
+      .sort((a, b) => Math.abs(b.value / b.dayOpen - 1) - Math.abs(a.value / a.dayOpen - 1))
+      .filter((t) => (seen.has(t.family) ? false : (seen.add(t.family), true)))
+      .slice(0, 3)
+      .map((t, i) => ({ ...trendCard(t), rarity: rarities[i] }));
+  }, [listed]);
+
+  if (status !== "signed-out") return <Splash />;
   return <Intro cards={cards} />;
 }

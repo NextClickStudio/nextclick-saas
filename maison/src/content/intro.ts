@@ -5,32 +5,32 @@ export const INTRO = [
   {
     kind: "type",
     eyebrow: "",
-    title: "Every great maison started with a name.",
+    title: "Fashion is a market.",
     body: "",
   },
   {
     kind: "cards",
     eyebrow: "The cards",
-    title: "Trends are your currency.",
-    body: "Every card is a real trend: a piece, a colour, a fabric, a detail, a mood. Its value follows what the world is searching for, live.",
-  },
-  {
-    kind: "pack",
-    eyebrow: "Every day",
-    title: "One free pack. Five cards.",
-    body: "Open it, flip them one by one. Come back tomorrow and your odds of a legendary go up.",
+    title: "Every trend has a price.",
+    body: "Butter yellow, ballet flats, quiet luxury: hundreds of real trends. Their prices follow what the world searches on Google, live.",
   },
   {
     kind: "market",
-    eyebrow: "The market",
-    title: "Hold, or take the profit.",
-    body: "Put five cards on your runway. When their trend rises, your maison gets richer. Sell whenever you want, before the trend turns.",
+    eyebrow: "Trade",
+    title: "Buy early. Sell at the peak.",
+    body: "A free pack of five cards every day. Buy the trends you believe in, sell them before they fade.",
+  },
+  {
+    kind: "call",
+    eyebrow: "Every day",
+    title: "Call it.",
+    body: "Five trends a day: will they rise or fall? Every right call pays 500 credits.",
   },
   {
     kind: "cta",
-    eyebrow: "Daily duel",
-    title: "Create your maison.",
-    body: "Every day you face another maison. The sharper eye wins.",
+    eyebrow: "Weekly seasons",
+    title: "Build the richest maison.",
+    body: "Everyone starts with 10,000 credits. The richest maison on Sunday night wins the season. Then it starts again.",
   },
 ] as const;
 

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
@@ -27,8 +26,7 @@ interface Run {
 }
 
 /** Admin: override trend values, import a CSV, run the market update now. */
-export function AdminPanel({ trends, runs }: { trends: TrendRow[]; runs: Run[] }) {
-  const router = useRouter();
+export function AdminPanel({ trends, runs, onChange }: { trends: TrendRow[]; runs: Run[]; onChange: () => void }) {
   const [q, setQ] = useState("");
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [csv, setCsv] = useState("");
@@ -49,7 +47,7 @@ export function AdminPanel({ trends, runs }: { trends: TrendRow[]; runs: Run[] }
       for (const [id, v] of Object.entries(edits)) if (Number(v) > 0) await save(id, Number(v));
       setMsg(`Saved ${Object.keys(edits).length} values.`);
       setEdits({});
-      router.refresh();
+      onChange();
     } catch (e) {
       setMsg(String((e as Error).message ?? e));
     }
@@ -69,7 +67,7 @@ export function AdminPanel({ trends, runs }: { trends: TrendRow[]; runs: Run[] }
       }
       setMsg(`Imported ${n} values.`);
       setCsv("");
-      router.refresh();
+      onChange();
     } catch (e) {
       setMsg(String((e as Error).message ?? e));
     }
@@ -78,7 +76,7 @@ export function AdminPanel({ trends, runs }: { trends: TrendRow[]; runs: Run[] }
 
   const toggle = async (t: TrendRow) => {
     await supabaseBrowser().rpc("maison_admin_set_active", { p_trend: t.id, p_active: !t.active });
-    router.refresh();
+    onChange();
   };
 
   const runNow = async () => {
@@ -93,12 +91,12 @@ export function AdminPanel({ trends, runs }: { trends: TrendRow[]; runs: Run[] }
     });
     setMsg(`Market update: ${await res.text()}`);
     setBusy(false);
-    router.refresh();
+    onChange();
   };
 
   return (
     <main className="mx-auto max-w-5xl px-5 pt-6 pb-16 sm:px-8">
-      <Link href="/home" className="text-lg font-bold text-muted">
+      <Link href="/today" className="text-lg font-bold text-muted">
         &lsaquo; Back
       </Link>
       <p className="eyebrow mt-6">Admin</p>
@@ -107,7 +105,7 @@ export function AdminPanel({ trends, runs }: { trends: TrendRow[]; runs: Run[] }
       <section className="mt-6 grid gap-3 md:grid-cols-2">
         <div className="rounded-3xl bg-surface p-5">
           <p className="eyebrow">Automatic updates</p>
-          <p className="mt-2 text-sm text-muted">Every 20 minutes the stalest trends are refreshed from Google search interest. Force a run now:</p>
+          <p className="mt-2 text-sm text-muted">Every 10 minutes the stalest trends are refreshed from Google search interest, and new trends get listed. Force a run now:</p>
           <button onClick={runNow} disabled={busy} className="mt-4 w-full rounded-2xl bg-ivory py-3 font-bold text-bg disabled:opacity-50">
             Run market update now
           </button>

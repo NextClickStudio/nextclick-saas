@@ -1,15 +1,18 @@
-import { redirect } from "next/navigation";
-import { OnboardingForm } from "@/components/OnboardingForm";
-import { supabaseServer } from "@/lib/supabase/server";
+"use client";
 
-export default async function OnboardingPage() {
-  const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/");
-  const { data: house } = await supabase.from("maison_houses").select("user_id").eq("user_id", user.id).maybeSingle();
-  if (house) redirect("/home");
-  const first = (user.user_metadata?.full_name as string | undefined)?.split(" ")[0] ?? "";
-  return <OnboardingForm firstName={first} />;
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { OnboardingForm } from "@/components/OnboardingForm";
+import { Splash } from "@/components/Splash";
+import { useGame } from "@/lib/game/store";
+
+export default function OnboardingPage() {
+  const { status, userName } = useGame();
+  const router = useRouter();
+  useEffect(() => {
+    if (status === "signed-out") router.replace("/");
+    if (status === "ready") router.replace("/today");
+  }, [status, router]);
+  if (status !== "no-house") return <Splash />;
+  return <OnboardingForm firstName={userName} />;
 }
