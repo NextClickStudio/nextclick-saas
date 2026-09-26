@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { HomeDashboard } from "@/components/HomeDashboard";
 import { GAME_CONFIG } from "@/config/game";
 import { cardNumbers } from "@/lib/cards/view";
@@ -68,11 +67,6 @@ export default async function HomePage() {
       notes={notes ?? []}
       movers={[...moves.slice(0, 3), ...moves.slice(-3).reverse()]}
       admin={Boolean((await supabase.rpc("maison_is_admin")).data)}
-      footer={
-        <Link href="/lab" className="text-sm text-muted underline-offset-4 hover:underline">
-          Card lab
-        </Link>
-      }
     />
   );
 }

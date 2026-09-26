@@ -26,7 +26,6 @@ interface Props {
   notes: { id: number; kind: string; body: string; created_at: string }[];
   movers: { id: string; name: string; family: Family; change: number }[];
   admin: boolean;
-  footer?: React.ReactNode;
 }
 
 export function HomeDashboard(p: Props) {
@@ -196,8 +195,6 @@ export function HomeDashboard(p: Props) {
           ))}
         </ul>
       </section>
-
-      <div className="mt-8 text-center">{p.footer}</div>
 
       <CardSheet card={open} onClose={() => setOpen(null)} />
     </main>

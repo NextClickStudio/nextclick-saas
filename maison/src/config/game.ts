@@ -66,9 +66,4 @@ export const GAME_CONFIG = {
   shop: {
     extraPackCredits: 1500,
   },
-
-  /** Lab page. */
-  lab: {
-    gridSize: 24,
-  },
 } as const;

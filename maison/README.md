@@ -24,7 +24,6 @@ npm run dev                  # http://localhost:3000
 | `supabase/functions/maison-market` | Edge Function run every 10 minutes: reads Google Trends and moves each index |
 | `src/app/(game)/` | Home (maison dashboard + duel), Market, Pack opening, Cards, Ranks |
 | `src/app/admin` | Market desk: override values, CSV import, force an update |
-| `src/app/lab` | Card design lab with demo data |
 
 ## Game rules on the server
 
