@@ -3,7 +3,7 @@
  *
  * Every number of the game lives here: probabilities, multipliers, thresholds,
  * durations. The server enforces the same numbers from the `maison_config`
- * table: run `npm run config:sql` and apply the output after changing this file.
+ * table: run `ADMIN_EMAILS=you@x.com npm run seed:sql` and apply the output after changing this file.
  */
 
 export const RARITIES = ["common", "rare", "epic", "legendary"] as const;

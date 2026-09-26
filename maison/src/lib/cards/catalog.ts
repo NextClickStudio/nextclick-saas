@@ -1,7 +1,7 @@
 /**
  * The trend catalogue: every card points to one of these trends.
- * In the MVP the market values come from the admin panel (weekly, by hand);
- * until then `sampleHistory` produces believable demo numbers.
+ * Live values come from the database (Google Trends, every hour); `sampleHistory`
+ * produces demo numbers for the lab page and the starter history.
  */
 import { GAME_CONFIG, RARITIES, Rarity } from "@/config/game";
 import { createRng } from "../rng";
