@@ -26,3 +26,10 @@ export const FAMILY_PLURAL: Record<Family, string> = {
   aesthetic: "Aesthetics",
   beauty: "Beauty",
 };
+
+/** How a trend is drawn: a colour, a fabric texture or two mood colours. */
+export interface TrendStyle {
+  hex?: string;
+  material?: import("./materials").MaterialSpec & { main: string; accent: string };
+  mood?: [string, string];
+}

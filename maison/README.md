@@ -1,15 +1,13 @@
 # Maison
 
-The fashion trend market, as a card game. Next.js + Supabase, deployed on Vercel (yeppo.it).
+Learn fashion, five minutes a day. Next.js + Supabase, deployed on Vercel (yeppo.it).
 
-Every card is a real **fashion trend** (~300 of them in 8 families: pieces, shoes, accessories, colours,
-fabrics & prints, details, aesthetics, beauty). Its price follows Google search interest, live.
-
-- **Daily pack**: five free cards, rarer ones are worth up to 2×. The streak improves the odds.
-- **Market**: buy any listed trend, sell any card (5% fee). Prices update in the app in real time.
-- **Forecast**: five trends a day, call rise or fall; a right call pays after 24 hours.
-- **Seasons**: everyone starts a week with 10,000 cr; the richest maison wins, top 3 get a trophy.
-- **Archive**: every trend you ever pulled from a pack, kept forever.
+- **Learn**: a path of 13 units and 46 lessons (colour, fabrics & prints, anatomy of clothes, history,
+  the Paris / Italian / London-NY-Tokyo-Antwerp maisons, creative directors, bags-shoes-jewels,
+  runway legends, the fashion system, icons & muses, aesthetics and live Google trends).
+- **Habits**: XP, daily goal, streaks, hearts (wrong answers come back at the end of the lesson).
+- **Duels**: 7 questions, 20 seconds each, against a random player or a friend (share link).
+- **Leagues**: weekly and all-time XP boards, from Bronze to Haute Couture.
 
 ## Run locally
 
@@ -23,20 +21,12 @@ npm run dev                  # http://localhost:3000
 
 | Where | What |
 | --- | --- |
-| `src/config/game.ts` | Every game number. After changing it run `ADMIN_EMAILS=you@x.com npm run seed:sql` and apply the SQL (the server enforces the same numbers from `maison_config`). |
-| `src/data/trends.ts` | The trend catalogue and the Google search keyword for each trend (seed only) |
-| `src/lib/game/store.tsx` | The whole game on the client: one `maison_state` call, live prices (Realtime), instant actions |
-| `supabase/migrations/` | Database: tables, Row Level Security, game functions, cron jobs |
-| `supabase/functions/maison-market` | Edge Function run every 10 minutes: lists new trends from their real 30-day Google history, then moves prices |
-| `src/app/(game)/` | Today, Market, Pack, Maison (cards + archive), Ranks |
-| `src/app/admin` | Market desk: override values, CSV import, force an update |
+| `src/lib/learn/content.ts` | The whole curriculum: every unit, lesson and question |
+| `src/config/learn.ts` | Hearts, XP, daily goal, duel length, leagues |
+| `src/lib/learn/store.tsx` | Client state: one `maison_learn_state` call, hearts, the running lesson or duel |
+| `src/components/learn/Player.tsx` | The lesson / duel player (choice, true-false, pairs, order, live questions) |
+| `supabase/migrations/` | Tables, Row Level Security and the functions that award XP and settle duels |
+| `supabase/functions/maison-market` | Reads Google Trends every 10 minutes (used by the live lessons) |
 
-Every page is static and reads from the client store, so tabs switch instantly; the only server route
-is `/auth/callback` (Google sign-in).
-
-## Game rules on the server
-
-All writes go through Postgres functions (`maison_open_pack`, `maison_buy_pack`, `maison_buy_trend`,
-`maison_sell_card`, `maison_call`, `maison_create_house`); clients can only read.
-`maison_settle_calls` runs hourly; `maison_daily_rollover` runs at 00:02 UTC (snapshots, new market day,
-season end and trophies).
+All writes go through Postgres functions (`maison_finish_lesson`, `maison_duel_quick`, `maison_duel_invite`,
+`maison_duel_join`, `maison_duel_submit`); clients can only read.

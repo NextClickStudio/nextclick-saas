@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Maison · the fashion trend market",
+    name: "Maison · learn fashion",
     short_name: "Maison",
-    description: "Every fashion trend has a price, live from Google searches.",
-    start_url: "/today",
+    description: "Learn fashion in five minutes a day.",
+    start_url: "/learn",
     display: "standalone",
     background_color: "#0e0e0d",
     theme_color: "#0e0e0d",

@@ -3,13 +3,13 @@
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { INTRO, INTRO_CTA } from "@/content/intro";
-import type { CardView } from "@/lib/cards/view";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { DOWN, TrendCard, UP } from "./TrendCard";
+import { Bolt, Flame } from "./learn/Icons";
+import { VisualTile } from "./learn/VisualTile";
 import { Wordmark } from "./Wordmark";
 
-/** Full-screen intro, swipe through 5 screens, then sign in with Google. */
-export function Intro({ cards }: { cards: CardView[] }) {
+/** Full-screen intro, swipe through the screens, then sign in with Google. */
+export function Intro() {
   const scroller = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -43,9 +43,10 @@ export function Intro({ cards }: { cards: CardView[] }) {
         {INTRO.map((s, i) => (
           <section key={i} className="relative flex h-full w-full shrink-0 snap-center flex-col justify-end px-6 pt-24 pb-36">
             <div className="flex flex-1 items-center justify-center">
-              {s.kind === "cards" && <FannedCards cards={cards} />}
-              {s.kind === "market" && <MiniMarket cards={cards} />}
-              {s.kind === "call" && cards[0] && <CallDemo card={cards[0]} />}
+              {s.kind === "type" && <Collage />}
+              {s.kind === "lesson" && <MockQuestion />}
+              {s.kind === "streak" && <MockStreak />}
+              {s.kind === "duel" && <MockDuel />}
             </div>
             <div className="mx-auto w-full max-w-md">
               {s.eyebrow && <p className="eyebrow">{s.eyebrow}</p>}
@@ -112,61 +113,72 @@ function Typewriter({ text, active }: { text: string; active: boolean }) {
   );
 }
 
-function FannedCards({ cards }: { cards: CardView[] }) {
+const WORDS = ["Chanel", "New Look", "Tweed", "Birkin", "Bias cut", "Margiela", "Houndstooth", "Le Smoking", "Savile Row", "Tabi", "Balenciaga", "Peak lapel"];
+
+function Collage() {
   return (
-    <div className="relative h-[62vw] max-h-[340px] w-full max-w-sm">
-      {cards.slice(0, 3).map((c, i) => (
-        <motion.div
-          key={c.trendId}
-          className="absolute top-0 w-[40vw] max-w-[200px]"
-          style={{ left: `calc(50% - min(20vw, 100px) + ${(i - 1) * 28}%)`, zIndex: i === 1 ? 2 : 1, transformOrigin: "50% 110%" }}
-          animate={{ rotate: [(i - 1) * 12 - 2, (i - 1) * 12 + 2, (i - 1) * 12 - 2] }}
-          transition={{ duration: 7 + i, repeat: Infinity, ease: "easeInOut" }}
+    <div className="flex max-w-sm flex-wrap justify-center gap-2">
+      {WORDS.map((w, i) => (
+        <motion.span
+          key={w}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 * i }}
+          className={`rounded-full px-4 py-2 text-lg font-extrabold ${i % 3 === 0 ? "bg-ivory text-bg" : i % 3 === 1 ? "bg-surface" : "bg-gold text-bg"}`}
         >
-          <TrendCard card={c} />
-        </motion.div>
+          {w}
+        </motion.span>
       ))}
     </div>
   );
 }
 
-function CallDemo({ card }: { card: CardView }) {
+function MockQuestion() {
   return (
-    <div className="w-[52vw] max-w-[230px]">
-      <motion.div animate={{ x: [0, 18, 0, -18, 0], rotate: [0, 3, 0, -3, 0] }} transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}>
-        <TrendCard card={card} />
-      </motion.div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <span className="rounded-2xl py-3 text-center font-extrabold text-bg" style={{ background: DOWN }}>
-          ▼ Falls
-        </span>
-        <span className="rounded-2xl py-3 text-center font-extrabold text-bg" style={{ background: UP }}>
-          ▲ Rises
-        </span>
+    <div className="w-full max-w-xs rounded-3xl bg-surface p-5">
+      <p className="text-lg font-extrabold">Which print is this?</p>
+      <VisualTile v={{ kind: "pattern", material: { id: "houndstooth", main: "#efe9dd", accent: "#161514", scale: 1.8 } }} className="mx-auto mt-4 aspect-square w-32" />
+      <div className="mt-4 space-y-2">
+        {["Houndstooth", "Gingham", "Pinstripe"].map((o, i) => (
+          <div key={o} className={`rounded-xl border-2 px-4 py-2.5 font-bold ${i === 0 ? "border-[#5fd08a] bg-[#5fd08a]/15" : "border-line"}`}>
+            {o}
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function MiniMarket({ cards }: { cards: CardView[] }) {
+function MockStreak() {
   return (
-    <div className="w-full max-w-sm rounded-3xl bg-surface p-5">
-      <p className="eyebrow">Live now</p>
-      <ul className="mt-3 divide-y divide-line">
-        {cards.length === 0 && <li className="h-40 animate-pulse" />}
-        {cards.map((c) => {
-          const ch = c.dayOpen ? c.value / c.dayOpen - 1 : 0;
-          return (
-            <li key={c.trendId} className="flex items-center justify-between py-3">
-              <span className="text-lg font-extrabold">{c.name}</span>
-              <span className="ml-auto pr-4 font-mono text-sm text-muted tabular-nums">{c.value.toFixed(1)}</span>
-              <span className="font-extrabold tabular-nums" style={{ color: ch >= 0 ? UP : DOWN }}>
-                {ch >= 0 ? "▲" : "▼"} {Math.abs(ch * 100).toFixed(1)}%
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+    <div className="flex flex-col items-center">
+      <motion.div animate={{ scale: [1, 1.08, 1] }} transition={{ duration: 1.8, repeat: Infinity }}>
+        <Flame className="h-32 w-32 text-[#ff8a3d]" />
+      </motion.div>
+      <p className="headline mt-2 text-5xl">12 days</p>
+      <p className="mt-3 flex items-center gap-2 text-xl font-extrabold text-gold">
+        <Bolt className="h-6 w-6" /> +15 XP
+      </p>
+    </div>
+  );
+}
+
+function MockDuel() {
+  return (
+    <div className="w-full max-w-xs rounded-3xl bg-surface p-5">
+      <p className="eyebrow">Duel · 7 questions</p>
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-ivory text-xl font-black text-bg">YOU</span>
+          <p className="mt-2 text-3xl font-extrabold">6</p>
+        </div>
+        <span className="font-mono text-muted">vs</span>
+        <div className="text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gold text-xl font-black text-bg">AM</span>
+          <p className="mt-2 text-3xl font-extrabold">4</p>
+        </div>
+      </div>
+      <p className="mt-4 rounded-xl bg-[#5fd08a]/15 py-2 text-center font-extrabold text-[#5fd08a]">You won · +20 XP</p>
     </div>
   );
 }

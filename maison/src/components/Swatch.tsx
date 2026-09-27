@@ -3,7 +3,7 @@
 import { useId } from "react";
 import type { Family } from "@/lib/cards/families";
 import { materialPattern } from "@/lib/cards/materials";
-import type { TrendStyle } from "@/lib/cards/view";
+import type { TrendStyle } from "@/lib/cards/families";
 
 const FAMILY_BG: Record<Family, string> = {
   piece: "#f2eee6",

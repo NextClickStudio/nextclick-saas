@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Mono, Figtree } from "next/font/google";
-import { GameProvider } from "@/lib/game/store";
+import { LearnProvider } from "@/lib/learn/store";
 import "./globals.css";
 
 const sans = Figtree({
@@ -16,8 +16,8 @@ const mono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Maison · the fashion trend market",
-  description: "Every fashion trend has a price, live from Google searches. Collect, trade and call the trends. The richest maison wins the week.",
+  title: "Maison · learn fashion",
+  description: "Learn fashion in five minutes a day: maisons, designers, icons, runways, fabrics and history. Duel your friends and climb the leagues.",
   applicationName: "Maison",
   appleWebApp: { capable: true, title: "Maison", statusBarStyle: "black-translucent" },
 };
@@ -31,7 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable} h-full`}>
       <body className="min-h-full">
-        <GameProvider>{children}</GameProvider>
+        <LearnProvider>{children}</LearnProvider>
       </body>
     </html>
   );

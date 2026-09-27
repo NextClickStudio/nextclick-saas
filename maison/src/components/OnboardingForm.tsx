@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { COLORS } from "@/lib/cards/palette";
-import { useGame } from "@/lib/game/store";
+import { useLearn } from "@/lib/learn/store";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { Wordmark } from "./Wordmark";
 
@@ -16,7 +16,7 @@ const ERRORS: Record<string, string> = {
 /** Create your maison: name, monogram, three colours, a manifesto. */
 export function OnboardingForm({ firstName }: { firstName: string }) {
   const router = useRouter();
-  const { refresh } = useGame();
+  const { refresh } = useLearn();
   const [name, setName] = useState(firstName ? `Maison ${firstName}` : "");
   const [mono, setMono] = useState("");
   const [palette, setPalette] = useState<string[]>(["#f2eee6", "#651828", "#191817"]);
@@ -57,7 +57,7 @@ export function OnboardingForm({ firstName }: { firstName: string }) {
       return;
     }
     await refresh();
-    router.replace("/pack");
+    router.replace("/learn");
   };
 
   const valid = name.trim().length >= 2 && name.trim().length <= 32;
@@ -65,9 +65,9 @@ export function OnboardingForm({ firstName }: { firstName: string }) {
   return (
     <main className="mx-auto max-w-md px-5 pt-6 pb-16">
       <Wordmark />
-      <p className="eyebrow mt-10">Step 1 of 2</p>
+      <p className="eyebrow mt-10">Your profile</p>
       <h1 className="headline mt-3 text-5xl">Found your maison.</h1>
-      <p className="mt-3 text-lg text-muted">This is your public face. Choose it like a creative director.</p>
+      <p className="mt-3 text-lg text-muted">Your name in the leagues and duels. Choose it like a creative director.</p>
 
       {/* Preview */}
       <div className="mt-8 flex items-center gap-4 rounded-3xl bg-surface p-5">
@@ -149,7 +149,7 @@ export function OnboardingForm({ firstName }: { firstName: string }) {
         disabled={!valid || busy}
         className="mt-8 w-full rounded-2xl bg-ivory py-4 text-lg font-bold text-bg transition-transform active:scale-[0.98] disabled:opacity-40"
       >
-        {busy ? "Opening the doors…" : "Open my first pack"}
+        {busy ? "Opening the doors…" : "Start my first lesson"}
       </button>
     </main>
   );
