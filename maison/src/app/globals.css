@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+/* Maison — dark app shell. Colour only comes from the cards. */
+:root {
+  --bg: #0e0e0d;
+  --surface: #1b1a19;
+  --surface-2: #262523;
+  --ivory: #f2eee6;
+  --paper: #f4efe6;
+  --muted: #9b968e;
+  --line: #2e2d2a;
+  --accent: #e5452d;
+  --gold: #d4ad55;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ivory: var(--ivory);
+  --color-paper: var(--paper);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-gold: var(--gold);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ivory);
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Heavy, tight headlines */
+.headline {
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+/* Spaced monospace eyebrow labels */
+.eyebrow {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- Card rarity finishes ---------- */
+@property --spin {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.edge-rare {
+  background: linear-gradient(160deg, rgba(242, 238, 230, 0.7), rgba(242, 238, 230, 0.12) 45%, rgba(242, 238, 230, 0.55));
+}
+.edge-epic {
+  background: linear-gradient(160deg, #ff7a5c, #e5452d 35%, #5a1830 70%, #ff7a5c);
+}
+.edge-legendary {
+  background: conic-gradient(from var(--spin), #d4ad55, #fff1c2, #b8863b, #f7dc8f, #8c6424, #d4ad55);
+  animation: holo-spin 5s linear infinite;
+}
+@keyframes holo-spin {
+  to {
+    --spin: 360deg;
+  }
+}
+
+/* Light sweep across legendary artwork */
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.45) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: sweep 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes sweep {
+  0%,
+  35% {
+    transform: translateX(-120%);
+  }
+  75%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edge-legendary,
+  .shimmer::after {
+    animation: none;
+  }
+}
