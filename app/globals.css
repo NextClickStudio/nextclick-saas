@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+/* Palette: bianco, grigi, nero + un solo colore di accento. */
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --color-accent: #4f3df5;
+  --color-accent-dark: #3a29d6;
+  --color-accent-soft: #eeebff;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: #ffffff;
+  color: #111111;
+}
+
+/* stampa del report: niente pulsanti */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
