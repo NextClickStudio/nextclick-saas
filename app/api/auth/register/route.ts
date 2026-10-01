@@ -1,5 +1,6 @@
 // Registrazione: crea l'utente (già confermato), il profilo con la sessione di prova, e fa il login.
 import { z } from "zod";
+import { EMAIL_AUTH_ENABLED } from "@/lib/config";
 import { handle, readBody } from "@/lib/api";
 import { db, UserError } from "@/lib/db";
 import { authClient } from "@/lib/supabase-auth";
@@ -14,6 +15,7 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   return handle(async () => {
+    if (!EMAIL_AUTH_ENABLED) throw new UserError("Per ora l'accesso è solo con Google.");
     const input = await readBody(request, schema);
     const { data, error } = await db().auth.admin.createUser({
       email: input.email,

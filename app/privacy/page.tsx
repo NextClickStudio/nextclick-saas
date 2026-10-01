@@ -15,7 +15,7 @@ export default function PrivacyPage() {
 
       <h2>1. Titolare del trattamento</h2>
       <p>
-        {LEGAL.owner}, {LEGAL.address}, P.IVA {LEGAL.vat}. Email: {LEGAL.email} · PEC: {LEGAL.pec}.
+        {LEGAL.owner}, {LEGAL.address}{LEGAL.vat ? `, P.IVA ${LEGAL.vat}` : ""}. Email: {LEGAL.email}{LEGAL.pec ? ` · PEC: ${LEGAL.pec}` : ""}. {LEGAL.project}
       </p>
 
       <h2>2. Dati trattati</h2>

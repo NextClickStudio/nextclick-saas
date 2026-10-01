@@ -9,3 +9,7 @@ export const SUPABASE_PUBLISHABLE_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_oZlJY_ee3NtgIqyFpru9ZA_s7_3owj1";
 
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://yeppo.it").replace(/\/+$/, "");
+
+// Fase di test: accesso solo con Google. Metti true per riattivare email e password
+// (prima configura l'invio email: Supabase → Authentication → SMTP, ad es. con Resend).
+export const EMAIL_AUTH_ENABLED = false;

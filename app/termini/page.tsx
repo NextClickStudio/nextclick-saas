@@ -9,8 +9,8 @@ export default function TermsPage() {
   return (
     <LegalPage title="Termini e condizioni">
       <p>
-        Questi termini regolano l&apos;uso di Yeppo (il &quot;Servizio&quot;), fornito da {LEGAL.owner}, {LEGAL.address},
-        P.IVA {LEGAL.vat} (il &quot;Fornitore&quot;). Creando un account accetti questi termini e la{" "}
+        Questi termini regolano l&apos;uso di Yeppo (il &quot;Servizio&quot;), fornito da {LEGAL.owner}, {LEGAL.address}
+        {LEGAL.vat ? `, P.IVA ${LEGAL.vat}` : ""} (il &quot;Fornitore&quot;). {LEGAL.project} Creando un account accetti questi termini e la{" "}
         <Link href="/privacy">Privacy policy</Link>.
       </p>
 
@@ -92,7 +92,7 @@ export default function TermsPage() {
 
       <h2>11. Contatti</h2>
       <p>
-        {LEGAL.email} · PEC {LEGAL.pec}
+        {LEGAL.email}{LEGAL.pec ? ` · PEC ${LEGAL.pec}` : ""}
       </p>
     </LegalPage>
   );

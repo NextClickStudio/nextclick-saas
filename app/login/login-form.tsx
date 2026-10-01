@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/components/client-utils";
 import GoogleButton from "@/components/google-button";
+import { EMAIL_AUTH_ENABLED } from "@/lib/config";
 import { ErrorBox, btn, input, label } from "@/components/ui";
 
 export default function LoginForm() {
@@ -13,7 +14,7 @@ export default function LoginForm() {
   const errorParam = params.get("errore");
   const [error, setError] = useState(
     errorParam === "google"
-      ? "Accesso con Google non disponibile al momento. Usa email e password."
+      ? `Accesso con Google non riuscito.${EMAIL_AUTH_ENABLED ? " Usa email e password." : " Riprova tra poco."}`
       : errorParam === "link"
         ? "Il link non è valido o è scaduto. Riprova."
         : "",
@@ -32,6 +33,15 @@ export default function LoginForm() {
       setError((err as Error).message);
       setLoading(false);
     }
+  }
+
+  if (!EMAIL_AUTH_ENABLED) {
+    return (
+      <div className="space-y-4">
+        <GoogleButton next={params.get("next") ?? undefined} />
+        <ErrorBox>{error}</ErrorBox>
+      </div>
+    );
   }
 
   return (

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/components/client-utils";
+import { EMAIL_AUTH_ENABLED } from "@/lib/config";
 import GoogleButton from "@/components/google-button";
 import { ErrorBox, btn, input, label } from "@/components/ui";
 
@@ -26,6 +27,18 @@ export default function RegisterForm() {
       setError((err as Error).message);
       setLoading(false);
     }
+  }
+
+  if (!EMAIL_AUTH_ENABLED) {
+    return (
+      <div className="space-y-4">
+        <GoogleButton />
+        <p className="text-center text-xs leading-relaxed text-zinc-500">
+          Continuando accetti i <Link href="/termini" className="underline hover:text-white">Termini</Link> e la{" "}
+          <Link href="/privacy" className="underline hover:text-white">Privacy policy</Link>.
+        </p>
+      </div>
+    );
   }
 
   return (

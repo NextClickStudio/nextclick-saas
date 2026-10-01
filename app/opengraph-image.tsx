@@ -24,7 +24,6 @@ export default function OpengraphImage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={mark} width={96} height={96} alt="" />
           <div style={{ fontSize: 64, fontWeight: 700, letterSpacing: -2 }}>Yeppo</div>
         </div>

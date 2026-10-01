@@ -32,7 +32,7 @@ export default function SiteFooter() {
       </div>
       <div className="border-t border-white/[0.06]">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-xs text-zinc-600 sm:flex-row sm:justify-between sm:px-6">
-          <p>© {new Date().getFullYear()} {LEGAL.owner} · P.IVA {LEGAL.vat}</p>
+          <p>© {new Date().getFullYear()} Yeppo · {LEGAL.owner}{LEGAL.vat ? ` · P.IVA ${LEGAL.vat}` : " · progetto in beta"}</p>
           <p>{LEGAL.address} · {LEGAL.email}</p>
         </div>
       </div>
