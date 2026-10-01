@@ -47,14 +47,28 @@ export const TARGET_SIZES = [
 ] as const;
 export type TargetSize = (typeof TARGET_SIZES)[number]["value"];
 
-export type ContactChannel = { type: string; label: string; url?: string };
+export type ContactChannel = { type: string; label: string; url?: string; person?: string; role?: string };
 export type ContactPlan = {
   channel_type: string;
   channel_label: string;
   why: string;
   steps: string[];
   opening_angle: string;
+  person_name?: string;
+  person_role?: string;
 };
+
+/** Persone chiave trovate sul sito (founder, marketing, commerciale...), una volta ciascuna. */
+export function keyPeople(channels: ContactChannel[] | null): { name: string; role: string; channels: ContactChannel[] }[] {
+  const out: { name: string; role: string; channels: ContactChannel[] }[] = [];
+  for (const c of channels ?? []) {
+    if (!c.person) continue;
+    let p = out.find((x) => x.name === c.person);
+    if (!p) out.push((p = { name: c.person, role: c.role ?? "", channels: [] }));
+    p.channels.push(c);
+  }
+  return out;
+}
 
 export type Criterion = {
   id: string;

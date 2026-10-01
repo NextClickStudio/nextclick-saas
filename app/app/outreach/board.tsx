@@ -198,7 +198,7 @@ function OutreachCard({ item }: { item: OutreachItem }) {
         <div className="flex items-center gap-4">
           <div className="text-right">
             <p className="text-[11px] text-zinc-500">{finished ? "Sequenza" : STEP_NAMES[step]}</p>
-            <p className="text-sm text-zinc-300">{item.plan?.channel_label ?? "—"}</p>
+            <p className="max-w-[220px] truncate text-sm text-zinc-300">{item.plan?.channel_label ?? "—"}</p>
           </div>
           <span className="font-display text-2xl font-semibold text-white">{item.score}</span>
           <span className={`text-zinc-500 transition-transform ${open ? "rotate-180" : ""}`}>⌄</span>
@@ -225,6 +225,9 @@ function OutreachCard({ item }: { item: OutreachItem }) {
                     className={`rounded-lg border px-3 py-1.5 text-sm ${active === c ? "border-accent/60 bg-accent-soft text-white" : "border-white/10 text-zinc-400 hover:text-white"}`}
                   >
                     {SEND_CHANNEL_LABELS[c]}
+                    {item.channels?.find((x) => x.type === c)?.person && (
+                      <span className="text-zinc-400"> · {item.channels.find((x) => x.type === c)!.person!.split(" ")[0]}</span>
+                    )}
                     {c === channels[0] && <span className="ml-1 text-[10px] text-cyan">consigliato</span>}
                   </button>
                 ))}

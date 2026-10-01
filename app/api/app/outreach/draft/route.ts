@@ -25,6 +25,12 @@ export async function POST(request: Request) {
       db().from("messages").select("body").eq("company_id", companyId).order("sent_at"),
     ]);
     const channels = sendChannelsFor(row.contact_channels, row.contact_plan?.channel_type);
+    // a chi arriva il messaggio: il primo canale di quel tipo (le persone chiave sono messe prima del brand)
+    const recipients: Record<string, { name: string; role: string } | undefined> = {};
+    for (const ch of channels) {
+      const c = (row.contact_channels ?? []).find((x) => x.type === ch);
+      if (c?.person) recipients[ch] = { name: c.person, role: c.role ?? "" };
+    }
 
     const drafts = await generateOutreach({
       companyName: row.name,
@@ -43,6 +49,7 @@ export async function POST(request: Request) {
       weakPoints: (row.analysis.weak_points ?? []).map((w) => ({ title: w.title, explanation: w.explanation })),
       openingAngle: row.contact_plan?.opening_angle ?? "",
       channels,
+      recipients,
       step,
       previous: (previous ?? []).map((m) => m.body as string),
     });

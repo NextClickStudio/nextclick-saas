@@ -85,6 +85,12 @@ export default function ContactsTab({ project, rows, siteUrl }: TabProps) {
                     </a>
                   )}
                 </div>
+                {plan.person_name && (
+                  <p className="mt-1 text-xs text-zinc-400">
+                    Scrivi a <span className="text-white">{plan.person_name}</span>
+                    {plan.person_role && ` · ${plan.person_role}`}
+                  </p>
+                )}
                 <p className="mt-2 text-sm leading-relaxed text-zinc-300">{plan.why}</p>
               </div>
 
@@ -104,13 +110,13 @@ export default function ContactsTab({ project, rows, siteUrl }: TabProps) {
 
               {(r.contact_channels ?? []).length > 1 && (
                 <div className="mt-4 flex flex-wrap gap-1.5">
-                  {(r.contact_channels ?? []).map((c) =>
+                  {(r.contact_channels ?? []).map((c, k) =>
                     c.url ? (
-                      <a key={c.type} href={c.url} target="_blank" rel="noopener noreferrer">
+                      <a key={k} href={c.url} target="_blank" rel="noopener noreferrer">
                         <Badge>{c.label}</Badge>
                       </a>
                     ) : (
-                      <Badge key={c.type}>{c.label}</Badge>
+                      <Badge key={k}>{c.label}</Badge>
                     ),
                   )}
                 </div>

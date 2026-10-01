@@ -30,8 +30,13 @@ export default function PrivacyPage() {
       <p>
         Il Servizio legge esclusivamente pagine web pubbliche dei siti aziendali, rispettando il file robots.txt. Vengono
         salvati solo il nome dell&apos;azienda, l&apos;indirizzo del sito, l&apos;URL e il titolo delle pagine lette, i punteggi
-        dell&apos;analisi e i canali di contatto aziendali pubblicati sul sito (es. pagina contatti, profili social del
-        brand). Email e numeri di telefono vengono rimossi dal testo prima dell&apos;analisi e non sono conservati.
+        dell&apos;analisi e i canali di contatto pubblicati dall&apos;azienda sul proprio sito (es. pagina contatti, WhatsApp
+        aziendale, profili social del brand). Se il sito dell&apos;azienda presenta pubblicamente le persone che la guidano (es.
+        fondatore, responsabile marketing o commerciale), conserviamo solo nome, ruolo e i profili professionali o social che
+        il sito stesso collega a quella persona, per permettere un contatto B2B pertinente (legittimo interesse). Non
+        cerchiamo dati personali su altre fonti. Email e altri numeri di telefono vengono rimossi dal testo prima
+        dell&apos;analisi e non sono conservati. Chiunque può chiedere la cancellazione dei propri dati scrivendo
+        all&apos;indirizzo indicato nella sezione 1.
       </p>
       <h3>Visitatori dei report</h3>
       <p>

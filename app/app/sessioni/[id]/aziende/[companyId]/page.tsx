@@ -7,7 +7,7 @@ import { getCompanyRows, getCriteria, getUserProject } from "@/lib/data";
 import { getCurrentUser } from "@/lib/supabase-auth";
 import { db } from "@/lib/db";
 import { siteUrl } from "@/lib/site";
-import { formatDate, statusLabel } from "@/lib/types";
+import { formatDate, statusLabel, keyPeople } from "@/lib/types";
 import ReanalyzeButton from "./reanalyze-button";
 
 type Props = { params: Promise<{ id: string; companyId: string }> };
@@ -102,7 +102,15 @@ export default async function CompanyPage({ params }: Props) {
         <div className="glow-border rounded-2xl bg-panel p-6">
           <p className="text-xs uppercase tracking-wider text-[#c4b8ff]">Metodo di contatto consigliato</p>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-display text-xl font-semibold text-white">{row.contact_plan.channel_label}</h2>
+            <div>
+              <h2 className="font-display text-xl font-semibold text-white">{row.contact_plan.channel_label}</h2>
+              {row.contact_plan.person_name && (
+                <p className="text-sm text-zinc-400">
+                  Scrivi a <span className="text-white">{row.contact_plan.person_name}</span>
+                  {row.contact_plan.person_role && ` · ${row.contact_plan.person_role}`}
+                </p>
+              )}
+            </div>
             {(row.contact_channels ?? []).find((c) => c.type === row.contact_plan!.channel_type)?.url && (
               <a
                 href={(row.contact_channels ?? []).find((c) => c.type === row.contact_plan!.channel_type)!.url}
@@ -124,17 +132,37 @@ export default async function CompanyPage({ params }: Props) {
             ))}
           </ol>
           <p className="mt-4 rounded-xl bg-white/[0.04] p-3 text-sm italic text-zinc-200">“{row.contact_plan.opening_angle}”</p>
-          {(row.contact_channels ?? []).length > 0 && (
+          {keyPeople(row.contact_channels).length > 0 && (
+            <div className="mt-5">
+              <p className="mb-2 text-xs text-zinc-500">Persone chiave trovate sul sito</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {keyPeople(row.contact_channels).map((p) => (
+                  <div key={p.name} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                    <p className="text-sm font-semibold text-white">{p.name}</p>
+                    <p className="text-xs text-zinc-500">{p.role}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {p.channels.map((c, i) => (
+                        <a key={i} href={c.url} target="_blank" rel="noopener noreferrer" className="rounded-full bg-accent-soft px-2.5 py-0.5 text-xs text-[#d6ceff] hover:brightness-125">
+                          {c.type === "persona" ? "Cerca su LinkedIn" : c.type === "whatsapp" ? "WhatsApp" : c.type === "instagram" ? "Instagram" : "LinkedIn"} ↗
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {(row.contact_channels ?? []).some((c) => !c.person) && (
             <div className="mt-4">
-              <p className="mb-2 text-xs text-zinc-500">Tutti i canali trovati sul sito</p>
+              <p className="mb-2 text-xs text-zinc-500">Canali dell&apos;azienda</p>
               <div className="flex flex-wrap gap-2">
-                {(row.contact_channels ?? []).map((c) =>
+                {(row.contact_channels ?? []).filter((c) => !c.person).map((c, i) =>
                   c.url ? (
-                    <a key={c.type} href={c.url} target="_blank" rel="noopener noreferrer" className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-zinc-300 hover:border-accent/50">
+                    <a key={i} href={c.url} target="_blank" rel="noopener noreferrer" className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-zinc-300 hover:border-accent/50">
                       {c.label} ↗
                     </a>
                   ) : (
-                    <span key={c.type} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-zinc-300">{c.label}</span>
+                    <span key={i} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-zinc-300">{c.label}</span>
                   ),
                 )}
               </div>

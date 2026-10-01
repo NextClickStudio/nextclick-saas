@@ -1,6 +1,7 @@
 // Visita il sito di un'azienda ed estrae il testo utile per l'analisi.
-// Regole: rispetta robots.txt, max 3 pagine, 1 secondo di pausa tra le richieste,
-// niente IP privati/localhost, niente dati personali salvati.
+// Regole: rispetta robots.txt, max 3 pagine analizzate (+ chi siamo/contatti solo per i contatti),
+// 1 secondo di pausa tra le richieste, niente IP privati/localhost.
+// Delle persone si tengono solo nome, ruolo e profili che l'azienda stessa pubblica sul proprio sito.
 import "server-only";
 import { lookup } from "node:dns/promises";
 import * as cheerio from "cheerio";
@@ -37,12 +38,26 @@ export type ContactChannel = {
     | "telegram"
     | "pagina_partner"
     | "lavora_con_noi"
-    | "pagina_stampa";
+    | "pagina_stampa"
+    | "persona";
   label: string;
   url?: string;
+  /** persona dell'azienda a cui arriva il canale (es. founder), se nota */
+  person?: string;
+  role?: string;
 };
 
-export type CrawlResult = { pages: ExtractedPage[]; channels: ContactChannel[] };
+/** Profilo personale (Instagram, LinkedIn, WhatsApp) linkato sul sito, con il testo che lo circonda. */
+export type ProfileLink = { network: "instagram" | "linkedin" | "whatsapp"; url: string; context: string };
+
+export type CrawlResult = {
+  pages: ExtractedPage[];
+  channels: ContactChannel[];
+  /** profili personali trovati sul sito (candidati: l'AI li associa a una persona) */
+  profiles: ProfileLink[];
+  /** frammenti di testo che nominano ruoli chiave (founder, marketing, commerciale...) */
+  peopleHints: string[];
+};
 
 function userAgent(): string {
   const site = process.env.NEXT_PUBLIC_SITE_URL || "https://yeppo.it";
@@ -278,14 +293,57 @@ const CHAT_PROVIDERS: [RegExp, string][] = [
  * Non raccoglie email né numeri di telefono.
  */
 export function extractChannels(html: string, pageUrl: string): ContactChannel[] {
+  return extractContacts(html, pageUrl).channels;
+}
+
+/** Numero WhatsApp in formato internazionale (solo cifre) oppure null. */
+export function whatsappNumber(raw: string): string | null {
+  let d = raw.replace(/[^\d+]/g, "").replace(/^00/, "+");
+  if (d.startsWith("+")) d = d.slice(1);
+  else if (/^3\d{8,9}$/.test(d)) d = "39" + d; // cellulare italiano senza prefisso
+  return /^\d{9,15}$/.test(d) ? d : null;
+}
+
+/** Spazio dopo ogni elemento, così i testi di blocchi vicini non si "incollano" (es. "Giulia BianchiFondatrice"). */
+function spaceOut($: cheerio.CheerioAPI) {
+  $("body *").each((_, el) => {
+    $(el).append(" ");
+  });
+}
+
+const normHandle = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/** Testo vicino a un link (il blocco che lo contiene), per capire a chi appartiene. */
+function contextOf($: cheerio.CheerioAPI, el: Parameters<cheerio.CheerioAPI>[0]): string {
+  let node = $(el);
+  for (let i = 0; i < 4; i++) {
+    const t = clean(node.text());
+    if (t.length >= 25 || node.parent().length === 0) break;
+    node = node.parent();
+  }
+  const own = clean(($(el).attr("aria-label") || "") + " " + ($(el).attr("title") || ""));
+  return stripPersonalData(clean(own + " " + clean(node.text())).slice(0, 220));
+}
+
+/**
+ * Trova i canali di contatto che l'azienda pubblica sul proprio sito: chat, WhatsApp,
+ * profili social del brand, pagine contatti/partner/B2B. Separa i profili personali
+ * (es. Instagram o LinkedIn del founder nella pagina team) dal profilo del brand.
+ */
+export function extractContacts(html: string, pageUrl: string): { channels: ContactChannel[]; profiles: ProfileLink[] } {
   const $ = cheerio.load(html);
+  spaceOut($);
   const lower = html.toLowerCase();
   const base = new URL(pageUrl);
   const baseHost = base.hostname.replace(/^www\./, "");
+  const brand = normHandle(baseHost.split(".").slice(0, -1).join("") || baseHost);
   const found = new Map<string, ContactChannel>();
   const add = (c: ContactChannel) => {
     if (!found.has(c.type)) found.set(c.type, c);
   };
+  const instagram = new Map<string, { count: number; context: string; inChrome: boolean }>();
+  const whatsapp = new Map<string, string>();
+  const profiles: ProfileLink[] = [];
 
   for (const [re, name] of CHAT_PROVIDERS) {
     if (re.test(lower)) {
@@ -294,7 +352,7 @@ export function extractChannels(html: string, pageUrl: string): ContactChannel[]
     }
   }
   if ($("form").filter((_, f) => /contatt|contact|messag/i.test($(f).text() + ($(f).attr("action") ?? ""))).length > 0) {
-    add({ type: "form_contatti", label: "Modulo di contatto in homepage", url: pageUrl });
+    add({ type: "form_contatti", label: "Modulo di contatto", url: pageUrl });
   }
 
   $("a[href]").each((_, el) => {
@@ -310,13 +368,25 @@ export function extractChannels(html: string, pageUrl: string): ContactChannel[]
     const path = u.pathname.toLowerCase();
     const isSocialProfile = (h: string) => host === h || host.endsWith("." + h);
     const firstSegment = path.split("/").filter(Boolean)[0] ?? "";
-    // link a condivisioni, post singoli o pagine generiche dei social: non sono il profilo dell'azienda
-    const genericSocial = /^(share|sharer|intent|p|reel|watch|hashtag|explore|groups|events|home|login)$/.test(firstSegment);
+    // link a condivisioni, post singoli o pagine generiche dei social: non sono un profilo
+    const genericSocial = /^(share|sharer|intent|p|reel|reels|tv|stories|watch|hashtag|explore|groups|events|home|login|accounts)$/.test(firstSegment);
 
-    if (/^(wa\.me|api\.whatsapp\.com|chat\.whatsapp\.com)$/.test(host)) add({ type: "whatsapp", label: "WhatsApp aziendale", url: u.toString() });
-    else if (isSocialProfile("instagram.com") && firstSegment && !genericSocial) add({ type: "instagram", label: `Instagram @${firstSegment}`, url: `https://instagram.com/${firstSegment}` });
-    else if ((isSocialProfile("facebook.com") || host === "fb.com") && firstSegment && !genericSocial) add({ type: "facebook", label: "Pagina Facebook", url: u.origin + u.pathname });
+    if (/^(wa\.me|api\.whatsapp\.com|chat\.whatsapp\.com|web\.whatsapp\.com)$/.test(host)) {
+      const num = host === "wa.me" ? whatsappNumber(firstSegment) : whatsappNumber(u.searchParams.get("phone") ?? "");
+      if (num && !whatsapp.has(num)) whatsapp.set(num, contextOf($, el));
+      else if (!num && host === "chat.whatsapp.com") add({ type: "whatsapp", label: "WhatsApp aziendale", url: u.toString() });
+    } else if (isSocialProfile("instagram.com") && firstSegment && !genericSocial) {
+      const prev = instagram.get(firstSegment);
+      const inChrome = $(el).closest("header, footer, nav, [class*=footer], [class*=social], [id*=footer]").length > 0;
+      instagram.set(firstSegment, {
+        count: (prev?.count ?? 0) + 1,
+        context: prev?.context ?? contextOf($, el),
+        inChrome: (prev?.inChrome ?? false) || inChrome,
+      });
+    } else if ((isSocialProfile("facebook.com") || host === "fb.com") && firstSegment && !genericSocial) add({ type: "facebook", label: "Pagina Facebook", url: u.origin + u.pathname });
     else if (isSocialProfile("linkedin.com") && /^\/(company|school|showcase)\//.test(path)) add({ type: "linkedin", label: "Pagina LinkedIn aziendale", url: u.origin + u.pathname });
+    else if (isSocialProfile("linkedin.com") && /^\/in\/[^/]+/.test(path))
+      profiles.push({ network: "linkedin", url: "https://www.linkedin.com" + path.replace(/\/$/, ""), context: contextOf($, el) });
     else if (isSocialProfile("tiktok.com") && firstSegment.startsWith("@")) add({ type: "tiktok", label: `TikTok ${firstSegment}`, url: u.origin + u.pathname });
     else if (isSocialProfile("youtube.com") && firstSegment && !genericSocial) add({ type: "youtube", label: "Canale YouTube", url: u.origin + u.pathname });
     else if (host === "t.me") add({ type: "telegram", label: "Telegram", url: u.toString() });
@@ -330,7 +400,60 @@ export function extractChannels(html: string, pageUrl: string): ContactChannel[]
         add({ type: "pagina_contatti", label: "Pagina contatti", url: u.toString() });
     }
   });
-  return [...found.values()];
+
+  // numero WhatsApp scritto nel testo (es. "WhatsApp: 333 123 4567") senza link wa.me
+  $("script, style, noscript").remove();
+  const m = clean($("body").text()).match(/whats\s?app[^\d+]{0,30}(\+?[\d][\d\s./-]{7,16}\d)/i);
+  const textNum = m ? whatsappNumber(m[1]) : null;
+  if (textNum && !whatsapp.has(textNum)) whatsapp.set(textNum, "");
+
+  // Instagram del brand: quello col nome simile al dominio, altrimenti quello in header/footer o il più linkato.
+  // Gli altri profili Instagram sono candidati personali (es. founder nella pagina "chi siamo").
+  const handles = [...instagram.entries()];
+  const brandHandle =
+    handles.find(([h]) => {
+      const n = normHandle(h);
+      return n.length >= 3 && (n.includes(brand) || brand.includes(n));
+    })?.[0] ??
+    handles.filter(([, v]) => v.inChrome).sort((a, b) => b[1].count - a[1].count)[0]?.[0] ??
+    handles.sort((a, b) => b[1].count - a[1].count)[0]?.[0];
+  for (const [h, v] of handles) {
+    if (h === brandHandle) add({ type: "instagram", label: `Instagram del brand @${h}`, url: `https://instagram.com/${h}` });
+    else profiles.push({ network: "instagram", url: `https://instagram.com/${h}`, context: v.context });
+  }
+
+  // WhatsApp aziendale: il primo numero non legato a un ruolo (es. "Marco, marketing"), altrimenti il primo trovato.
+  // I numeri vicini a una persona vanno anche tra i profili: se l'AI li associa a lei, diventano "WhatsApp di ...".
+  const numbers = [...whatsapp.entries()];
+  const business = numbers.find(([, ctx]) => !ROLE_RE.test(ctx)) ?? numbers[0];
+  if (business) add({ type: "whatsapp", label: "WhatsApp aziendale", url: `https://wa.me/${business[0]}` });
+  for (const [num, context] of numbers) if (context) profiles.push({ network: "whatsapp", url: `https://wa.me/${num}`, context });
+  return { channels: [...found.values()], profiles };
+}
+
+// ruoli di chi decide: servono per trovare nel testo founder, marketing, commerciale...
+const ROLE_RE =
+  /\b(founder|co-?founder|fondat(?:ore|rice|ori)|ceo|titolare|owner|proprietari[oa]|amministrat(?:ore|rice) delegat[oa]|direttor[ei]|direttrice|general manager|managing director|marketing|commerciale|sales|vendite|e-?commerce manager|responsabile|head of|brand manager|socio|soci[ae]|presidente)\b/i;
+
+/** Frasi del sito che parlano di persone con ruoli chiave (es. "Marco Rossi, fondatore"). */
+export function extractPeopleHints(html: string): string[] {
+  const $ = cheerio.load(html);
+  $("script, style, noscript, svg, iframe, template, nav, form").remove();
+  spaceOut($);
+  const out = new Set<string>();
+  $("h1, h2, h3, h4, h5, h6, p, li, figcaption, span, strong, b, em, small, div").each((_, el) => {
+    if ($(el).children().length > 6) return; // blocchi troppo grandi
+    const own = clean($(el).text());
+    if (own.length < 8 || own.length > 400 || !ROLE_RE.test(own)) return;
+    // includi il blocco che contiene il ruolo, così il nome vicino resta nel contesto
+    let block = own;
+    const parentText = clean($(el).parent().text());
+    if (parentText.length <= 400) block = parentText;
+    out.add(stripPersonalData(block));
+  });
+  // tieni i frammenti più specifici (evita duplicati contenuti l'uno nell'altro)
+  const list = [...out].sort((a, b) => a.length - b.length);
+  return list.filter((t, i) => !list.slice(i + 1).some((o) => o.includes(t) && o.length < t.length * 1.5)).slice(0, 25);
 }
 
 /** Sceglie al massimo 2 pagine interne da analizzare, in ordine di priorità. */
@@ -369,6 +492,26 @@ export function pickInternalPages(links: string[], homeUrl: string): string[] {
   return picked;
 }
 
+/** Pagine "chi siamo / team" e "contatti": servono solo per trovare persone e canali, non per il punteggio. */
+export function pickContactPages(links: string[], homeUrl: string, exclude: string[]): string[] {
+  const home = new URL(homeUrl);
+  const baseHost = home.hostname.replace(/^www\./, "");
+  const urls: string[] = [];
+  for (const link of links) {
+    try {
+      const u = new URL(link);
+      if (u.hostname.replace(/^www\./, "") !== baseHost || !/^https?:$/.test(u.protocol)) continue;
+      const key = u.origin + u.pathname.replace(/\/$/, "");
+      if (key !== home.origin + home.pathname.replace(/\/$/, "") && !exclude.includes(key) && !urls.includes(key)) urls.push(key);
+    } catch {
+      /* ignorato */
+    }
+  }
+  const about = urls.find((u) => /chi-?siamo|about|team|la-?nostra-?storia|our-?story|storia|founder|fondator|azienda|company|noi\b/i.test(new URL(u).pathname));
+  const contact = urls.find((u) => u !== about && /contatt|contact/i.test(new URL(u).pathname));
+  return [about, contact].filter((u): u is string => Boolean(u));
+}
+
 /**
  * Analizza il sito: robots.txt, homepage e fino a 2 pagine interne.
  * Lancia UserError con un messaggio chiaro se qualcosa va storto.
@@ -399,25 +542,48 @@ export async function crawlSite(websiteUrl: string): Promise<CrawlResult> {
     throw new UserError("La homepage non contiene testo leggibile (forse il sito è costruito solo in JavaScript).");
   }
   const pages: ExtractedPage[] = [{ url: home.finalUrl.toString(), title: homeData.title, content: homeData.content }];
-  const channels = extractChannels(home.body, home.finalUrl.toString());
+  const homeContacts = extractContacts(home.body, home.finalUrl.toString());
+  const channels = homeContacts.channels;
+  const profiles = homeContacts.profiles;
+  const hints = new Set(extractPeopleHints(home.body));
+  const merge = (html: string, url: string) => {
+    const found = extractContacts(html, url);
+    // canali trovati anche nelle pagine interne (es. chat caricata solo nelle schede prodotto)
+    for (const c of found.channels) {
+      const existing = channels.find((x) => x.type === c.type);
+      if (!existing) channels.push(c);
+      // un secondo Instagram "del brand" su un'altra pagina (es. team senza footer) è un candidato personale
+      else if (c.type === "instagram" && c.url && c.url !== existing.url) profiles.push({ network: "instagram", url: c.url, context: "" });
+    }
+    for (const p of found.profiles) if (!profiles.some((x) => x.url === p.url)) profiles.push(p);
+    for (const h of extractPeopleHints(html)) hints.add(h);
+  };
 
-  for (const pageUrl of pickInternalPages(homeData.links, home.finalUrl.toString())) {
+  const analysisPages = pickInternalPages(homeData.links, home.finalUrl.toString());
+  const contactPages = pickContactPages(homeData.links, home.finalUrl.toString(), analysisPages);
+  for (const pageUrl of [...analysisPages, ...contactPages]) {
     if (Date.now() - started > CRAWL_BUDGET_MS) break;
     await sleep(PAUSE_MS);
     try {
       const res = await safeFetch(pageUrl);
       if (res.status >= 400) continue;
-      const data = extractPage(res.body, res.finalUrl.toString());
-      pages.push({ url: res.finalUrl.toString(), title: data.title, content: data.content });
-      // canali trovati anche nelle pagine interne (es. chat caricata solo nelle schede prodotto)
-      for (const c of extractChannels(res.body, res.finalUrl.toString())) {
-        if (!channels.some((x) => x.type === c.type)) channels.push(c);
+      if (analysisPages.includes(pageUrl)) {
+        const data = extractPage(res.body, res.finalUrl.toString());
+        pages.push({ url: res.finalUrl.toString(), title: data.title, content: data.content });
       }
+      merge(res.body, res.finalUrl.toString());
     } catch {
       // una pagina interna che non si carica non blocca l'analisi
     }
   }
-  return { pages, channels };
+  // un profilo Instagram "personale" uguale a quello del brand trovato altrove non è personale
+  const brandIg = channels.find((c) => c.type === "instagram")?.url;
+  return {
+    pages,
+    channels,
+    profiles: profiles.filter((p) => p.url !== brandIg).slice(0, 15),
+    peopleHints: [...hints].slice(0, 25),
+  };
 }
 
 /** Verifica veloce che un sito esista e risponda (usata per i risultati della ricerca automatica). */

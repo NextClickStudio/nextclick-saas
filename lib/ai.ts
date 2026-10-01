@@ -232,7 +232,22 @@ const evaluationSchema = z.object({
     why: z.string().trim().min(1).max(800),
     steps: z.array(z.string().trim().min(1).max(500)).min(2).max(5),
     opening_angle: z.string().trim().min(1).max(600),
+    person_name: z.string().trim().max(120).optional().default(""),
+    person_role: z.string().trim().max(120).optional().default(""),
   }),
+  people: z
+    .array(
+      z.object({
+        name: z.string().trim().min(2).max(120),
+        role: z.string().trim().min(2).max(120),
+        instagram_url: z.string().trim().max(300).optional().default(""),
+        linkedin_url: z.string().trim().max(300).optional().default(""),
+        whatsapp_url: z.string().trim().max(300).optional().default(""),
+      }),
+    )
+    .max(6)
+    .optional()
+    .default([]),
 });
 export type Evaluation = z.infer<typeof evaluationSchema>;
 
@@ -276,12 +291,30 @@ const evaluationJsonSchema = {
         why: { type: "string" },
         steps: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 5 },
         opening_angle: { type: "string" },
+        person_name: { type: "string", description: "Persona a cui scrivere, se il canale è suo; altrimenti stringa vuota" },
+        person_role: { type: "string" },
       },
-      required: ["channel_type", "channel_label", "why", "steps", "opening_angle"],
+      required: ["channel_type", "channel_label", "why", "steps", "opening_angle", "person_name", "person_role"],
       additionalProperties: false,
     },
+    people: {
+      type: "array",
+      maxItems: 4,
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          role: { type: "string" },
+          instagram_url: { type: "string", description: "Solo un URL presente nell'elenco PROFILI, altrimenti stringa vuota" },
+          linkedin_url: { type: "string", description: "Solo un URL presente nell'elenco PROFILI, altrimenti stringa vuota" },
+          whatsapp_url: { type: "string", description: "Solo un URL presente nell'elenco PROFILI, altrimenti stringa vuota" },
+        },
+        required: ["name", "role", "instagram_url", "linkedin_url", "whatsapp_url"],
+        additionalProperties: false,
+      },
+    },
   },
-  required: ["scores", "weak_points", "summary", "contact_plan"],
+  required: ["scores", "weak_points", "summary", "contact_plan", "people"],
   additionalProperties: false,
 };
 
@@ -291,9 +324,13 @@ export async function evaluateWebsite(input: {
   targetCustomer: string;
   symptom: string;
   channels: { type: string; label: string; url?: string }[];
+  profiles?: { network: string; url: string; context: string }[];
+  peopleHints?: string[];
   criteria: { id: string; name: string; description: string; how_to_check: string }[];
   pages: { url: string; content: string }[];
 }): Promise<Evaluation> {
+  const profiles = input.profiles ?? [];
+  const hints = input.peopleHints ?? [];
   const criteriaText = input.criteria
     .map((c) => `- id: ${c.id}\n  nome: ${c.name}\n  cosa misura: ${c.description}\n  come verificarlo: ${c.how_to_check}`)
     .join("\n");
@@ -315,25 +352,41 @@ ${pagesText}
 CANALI DI CONTATTO PUBBLICATI DALL'AZIENDA "${input.companyName}" SUL SITO
 ${input.channels.length ? input.channels.map((c) => `- ${c.type}: ${c.label}${c.url ? ` (${c.url})` : ""}`).join("\n") : "- nessun canale trovato oltre al sito"}
 
+FRASI DEL SITO CHE NOMINANO PERSONE CON UN RUOLO (chi siamo, team, homepage)
+${hints.length ? hints.map((h) => `- ${h}`).join("\n") : "- nessuna"}
+
+PROFILI PERSONALI LINKATI SUL SITO (con il testo vicino al link)
+${profiles.length ? profiles.map((p) => `- ${p.network}: ${p.url}${p.context ? ` — vicino a: "${p.context}"` : ""}`).join("\n") : "- nessuno"}
+
 ISTRUZIONI
 - Per OGNI criterio (usa esattamente il suo id) assegna un punteggio intero da 0 a 10 (10 = eccellente, sintomo assente) e una prova concreta: cosa hai visto o NON hai visto nel testo, citando brevemente la pagina (es. "In homepage...", "Nella pagina prodotto...").
 - Non inventare: se l'informazione non è nel testo, dillo e assegna un punteggio prudente.
 - Poi identifica i 3 punti in cui questo sito perde più clienti. Spiegali in modo concreto e rispettoso, come li leggerebbe il titolare dell'azienda: titolo breve, spiegazione (2-3 frasi) e prova.
 - Non nominare mai il prodotto di chi chiede l'analisi e non fare pubblicità: descrivi solo il problema.
 - Scrivi un riassunto di 2 frasi.
-- Non riportare email, numeri di telefono o nomi di persone.
+- In punteggi, punti deboli e riassunto (li legge l'azienda) non riportare email, numeri di telefono o nomi di persone.
 Scrivi tutto in italiano, dando del "tu" al titolare.
+
+PERSONE CHIAVE (privato: lo legge solo chi vende)
+- people: fino a 4 persone che decidono, con nome e ruolo SCRITTI ESPLICITAMENTE nelle frasi o nel testo del sito qui sopra:
+  founder/fondatore, titolare, CEO, socio, direttore, responsabile marketing, commerciale/vendite, e-commerce manager.
+  Mai inventare nomi o ruoli: se il sito non li scrive, people è una lista vuota. Niente dipendenti generici (assistenza, magazzino).
+- Associa a una persona un profilo dell'elenco PROFILI solo se il testo vicino al link o il nome del profilo corrisponde chiaramente
+  a quella persona. Copia l'URL esattamente; se non sei sicuro lascia la stringa vuota.
 
 PIANO DI CONTATTO (privato: lo legge solo chi vende, NON l'azienda analizzata)
 Chi vende "${input.productDescription}" a "${input.targetCustomer}" vuole contattare questa azienda SENZA cold email.
-- Scegli il canale più diretto e con più probabilità di arrivare al titolare o a chi decide, tra i canali elencati sopra
-  (es. DM Instagram del brand, WhatsApp aziendale, chat del sito, pagina LinkedIn aziendale per individuare chi decide, modulo partner/B2B).
-  Se non c'è nessun canale, proponi LinkedIn: cercare titolare o responsabile e-commerce dell'azienda.
-- channel_type: il tipo del canale scelto (usa uno dei tipi elencati, oppure "linkedin"). channel_label: nome leggibile del canale.
+- Scegli il canale che arriva più direttamente a chi decide, in questo ordine di preferenza (usa il primo disponibile salvo motivi forti):
+  1) WhatsApp di una persona chiave  2) Instagram personale di una persona chiave  3) WhatsApp aziendale
+  4) Instagram del brand  5) LinkedIn personale di una persona chiave  6) chat del sito, pagina partner/B2B, modulo contatti
+  7) se non c'è nulla: LinkedIn, cercando il titolare o il responsabile marketing/e-commerce.
+- channel_type: il tipo del canale scelto (whatsapp, instagram, linkedin, facebook, chat_live, pagina_partner, form_contatti, pagina_contatti).
+  channel_label: nome leggibile (es. "Instagram di Giulia Bianchi, founder" oppure "WhatsApp aziendale").
+- person_name e person_role: la persona a cui arriva il messaggio se il canale è suo (o se sai a chi chiedere di girarlo), altrimenti stringhe vuote.
 - why: perché questo canale funziona per questa azienda (1-2 frasi concrete).
 - steps: 3-4 passi pratici e brevi. Il primo contatto deve essere un valore regalato, non una vendita: il report gratuito
-  con la posizione in classifica e i 3 punti deboli. Niente link sospetti al primo messaggio se il canale lo sconsiglia.
-- opening_angle: l'aggancio personalizzato da usare, basato sul punto debole più forte trovato (1-2 frasi, tono rispettoso).`;
+  con la posizione in classifica e i 3 punti deboli.
+- opening_angle: l'aggancio personalizzato da usare, basato sul punto debole più forte trovato (1-2 frasi, tono umano).`;
 
   const ids = new Set(input.criteria.map((c) => c.id));
   // lo schema zod controlla anche che ci sia un punteggio per ogni criterio
@@ -349,6 +402,29 @@ Chi vende "${input.productDescription}" a "${input.targetCustomer}" vuole contat
     .filter((s) => ids.has(s.criterion_id) && !seen.has(s.criterion_id) && seen.add(s.criterion_id))
     .map((s) => ({ ...s, score: Math.round(s.score) }));
   result.weak_points = result.weak_points.slice(0, 3);
+
+  // persone: il nome deve comparire davvero nel sito e i profili devono essere tra quelli trovati (niente invenzioni)
+  const siteText = (hints.join(" ") + " " + profiles.map((p) => p.context).join(" ") + " " + input.pages.map((p) => p.content).join(" ")).toLowerCase();
+  const known = new Map(profiles.map((p) => [p.url.toLowerCase().replace(/\/$/, ""), p]));
+  const pick = (url: string, network: string) => {
+    const p = known.get(url.toLowerCase().replace(/\/$/, ""));
+    return p && p.network === network ? p.url : "";
+  };
+  result.people = result.people
+    // solo chi decide: niente assistenza clienti, magazzino, logistica
+    .filter((p) => !/customer|assistenza|care|support|magazzin|logistic|spedizion|stagist|intern\b/i.test(p.role))
+    .filter((p) => siteText.includes(p.name.toLowerCase()) || p.name.split(/\s+/).every((w) => w.length < 2 || siteText.includes(w.toLowerCase())))
+    .map((p) => ({
+      ...p,
+      instagram_url: pick(p.instagram_url, "instagram"),
+      linkedin_url: pick(p.linkedin_url, "linkedin"),
+      whatsapp_url: pick(p.whatsapp_url, "whatsapp"),
+    }))
+    .slice(0, 4);
+  if (result.contact_plan.person_name && !result.people.some((p) => p.name === result.contact_plan.person_name)) {
+    result.contact_plan.person_name = "";
+    result.contact_plan.person_role = "";
+  }
   return result;
 }
 
@@ -451,12 +527,13 @@ const outreachSchema = z.object({
       z.object({
         channel: z.string().trim().min(1).max(40),
         subject: z.string().trim().max(200).optional().default(""),
+        hook: z.string().trim().max(200).optional().default(""),
         body: z.string().trim().min(1).max(3000),
       }),
     )
     .min(1),
 });
-export type OutreachDraft = z.infer<typeof outreachSchema>["messages"][number];
+export type OutreachDraft = { channel: string; subject: string; body: string };
 
 const outreachJsonSchema = {
   type: "object",
@@ -468,9 +545,10 @@ const outreachJsonSchema = {
         properties: {
           channel: { type: "string" },
           subject: { type: "string", description: "Solo per email, altrimenti stringa vuota" },
-          body: { type: "string" },
+          hook: { type: "string", description: "Prima riga del messaggio: aggancio breve e personalizzato (solo primo contatto, altrimenti stringa vuota)" },
+          body: { type: "string", description: "Il resto del messaggio, che continua dopo l'aggancio senza ripeterlo" },
         },
-        required: ["channel", "subject", "body"],
+        required: ["channel", "subject", "hook", "body"],
         additionalProperties: false,
       },
     },
@@ -480,12 +558,12 @@ const outreachJsonSchema = {
 };
 
 const CHANNEL_RULES: Record<string, string> = {
-  instagram: "DM Instagram: massimo 450 caratteri, tono umano e diretto, niente formalità da email, al massimo 1 emoji.",
-  whatsapp: "WhatsApp: massimo 400 caratteri, tono cordiale e diretto, presentati con nome e azienda nella prima riga.",
-  facebook: "Messenger della pagina Facebook: massimo 450 caratteri, tono cordiale.",
-  linkedin: "LinkedIn (nota di collegamento o messaggio alla persona che decide): massimo 280 caratteri.",
-  sito: "Modulo contatti o chat del sito: massimo 600 caratteri, chiedi di inoltrare al titolare o al responsabile e-commerce.",
-  email: "Email: oggetto breve e specifico (massimo 60 caratteri, niente clickbait) e corpo di massimo 120 parole, firma con nome e azienda.",
+  instagram: "instagram (DM): massimo 350 caratteri in tutto, scritto come un DM vero tra persone, al massimo 1 emoji.",
+  whatsapp: "whatsapp: massimo 350 caratteri in tutto, tono da messaggio tra professionisti che si danno del tu; dopo l'aggancio dici chi sei in mezza frase.",
+  facebook: "facebook (Messenger della pagina): massimo 400 caratteri, tono cordiale.",
+  linkedin: "linkedin (nota di collegamento o messaggio): massimo 280 caratteri in tutto.",
+  sito: "sito (modulo contatti o chat): massimo 500 caratteri, chiedi di girarlo al titolare o a chi segue marketing/e-commerce.",
+  email: "email: oggetto breve e specifico in minuscolo (massimo 50 caratteri, niente clickbait), corpo di massimo 90 parole, firma con nome e azienda.",
 };
 
 export async function generateOutreach(input: {
@@ -505,30 +583,53 @@ export async function generateOutreach(input: {
   weakPoints: { title: string; explanation: string }[];
   openingAngle: string;
   channels: string[];
+  /** a chi arriva il messaggio su ciascun canale (es. instagram → founder), se noto */
+  recipients?: Record<string, { name: string; role: string } | undefined>;
   step: number;
   previous: string[];
 }): Promise<OutreachDraft[]> {
+  const recipients = input.channels
+    .map((c) => {
+      const r = input.recipients?.[c];
+      return r
+        ? `- ${c}: arriva a ${r.name} (${r.role}). Salutalo per nome di battesimo ("Ciao ${r.name.split(" ")[0]},") e parlagli come a chi decide.`
+        : `- ${c}: arriva all'account dell'azienda (lo legge chi gestisce i messaggi). Nessun nome; chiedi in modo naturale di girarlo a chi segue il sito/marketing.`;
+    })
+    .join("\n");
+
   const stepText =
     input.step === 0
-      ? `PRIMO CONTATTO. Obiettivo: far aprire il report gratuito. Regala valore: cita UN punto debole concreto in modo rispettoso,
-spiega che hai preparato un'analisi gratuita del loro sito rispetto ad altre ${input.total} aziende del settore e metti il link.
-Non vendere il prodotto, non chiedere una call nel primo messaggio.`
+      ? `PRIMO CONTATTO. Obiettivo: far aprire il report. Niente vendita, niente call.
+- hook (prima riga): UNA frase brevissima (massimo 12 parole) scritta su misura per ${input.companyName}, che fa venire voglia
+  di sapere di più oppure crea un filo di preoccupazione concreta: un problema reale del loro sito che gli fa perdere clienti,
+  il confronto con i concorrenti, la loro posizione. Deve basarsi sui dati qui sotto, mai inventata.
+  Se il messaggio va a una persona, il saluto con il nome sta all'inizio dell'hook ("Ciao Giulia, ...").
+  Esempi di TONO (non copiarli): "Ho notato una cosa sul vostro sito che vi sta costando ordini." /
+  "Siete 18° su 30 brand del settore che ho analizzato, e il motivo si sistema." / "Chi arriva sulle vostre schede prodotto si blocca in un punto preciso."
+  Niente punti esclamativi, niente maiuscole urlate, niente promesse esagerate.
+- body: continua dopo l'hook senza ripeterlo, 2-3 frasi corte: chi sei in mezza frase, il punto debole più forte detto in parole semplici,
+  il link al report con una frase naturale (es. "ti ho messo tutto qui:"), e chiudi con una domanda leggera oppure con niente.`
       : input.step === 1
-        ? `FOLLOW-UP 1 (dopo qualche giorno senza risposta). Breve. Aggiungi UNA nuova osservazione utile (un altro punto debole),
-ricorda il link al report e proponi, senza insistere, 15 minuti per parlarne${input.bookingUrl ? ` (link per prenotare: ${input.bookingUrl})` : ""}.`
-        : `FOLLOW-UP 2 (ultimo messaggio). Brevissimo e cortese: chiudi il ciclo, lascia la porta aperta, nessuna pressione.`;
+        ? `FOLLOW-UP 1 (dopo qualche giorno senza risposta). hook = stringa vuota. Breve e leggero, come un secondo messaggio a un conoscente:
+aggiungi UNA nuova osservazione utile (un altro punto debole), ricorda il link al report e proponi, senza insistere, 15 minuti
+per parlarne${input.bookingUrl ? ` (link per prenotare: ${input.bookingUrl})` : ""} o di usare il pulsante nel report.`
+        : `FOLLOW-UP 2 (ultimo messaggio). hook = stringa vuota. Due frasi al massimo, cortese: chiudi il ciclo, lascia la porta aperta, nessuna pressione.`;
 
-  const prompt = `Scrivi messaggi di contatto commerciale B2B in italiano, personalizzati per l'azienda "${input.companyName}" (settore: ${input.sector}).
+  const prompt = `Scrivi messaggi di primo contatto B2B in italiano per l'azienda "${input.companyName}" (settore: ${input.sector}).
+Devono sembrare scritti a mano da una persona vera, dal telefono: frasi corte, parole semplici, zero gergo da agenzia.
 
 Chi scrive: ${input.senderName || "il mittente"}${input.senderRole ? `, ${input.senderRole}` : ""}${input.senderCompany ? ` di ${input.senderCompany}` : ""}.
-Cosa offre (NON va descritto come pubblicità, al massimo accennato nel follow-up): ${input.senderOffer || input.productDescription}
+Cosa offre (NON va pubblicizzato; al massimo accennato nei follow-up): ${input.senderOffer || input.productDescription}
 ${input.senderWebsite ? `Sito di chi scrive (solo nella firma dell'email): ${input.senderWebsite}` : ""}
 
 Dati dell'analisi del loro sito:
-- posizione ${input.position ?? "?"} su ${input.total} aziende analizzate, punteggio ${input.score}/100
+- posizione ${input.position ?? "?"} su ${input.total} aziende del settore analizzate, punteggio ${input.score}/100
 - punti deboli: ${input.weakPoints.map((w) => `${w.title} (${w.explanation})`).join(" | ")}
 - aggancio suggerito: ${input.openingAngle}
 - link al report privato: ${input.reportUrl}
+
+DESTINATARI
+${recipients}
 
 ${stepText}
 ${input.previous.length ? `Messaggi già inviati (non ripeterli):\n${input.previous.map((p) => `- ${p.slice(0, 300)}`).join("\n")}` : ""}
@@ -536,12 +637,19 @@ ${input.previous.length ? `Messaggi già inviati (non ripeterli):\n${input.previ
 REGOLE
 - Scrivi un messaggio per ciascuno di questi canali: ${input.channels.join(", ")}.
 - ${input.channels.map((c) => CHANNEL_RULES[c] ?? c).join("\n- ")}
-- Usa il nome dell'azienda. Sembra scritto a mano da una persona, non un template. Niente frasi fatte ("spero tu stia bene").
+- Dai del tu. Vietate le frasi fatte: "spero tu stia bene", "mi permetto di", "Gentile", "analisi approfondita", "soluzioni innovative", "sinergie".
+- Niente elenchi puntati, niente grassetti, niente firme lunghe (tranne nell'email).
 - Non dire mai che sai se hanno aperto il report. Non inventare dati che non sono qui sopra.
 - Inserisci il link al report esattamente così: ${input.reportUrl}
-- Dal report l'azienda può chiedere una call in un clic: nel follow-up puoi ricordarlo ("trovi anche il pulsante per fissare 15 minuti").
 - Il campo channel deve essere esattamente uno di: ${input.channels.join(", ")}.`;
 
-  const result = await generateJson({ prompt, schema: outreachJsonSchema, validator: outreachSchema, temperature: 0.7 });
-  return result.messages.filter((m) => input.channels.includes(m.channel));
+  const result = await generateJson({ prompt, schema: outreachJsonSchema, validator: outreachSchema, temperature: 0.8 });
+  return result.messages
+    .filter((m) => input.channels.includes(m.channel))
+    .map((m) => {
+      const hook = input.step === 0 ? m.hook.trim() : "";
+      // l'AI a volte ripete l'aggancio all'inizio del corpo: in quel caso non lo duplichiamo
+      const body = hook && !m.body.toLowerCase().startsWith(hook.toLowerCase().slice(0, 25)) ? `${hook}\n\n${m.body}` : m.body;
+      return { channel: m.channel, subject: m.subject, body };
+    });
 }
