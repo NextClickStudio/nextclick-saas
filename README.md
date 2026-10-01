@@ -4,7 +4,7 @@
 report personalizzato per ognuna e indica il canale diretto migliore per fargliela arrivare.
 
 Stack: Next.js 16 (App Router) + TypeScript + Tailwind CSS · Supabase (Postgres + Auth) · Vercel AI Gateway
-(Gemini 2.5 Flash per l'analisi, Perplexity Sonar Pro per la ricerca web) · Stripe · Vercel.
+oppure Google Gemini diretto (attualmente in uso, piano gratuito) · Stripe · Vercel.
 
 ## Come funziona per l'utente
 
@@ -33,7 +33,8 @@ Stack: Next.js 16 (App Router) + TypeScript + Tailwind CSS · Supabase (Postgres
 | `STRIPE_WEBHOOK_SECRET` | per i pagamenti | Stripe → Developers → Webhooks (vedi sotto) |
 | `STRIPE_AUTOMATIC_TAX` | no | `1` per far calcolare l'IVA a Stripe Tax |
 | `AI_MODEL`, `DISCOVERY_MODEL` | no | modelli AI Gateway (predefiniti `google/gemini-2.5-flash` e `perplexity/sonar-pro`) |
-| `GEMINI_API_KEY` | no | se impostata, l'analisi usa Gemini diretto |
+| `GEMINI_API_KEY` | consigliata | chiave di Google AI Studio: se c'è, tutta l'AI usa Gemini diretto (modelli provati in ordine: gemini-3.5-flash, gemini-3.8-flash, gemini-flash-lite-latest) |
+| `GEMINI_MODEL` | no | forza un solo modello Gemini |
 | `AI_GATEWAY_API_KEY` | solo in locale | Vercel → AI Gateway → API Keys (su Vercel l'AI funziona senza chiavi) |
 
 URL Supabase, chiave pubblica di login e indirizzo del sito hanno già valori predefiniti (progetto "yeppo", `https://yeppo.it`).

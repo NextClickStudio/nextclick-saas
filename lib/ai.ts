@@ -12,7 +12,11 @@ import { z } from "zod";
 import { UserError } from "@/lib/db";
 
 // Nome del modello in un punto solo: per cambiarlo modifica solo queste righe.
-export const GEMINI_MODEL = "gemini-2.5-flash"; // usato con GEMINI_API_KEY
+// Modelli Gemini provati in ordine (con GEMINI_API_KEY): se uno è sovraccarico o ha finito
+// la quota gratuita del giorno, si passa al successivo. Si può forzarne uno con GEMINI_MODEL.
+export const GEMINI_MODELS = process.env.GEMINI_MODEL
+  ? [process.env.GEMINI_MODEL]
+  : ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-lite-latest", "gemini-3.5-flash-lite"];
 export const GATEWAY_MODEL = process.env.AI_MODEL || "google/gemini-2.5-flash"; // usato con AI Gateway
 // modello con ricerca web, per trovare le aziende (via AI Gateway)
 export const DISCOVERY_MODEL = process.env.DISCOVERY_MODEL || "perplexity/sonar-pro";
@@ -22,16 +26,8 @@ let gemini: GoogleGenAI | null = null;
 
 /** Una chiamata al modello che restituisce il testo JSON grezzo. */
 async function callModel(prompt: string, schema: object, temperature: number, model = GATEWAY_MODEL): Promise<string> {
-  // con GEMINI_API_KEY si usa Gemini diretto (tranne per la ricerca web, che richiede AI Gateway)
-  if (process.env.GEMINI_API_KEY && model === GATEWAY_MODEL) {
-    gemini ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    const response = await gemini.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: prompt,
-      config: { temperature, responseMimeType: "application/json", responseJsonSchema: schema },
-    });
-    return response.text ?? "";
-  }
+  // con GEMINI_API_KEY si usa Gemini diretto per tutto (anche per trovare le aziende)
+  if (process.env.GEMINI_API_KEY) return callGemini(prompt, schema, temperature);
 
   let token = process.env.AI_GATEWAY_API_KEY;
   if (!token) {
@@ -64,6 +60,36 @@ async function callModel(prompt: string, schema: object, temperature: number, mo
   if (!res.ok) throw new Error(`AI Gateway ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   return data.choices?.[0]?.message?.content ?? "";
+}
+
+/** Gemini diretto, provando più modelli se uno è sovraccarico o senza quota. */
+async function callGemini(prompt: string, schema: object, temperature: number): Promise<string> {
+  gemini ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+  let quotaExceeded = false;
+  for (const model of GEMINI_MODELS) {
+    try {
+      const response = await gemini.models.generateContent({
+        model,
+        contents: prompt,
+        config: { temperature, responseMimeType: "application/json", responseJsonSchema: schema },
+      });
+      return response.text ?? "";
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const message = err instanceof Error ? err.message : "";
+      console.error(`Gemini ${model}: ${status ?? ""} ${message.slice(0, 200)}`);
+      if (status === 400 && /api key|API_KEY/i.test(message)) {
+        throw new UserError("La chiave Gemini non è valida: controlla GEMINI_API_KEY.");
+      }
+      if (status === 429) quotaExceeded = true;
+      // 429 (quota), 503 (sovraccarico), 404 (modello non disponibile), 500: si prova il modello successivo
+    }
+  }
+  throw new UserError(
+    quotaExceeded
+      ? "Hai raggiunto il limite gratuito di Gemini per ora: riprova tra qualche minuto (o domani, se è il limite giornaliero)."
+      : "L'AI di Google è molto richiesta in questo momento. Riprova tra qualche minuto.",
+  );
 }
 
 /**
@@ -382,7 +408,7 @@ export async function discoverCompanies(input: {
   count: number;
   exclude: string[];
 }): Promise<DiscoveredCompany[]> {
-  const prompt = `Sei un ricercatore commerciale B2B. Cerca sul web aziende REALI e ATTIVE che siano ottimi potenziali clienti.
+  const prompt = `Sei un ricercatore commerciale B2B. Individua aziende REALI e ATTIVE (cercale sul web se puoi, altrimenti usa le tue conoscenze) che siano ottimi potenziali clienti.
 
 Chi vende offre: """${input.productDescription}"""
 Cliente ideale: """${input.targetCustomer}"""
@@ -391,7 +417,7 @@ Area geografica: ${input.country}
 Dimensione: ${SIZE_TEXT[input.targetSize] ?? SIZE_TEXT.tutte}
 Segnale da cercare (il loro problema): ${input.symptom}
 
-Trova ${input.count} aziende diverse, ciascuna con il proprio sito web ufficiale (dominio dell'azienda, non marketplace,
+Trova ${input.count} aziende diverse, ciascuna con il proprio sito web ufficiale e funzionante (dominio dell'azienda, non marketplace,
 non Amazon/Etsy/Facebook, non directory o articoli). Preferisci aziende che con buona probabilità hanno il problema descritto.
 ${input.exclude.length ? `NON includere questi siti già trovati: ${input.exclude.slice(0, 80).join(", ")}` : ""}
 
@@ -405,6 +431,7 @@ Rispondi SOLO con il JSON richiesto.`;
   } catch (err) {
     // se il modello con ricerca web non è disponibile, usa il modello normale:
     // i siti proposti vengono comunque verificati uno per uno prima di essere salvati
+    if (process.env.GEMINI_API_KEY) throw err; // con Gemini diretto il modello è già lo stesso
     if (err instanceof UserError && err.message.startsWith("Crediti AI")) throw err;
     console.error("Ricerca web non riuscita, uso il modello standard", err);
     return (await ask(GATEWAY_MODEL)).companies;
