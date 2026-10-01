@@ -6,49 +6,15 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, copyText } from "@/components/client-utils";
 import { Badge, EmptyState, ErrorBox, btn, input } from "@/components/ui";
-import { MAX_STEP, SEND_CHANNEL_LABELS, sendChannelsFor, sendLink, type SendChannel } from "@/lib/outreach";
-import { formatDate, type ContactChannel, type ContactPlan } from "@/lib/types";
-
-export type OutreachItem = {
-  id: string;
-  name: string;
-  website: string;
-  sessionId: string;
-  sessionName: string;
-  score: number;
-  position: number | null;
-  total: number;
-  status: string;
-  channels: ContactChannel[] | null;
-  plan: ContactPlan | null;
-  reportUrl: string;
-  views: number;
-  lastViewedAt: string | null;
-  step: number;
-  nextFollowupAt: string | null;
-  lastContactedAt: string | null;
-  drafts: Record<string, { generated_at: string; messages: { channel: string; subject?: string; body: string }[] }> | null;
-  /** follow-up scaduto (calcolato dal server) */
-  due: boolean;
-};
+import { MAX_STEP, SEND_CHANNEL_LABELS, DONE_STATUSES, groupOutreach, sendChannelsFor, sendLink, type OutreachItem, type SendChannel } from "@/lib/outreach";
+import { formatDate } from "@/lib/types";
 
 const STEP_NAMES = ["Primo contatto", "Follow-up 1", "Follow-up 2"];
-const OPEN = ["contattata", "report_aperto"];
-const DONE = ["ha_risposto", "chiamata", "cliente", "non_interessata"];
 
 type View = "oggi" | "caldi" | "nuovi" | "attesa" | "tutti";
 
 export default function OutreachBoard({ items }: { items: OutreachItem[] }) {
-  const groups = useMemo(() => {
-    const hot = items.filter((i) => i.views > 0 && OPEN.includes(i.status));
-    const due = items.filter((i) => OPEN.includes(i.status) && i.due && i.step <= MAX_STEP);
-    const fresh = items.filter((i) => i.status === "da_contattare").sort((a, b) => a.score - b.score);
-    const waiting = items.filter((i) => OPEN.includes(i.status) && !i.due);
-    // "Oggi": prima i caldi, poi i follow-up scaduti, poi fino a 10 nuovi contatti
-    const seen = new Set<string>();
-    const today = [...hot, ...due, ...fresh.slice(0, 10)].filter((i) => !seen.has(i.id) && seen.add(i.id));
-    return { today, hot, due, fresh, waiting, done: items.filter((i) => DONE.includes(i.status)) };
-  }, [items]);
+  const groups = useMemo(() => groupOutreach(items), [items]);
 
   const [view, setView] = useState<View>("oggi");
   const list =
@@ -108,7 +74,7 @@ export default function OutreachBoard({ items }: { items: OutreachItem[] }) {
 function OutreachCard({ item }: { item: OutreachItem }) {
   const router = useRouter();
   const step = Math.min(item.step, MAX_STEP);
-  const finished = item.step > MAX_STEP || DONE.includes(item.status);
+  const finished = item.step > MAX_STEP || DONE_STATUSES.includes(item.status);
   const channels = sendChannelsFor(item.channels, item.plan?.channel_type);
   const saved = item.drafts?.[String(step)]?.messages ?? [];
 
@@ -188,7 +154,7 @@ function OutreachCard({ item }: { item: OutreachItem }) {
             {item.views > 0 && <Badge tone="amber">🔥 report aperto {item.views}×</Badge>}
             {due && !finished && <Badge tone="accent">Follow-up oggi</Badge>}
             {item.status === "da_contattare" && <Badge>Nuovo</Badge>}
-            {DONE.includes(item.status) && <Badge tone="green">{item.status.replace("_", " ")}</Badge>}
+            {DONE_STATUSES.includes(item.status) && <Badge tone="green">{item.status.replace("_", " ")}</Badge>}
           </div>
           <p className="mt-0.5 truncate text-xs text-zinc-500">
             {item.sessionName} · {item.website.replace(/^https?:\/\//, "")}

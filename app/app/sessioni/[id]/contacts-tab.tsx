@@ -43,7 +43,7 @@ export default function ContactsTab({ project, rows, siteUrl }: TabProps) {
           In cima le aziende con il sintomo più forte. Per ognuna: il canale più diretto pubblicato sul loro sito, i passi e
           l&apos;aggancio. Il primo messaggio è sempre il report gratuito, mai una vendita.
         </p>
-        <Link href="/app/outreach" className={btn.accent}>Scrivi e invia i messaggi →</Link>
+        <Link href={`/app/outreach/${project.id}`} className={btn.accent}>Scrivi e invia i messaggi →</Link>
         <div className="inline-flex rounded-xl border border-white/[0.08] bg-white/[0.02] p-0.5 text-sm">
           {(["priorita", "tutte"] as const).map((f) => (
             <button key={f} onClick={() => setFilter(f)} className={`rounded-lg px-3 py-1.5 ${filter === f ? "bg-white text-ink" : "text-zinc-400"}`}>

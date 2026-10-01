@@ -1,7 +1,7 @@
 // Canali di invio e link "con un clic" (usabili anche nel browser: niente segreti qui).
 // Instagram e WhatsApp non permettono l'invio automatico di messaggi a chi non ti ha mai scritto
 // (regole Meta): Yeppo prepara il testo e apre la chat giusta, l'invio lo conferma l'utente.
-import type { ContactChannel } from "@/lib/types";
+import type { ContactChannel, ContactPlan } from "@/lib/types";
 
 export type SendChannel = "instagram" | "whatsapp" | "facebook" | "linkedin" | "sito" | "email";
 
@@ -97,4 +97,43 @@ export function replyLink(channel: string, contact: string, text: string, subjec
     default:
       return { href: "#", prefilled: false };
   }
+}
+
+/** Un'azienda pronta per l'outreach (analizzata, con report). */
+export type OutreachItem = {
+  id: string;
+  name: string;
+  website: string;
+  sessionId: string;
+  sessionName: string;
+  score: number;
+  position: number | null;
+  total: number;
+  status: string;
+  channels: ContactChannel[] | null;
+  plan: ContactPlan | null;
+  reportUrl: string;
+  views: number;
+  lastViewedAt: string | null;
+  step: number;
+  nextFollowupAt: string | null;
+  lastContactedAt: string | null;
+  drafts: Record<string, { generated_at: string; messages: { channel: string; subject?: string; body: string }[] }> | null;
+  /** follow-up scaduto (calcolato dal server) */
+  due: boolean;
+};
+
+const OPEN = ["contattata", "report_aperto"];
+export const DONE_STATUSES = ["ha_risposto", "chiamata", "cliente", "non_interessata"];
+
+/** Divide le aziende in: oggi, caldi (hanno aperto il report), follow-up scaduti, da contattare, in attesa, concluse. */
+export function groupOutreach(items: OutreachItem[]) {
+  const hot = items.filter((i) => i.views > 0 && OPEN.includes(i.status));
+  const due = items.filter((i) => OPEN.includes(i.status) && i.due && i.step <= MAX_STEP);
+  const fresh = items.filter((i) => i.status === "da_contattare").sort((a, b) => a.score - b.score);
+  const waiting = items.filter((i) => OPEN.includes(i.status) && !i.due);
+  // "Oggi": prima i caldi, poi i follow-up scaduti, poi fino a 10 nuovi contatti
+  const seen = new Set<string>();
+  const today = [...hot, ...due, ...fresh.slice(0, 10)].filter((i) => !seen.has(i.id) && seen.add(i.id));
+  return { today, hot, due, fresh, waiting, done: items.filter((i) => DONE_STATUSES.includes(i.status)) };
 }
