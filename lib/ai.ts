@@ -707,15 +707,16 @@ Se non trovi nessuno: {"people":[]}. Niente telefoni né email.`;
       const raw = response.text ?? "";
       const meta = response.candidates?.[0]?.groundingMetadata;
       const chunks = meta?.groundingChunks ?? [];
-      debug?.({ model, raw: raw.slice(0, 1500), chunks: chunks.length, supports: meta?.groundingSupports?.length ?? 0 });
-      // senza risultati di ricerca reali non ci fidiamo: il modello potrebbe "ricordare" male
-      if (chunks.length === 0) return [];
+      const searched = chunks.length > 0 || (meta?.webSearchQueries?.length ?? 0) > 0 || Boolean(meta?.searchEntryPoint);
+      debug?.({ model, raw: raw.slice(0, 1500), chunks: chunks.length, searched, metaKeys: Object.keys(meta ?? {}) });
       const text = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
       const parsed = webPeopleSchema.safeParse(JSON.parse(text || "{}"));
       if (!parsed.success) return [];
       const supported = (meta?.groundingSupports ?? []).map((s) => (s.segment?.text ?? "").toLowerCase()).join(" ");
       const titles = chunks.map((c) => `${c.web?.title ?? ""} ${c.web?.domain ?? ""}`.toLowerCase()).join(" ");
       return parsed.data.people
+        // senza una ricerca Google confermata accettiamo solo persone con una fonte dichiarata (restano "da verificare")
+        .filter((p) => searched || p.source.length > 2)
         .filter((p) => !/customer|assistenza|care|support|magazzin|logistic|stagist/i.test(p.role))
         // se Google indica quali parti della risposta vengono dai risultati, il nome deve essere tra quelle
         .filter((p) => !supported || supported.includes(p.name.toLowerCase().split(" ")[0]))
