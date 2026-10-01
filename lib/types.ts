@@ -47,7 +47,7 @@ export const TARGET_SIZES = [
 ] as const;
 export type TargetSize = (typeof TARGET_SIZES)[number]["value"];
 
-export type ContactChannel = { type: string; label: string; url?: string; person?: string; role?: string };
+export type ContactChannel = { type: string; label: string; url?: string; person?: string; role?: string; source?: "web" };
 export type ContactPlan = {
   channel_type: string;
   channel_label: string;

@@ -4,7 +4,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CopyButton, StatusSelect } from "@/components/company-controls";
+import FindPeopleButton from "@/components/find-people-button";
 import { Badge, EmptyState, btn } from "@/components/ui";
+import { keyPeople } from "@/lib/types";
 import type { TabProps } from "./tabs";
 
 const CHANNEL_ICONS: Record<string, string> = {
@@ -106,6 +108,15 @@ export default function ContactsTab({ project, rows, siteUrl }: TabProps) {
               <div className="mt-4 rounded-xl bg-white/[0.03] p-3">
                 <p className="text-[11px] uppercase tracking-wider text-zinc-500">Aggancio</p>
                 <p className="mt-1 text-sm italic leading-relaxed text-zinc-200">{plan.opening_angle}</p>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-zinc-500">
+                  {keyPeople(r.contact_channels).length > 0
+                    ? `Persone: ${keyPeople(r.contact_channels).map((p) => `${p.name} (${p.role})`).join(", ")}`
+                    : "Nessuna persona chiave trovata"}
+                </p>
+                <FindPeopleButton companyId={r.id} small />
               </div>
 
               {(r.contact_channels ?? []).length > 1 && (

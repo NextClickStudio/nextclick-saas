@@ -2,43 +2,16 @@
 // Il browser chiama questa route un'azienda alla volta, così ogni chiamata resta sotto i limiti di tempo.
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { evaluateWebsite, type Evaluation } from "@/lib/ai";
+import { evaluateWebsite, findPeopleOnWeb } from "@/lib/ai";
 import { handle, ownedCompany, readBody, uuid } from "@/lib/api";
-import { crawlSite, type ContactChannel } from "@/lib/crawler";
+import { crawlSite } from "@/lib/crawler";
+import { planFirst, webPeopleAsHints, withPeople } from "@/lib/people";
 import { db, friendlyError, UserError } from "@/lib/db";
 import { getCriteria, getUserProject } from "@/lib/data";
 import { requireUser } from "@/lib/supabase-auth";
 import { computeTotalScore } from "@/lib/scoring";
 
 export const maxDuration = 90;
-
-/**
- * Canali delle persone chiave prima di quelli aziendali: chi apre WhatsApp o Instagram
- * scrive così alla persona che decide. Chi non ha profili sul sito resta come "persona"
- * con una ricerca LinkedIn pronta.
- */
-function withPeople(companyName: string, people: Evaluation["people"], channels: ContactChannel[]): ContactChannel[] {
-  const personal: ContactChannel[] = [];
-  for (const p of people) {
-    const who = { person: p.name, role: p.role };
-    if (p.whatsapp_url) personal.push({ type: "whatsapp", label: `WhatsApp di ${p.name} (${p.role})`, url: p.whatsapp_url, ...who });
-    if (p.instagram_url) personal.push({ type: "instagram", label: `Instagram di ${p.name} (${p.role})`, url: p.instagram_url, ...who });
-    if (p.linkedin_url) personal.push({ type: "linkedin", label: `LinkedIn di ${p.name} (${p.role})`, url: p.linkedin_url, ...who });
-    if (!p.whatsapp_url && !p.instagram_url && !p.linkedin_url) {
-      const q = encodeURIComponent(`${p.name} ${companyName}`);
-      personal.push({ type: "persona", label: `${p.name} (${p.role})`, url: `https://www.linkedin.com/search/results/people/?keywords=${q}`, ...who });
-    }
-  }
-  // stesso URL già presente come canale aziendale (es. WhatsApp unico): resta solo la versione con la persona
-  const urls = new Set(personal.map((c) => c.url));
-  return [...personal, ...channels.filter((c) => !c.url || !urls.has(c.url))];
-}
-
-/** Mette per primo il canale scelto dal piano (stesso tipo e stessa persona): i link "apri canale" usano il primo del tipo. */
-function planFirst(channels: ContactChannel[], plan: Evaluation["contact_plan"]): ContactChannel[] {
-  const i = channels.findIndex((c) => c.type === plan.channel_type && (c.person ?? "") === (plan.person_name ?? ""));
-  return i > 0 ? [channels[i], ...channels.slice(0, i), ...channels.slice(i + 1)] : channels;
-}
 
 export async function POST(request: Request) {
   return handle(async () => {
@@ -75,15 +48,27 @@ export async function POST(request: Request) {
       const deadline = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new UserError("L'analisi ha richiesto troppo tempo (sito lento o AI molto richiesta). Riprova.")), 75_000),
       );
+      // in parallelo alla visita del sito: ricerca Google di founder, marketing e commerciale
+      // (se fallisce o è lenta si va avanti con quello che c'è sul sito)
+      const webSearch = findPeopleOnWeb({ companyName: company.name, website: company.website_url, sector: project.target_sector })
+        .then((people) => webPeopleAsHints(people))
+        .catch((err) => {
+          console.error("Ricerca persone sul web", err instanceof Error ? err.message : err);
+          return null;
+        });
       const { pages, channels, profiles, peopleHints } = await Promise.race([crawlSite(company.website_url), deadline]);
+      const web = await Promise.race([webSearch, new Promise<null>((r) => setTimeout(() => r(null), 30_000))]);
+      // persone trovate solo con Google (non sul sito): nell'app sono segnate "dal web"
+      const siteText = (peopleHints.join(" ") + " " + pages.map((p) => p.content).join(" ")).toLowerCase();
+      const onlyWeb = new Set([...(web?.names ?? [])].filter((n) => !siteText.includes(n)));
       const evaluation = await Promise.race([evaluateWebsite({
         companyName: company.name,
         productDescription: project.product_description,
         targetCustomer: project.target_customer,
         symptom: project.symptom || "",
         channels,
-        profiles,
-        peopleHints,
+        profiles: [...profiles, ...(web?.profiles ?? [])],
+        peopleHints: [...peopleHints, ...(web?.hints ?? [])],
         criteria,
         pages,
       }), deadline]);
@@ -107,7 +92,7 @@ export async function POST(request: Request) {
 
       await supabase
         .from("companies")
-        .update({ contact_channels: planFirst(withPeople(company.name, evaluation.people, channels), evaluation.contact_plan), contact_plan: evaluation.contact_plan })
+        .update({ contact_channels: planFirst(withPeople(company.name, evaluation.people, channels, onlyWeb), evaluation.contact_plan), contact_plan: evaluation.contact_plan })
         .eq("id", company.id);
 
       // crea il report (link segreto) se non esiste ancora

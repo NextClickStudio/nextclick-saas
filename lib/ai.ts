@@ -352,10 +352,10 @@ ${pagesText}
 CANALI DI CONTATTO PUBBLICATI DALL'AZIENDA "${input.companyName}" SUL SITO
 ${input.channels.length ? input.channels.map((c) => `- ${c.type}: ${c.label}${c.url ? ` (${c.url})` : ""}`).join("\n") : "- nessun canale trovato oltre al sito"}
 
-FRASI DEL SITO CHE NOMINANO PERSONE CON UN RUOLO (chi siamo, team, homepage)
+FRASI CHE NOMINANO PERSONE CON UN RUOLO (dal sito: chi siamo, team, homepage; oppure trovate con Google)
 ${hints.length ? hints.map((h) => `- ${h}`).join("\n") : "- nessuna"}
 
-PROFILI PERSONALI LINKATI SUL SITO (con il testo vicino al link)
+PROFILI PERSONALI (linkati sul sito o trovati con Google, con il testo vicino)
 ${profiles.length ? profiles.map((p) => `- ${p.network}: ${p.url}${p.context ? ` — vicino a: "${p.context}"` : ""}`).join("\n") : "- nessuno"}
 
 ISTRUZIONI
@@ -370,7 +370,7 @@ Scrivi tutto in italiano, dando del "tu" al titolare.
 PERSONE CHIAVE (privato: lo legge solo chi vende)
 - people: fino a 4 persone che decidono, con nome e ruolo SCRITTI ESPLICITAMENTE nelle frasi o nel testo del sito qui sopra:
   founder/fondatore, titolare, CEO, socio, direttore, responsabile marketing, commerciale/vendite, e-commerce manager.
-  Mai inventare nomi o ruoli: se il sito non li scrive, people è una lista vuota. Niente dipendenti generici (assistenza, magazzino).
+  Usa solo le persone delle FRASI qui sopra (dal sito o da Google). Mai inventare nomi o ruoli: se non ce ne sono, people è una lista vuota. Niente dipendenti generici (assistenza, magazzino).
 - Associa a una persona un profilo dell'elenco PROFILI solo se il testo vicino al link o il nome del profilo corrisponde chiaramente
   a quella persona. Copia l'URL esattamente; se non sei sicuro lascia la stringa vuota.
 
@@ -652,4 +652,89 @@ REGOLE
       const body = hook && !m.body.toLowerCase().startsWith(hook.toLowerCase().slice(0, 25)) ? `${hook}\n\n${m.body}` : m.body;
       return { channel: m.channel, subject: m.subject, body };
     });
+}
+
+// ---------------------------------------------------------------------
+// E) Persone chiave cercate sul web (Google Search tramite Gemini)
+// ---------------------------------------------------------------------
+
+const webPeopleSchema = z.object({
+  people: z
+    .array(
+      z.object({
+        name: z.string().trim().min(3).max(120),
+        role: z.string().trim().min(2).max(120),
+        linkedin_url: z.string().trim().max(300).optional().default(""),
+        instagram_url: z.string().trim().max(300).optional().default(""),
+        source: z.string().trim().max(200).optional().default(""),
+      }),
+    )
+    .max(8),
+});
+export type WebPerson = z.infer<typeof webPeopleSchema>["people"][number];
+
+/**
+ * Cerca su Google chi guida l'azienda (founder, titolare, marketing, commerciale) e i suoi profili
+ * professionali/pubblici. Solo nomi, ruoli e profili: niente numeri di telefono o email personali.
+ * Richiede la fatturazione Gemini attiva (la ricerca Google non è inclusa nel piano gratuito).
+ */
+export async function findPeopleOnWeb(input: { companyName: string; website: string; sector: string }): Promise<WebPerson[]> {
+  if (!process.env.GEMINI_API_KEY) return [];
+  gemini ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const domain = input.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/.*$/, "");
+  const prompt = `Cerca sul web chi guida l'azienda "${input.companyName}" (sito ${domain}, settore ${input.sector}, Italia).
+Cerca: fondatore/founder, titolare, CEO, soci, responsabile marketing, responsabile commerciale/vendite, e-commerce manager.
+Fonti utili: LinkedIn, articoli di giornale e interviste, registro imprese, pagina "chi siamo", profilo Instagram del brand (bio e tag).
+
+Per ogni persona TROVATA NEI RISULTATI DI RICERCA (massimo 5, prima chi decide):
+- name: nome e cognome
+- role: ruolo nell'azienda
+- linkedin_url: URL del profilo LinkedIn personale (linkedin.com/in/...) se compare nei risultati, altrimenti ""
+- instagram_url: URL del profilo Instagram personale se compare nei risultati ed è chiaramente suo, altrimenti ""
+- source: dove l'hai trovata (es. "LinkedIn", "Corriere della Sera, intervista 2024", "registro imprese")
+
+Regole: solo persone che lavorano OGGI in questa azienda (non omonimi, non altre aziende con nome simile).
+Non inventare nulla: se non trovi nessuno rispondi {"people": []}. Niente numeri di telefono né email.
+Rispondi SOLO con JSON: {"people":[{"name":"","role":"","linkedin_url":"","instagram_url":"","source":""}]}`;
+
+  let lastError: unknown = null;
+  for (const model of GEMINI_MODELS.filter((m) => !m.includes("lite")).concat(GEMINI_MODELS.filter((m) => m.includes("lite")))) {
+    try {
+      const response = await gemini.models.generateContent({
+        model,
+        contents: prompt,
+        config: { temperature: 0.1, tools: [{ googleSearch: {} }], httpOptions: { timeout: 45_000 } },
+      });
+      const raw = response.text ?? "";
+      const meta = response.candidates?.[0]?.groundingMetadata;
+      const chunks = meta?.groundingChunks ?? [];
+      // senza risultati di ricerca reali non ci fidiamo: il modello potrebbe "ricordare" male
+      if (chunks.length === 0) return [];
+      const text = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
+      const parsed = webPeopleSchema.safeParse(JSON.parse(text || "{}"));
+      if (!parsed.success) return [];
+      const supported = (meta?.groundingSupports ?? []).map((s) => (s.segment?.text ?? "").toLowerCase()).join(" ");
+      const titles = chunks.map((c) => `${c.web?.title ?? ""} ${c.web?.domain ?? ""}`.toLowerCase()).join(" ");
+      return parsed.data.people
+        .filter((p) => !/customer|assistenza|care|support|magazzin|logistic|stagist/i.test(p.role))
+        // se Google indica quali parti della risposta vengono dai risultati, il nome deve essere tra quelle
+        .filter((p) => !supported || supported.includes(p.name.toLowerCase().split(" ")[0]))
+        .map((p) => ({
+          ...p,
+          linkedin_url: /^https:\/\/([a-z]{2,3}\.)?(www\.)?linkedin\.com\/in\/[^/?#\s]+\/?$/i.test(p.linkedin_url) && titles.includes("linkedin") ? p.linkedin_url : "",
+          instagram_url: /^https:\/\/(www\.)?instagram\.com\/[a-z0-9._]{2,30}\/?$/i.test(p.instagram_url) ? p.instagram_url : "",
+        }))
+        .slice(0, 5);
+    } catch (err) {
+      lastError = err;
+      const status = (err as { status?: number }).status;
+      console.error(`Ricerca persone ${model}: ${status ?? ""} ${(err instanceof Error ? err.message : "").slice(0, 200)}`);
+      if (status === 400 && /api key|API_KEY/i.test(String(err))) break;
+    }
+  }
+  const status = (lastError as { status?: number } | null)?.status;
+  if (status === 429) {
+    throw new UserError("La ricerca sul web richiede la fatturazione Gemini attiva (la ricerca Google non è nel piano gratuito).");
+  }
+  throw new UserError("Ricerca delle persone sul web non riuscita. Riprova tra poco.");
 }

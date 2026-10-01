@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/supabase-auth";
 import { db } from "@/lib/db";
 import { siteUrl } from "@/lib/site";
 import { formatDate, statusLabel, keyPeople } from "@/lib/types";
+import FindPeopleButton from "@/components/find-people-button";
 import ReanalyzeButton from "./reanalyze-button";
 
 type Props = { params: Promise<{ id: string; companyId: string }> };
@@ -132,13 +133,23 @@ export default async function CompanyPage({ params }: Props) {
             ))}
           </ol>
           <p className="mt-4 rounded-xl bg-white/[0.04] p-3 text-sm italic text-zinc-200">“{row.contact_plan.opening_angle}”</p>
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-zinc-500">
+              {keyPeople(row.contact_channels).length > 0
+                ? "Persone chiave (dal sito e da Google)"
+                : "Nessuna persona chiave trovata sul sito: cercala su Google."}
+            </p>
+            <FindPeopleButton companyId={row.id} small />
+          </div>
           {keyPeople(row.contact_channels).length > 0 && (
-            <div className="mt-5">
-              <p className="mb-2 text-xs text-zinc-500">Persone chiave trovate sul sito</p>
+            <div className="mt-2">
               <div className="grid gap-2 sm:grid-cols-2">
                 {keyPeople(row.contact_channels).map((p) => (
                   <div key={p.name} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                    <p className="text-sm font-semibold text-white">{p.name}</p>
+                    <p className="text-sm font-semibold text-white">
+                      {p.name}
+                      {p.channels.every((c) => c.source === "web") && <span className="ml-1.5 text-[10px] font-normal text-amber-300">dal web · verifica</span>}
+                    </p>
                     <p className="text-xs text-zinc-500">{p.role}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {p.channels.map((c, i) => (

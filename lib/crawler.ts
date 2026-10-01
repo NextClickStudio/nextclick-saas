@@ -45,6 +45,8 @@ export type ContactChannel = {
   /** persona dell'azienda a cui arriva il canale (es. founder), se nota */
   person?: string;
   role?: string;
+  /** "web" se la persona è stata trovata con una ricerca Google e non sul sito */
+  source?: "web";
 };
 
 /** Profilo personale (Instagram, LinkedIn, WhatsApp) linkato sul sito, con il testo che lo circonda. */
