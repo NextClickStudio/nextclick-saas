@@ -160,3 +160,19 @@ body {
   .no-print { display: none !important; }
   body { background: white; color: black; }
 }
+
+/* transizioni di pagina e barra di navigazione */
+.page-enter {
+  animation: page-enter 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.nav-progress {
+  animation: nav-progress 8s cubic-bezier(0.1, 0.7, 0.2, 1) forwards;
+}
+@keyframes nav-progress {
+  from { width: 0%; }
+  to { width: 92%; }
+}

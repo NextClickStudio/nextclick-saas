@@ -25,7 +25,12 @@ const STEPS = [
   {
     n: "04",
     title: "L'AI scrive, tu invii con un clic",
-    text: "Per ogni azienda: report privato, canale più diretto e messaggio personalizzato per Instagram, WhatsApp, LinkedIn o email. Yeppo programma i follow-up, ti avvisa quando aprono il report e quando ti chiedono una call.",
+    text: "Per ogni azienda: report privato, canale più diretto e messaggio personalizzato per Instagram, WhatsApp, LinkedIn o email. I follow-up li programma Yeppo.",
+  },
+  {
+    n: "05",
+    title: "Ti chiedono la call",
+    text: "Dal report l'azienda prenota 15 minuti con te. Ti arriva la notifica: accetti e rispondi in DM con un clic.",
   },
 ];
 
@@ -49,11 +54,15 @@ const FAQ = [
   },
   {
     q: "Cosa contiene il report che ricevono le aziende?",
-    a: "Posizione in classifica, punteggio su 100, i 3 punti in cui il sito perde clienti con le prove, il confronto con la media del settore e la tua call to action. Non contiene mai pubblicità del tuo prodotto.",
+    a: "È breve e diretto: posizione e punteggio rispetto al settore, i 3 punti in cui il sito perde clienti, chi sei tu e come risolvi quei punti, e un modulo per prenotare subito una call di 15 minuti. Il dettaglio dei criteri resta disponibile per chi vuole approfondire.",
   },
   {
     q: "Yeppo invia messaggi al posto mio?",
     a: "Yeppo scrive i messaggi per te, uno diverso per ogni azienda e per ogni canale, e apre la chat giusta con il testo pronto: tu controlli e premi invia. Poi programma i follow-up. Niente invii di massa automatici: Instagram e WhatsApp li vietano e bloccano gli account che li fanno, e sono proprio i messaggi di massa che le aziende ignorano.",
+  },
+  {
+    q: "Come arrivano le richieste di call?",
+    a: "L'azienda le invia dal report scegliendo come essere ricontattata (WhatsApp, telefono, email o Instagram). Tu ricevi la notifica in Yeppo, accetti e rispondi con un clic: il messaggio di conferma è già scritto.",
   },
   {
     q: "Quanto costa?",
@@ -83,13 +92,13 @@ export default function Home() {
                 Prospezione B2B guidata dall&apos;AI
               </div>
               <h1 className="fade-in font-display text-[2.6rem] font-semibold leading-[1.05] tracking-tight text-white sm:text-6xl" style={{ animationDelay: "80ms" }}>
-                Smetti di mandare cold email.
+                Il tuo commerciale AI.
                 <br />
-                <span className="text-gradient">Mostra il problema.</span>
+                <span className="text-gradient">Senza cold email.</span>
               </h1>
               <p className="fade-in mt-6 max-w-xl text-lg leading-relaxed text-zinc-400" style={{ animationDelay: "160ms" }}>
-                Yeppo trova le aziende giuste per te, analizza i loro siti, crea un report personalizzato per ognuna e ti
-                dice il canale diretto per fargliela arrivare. Loro vedono il problema. Tu hai il motivo per parlarne.
+                Yeppo trova le aziende giuste, scopre dove perdono clienti e prepara per ognuna un report e il messaggio
+                perfetto per Instagram, WhatsApp, LinkedIn o email. Loro vedono il problema, ti chiedono una call. Tu chiudi.
               </p>
               <div className="fade-in mt-9 flex flex-wrap items-center gap-3" style={{ animationDelay: "240ms" }}>
                 <Link href="/registrati" className={`${btn.accent} !px-6 !py-3 text-base`}>
@@ -114,7 +123,7 @@ export default function Home() {
           <div className="flex overflow-hidden">
             <div className="marquee flex shrink-0 gap-12 whitespace-nowrap pr-12 text-sm text-zinc-500">
               {[...Array(2)].flatMap((_, k) =>
-                ["Ricerca automatica delle aziende", "Analisi dei siti con prove", "Classifica di settore", "Report privati", "Metodo di contatto diretto", "Tracciamento delle aperture"].map((t) => (
+                ["Ricerca automatica delle aziende", "Analisi dei siti con prove", "Report privati", "Messaggi scritti dall'AI", "Follow-up automatici", "Richieste di call", "Classifica di settore"].map((t) => (
                   <span key={`${k}-${t}`} className="flex items-center gap-3">
                     <span className="h-1 w-1 rounded-full bg-accent" />
                     {t}
@@ -165,7 +174,7 @@ export default function Home() {
                 Da zero a una lista di prospect con un motivo per parlarti.
               </h2>
             </Reveal>
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {STEPS.map((s, i) => (
                 <Reveal key={s.n} delay={i * 100}>
                   <div className="group relative h-full overflow-hidden rounded-3xl border border-white/[0.07] bg-gradient-to-b from-white/[0.04] to-transparent p-8 transition-colors hover:border-accent/40">
@@ -214,6 +223,37 @@ export default function Home() {
           </div>
         </section>
 
+        {/* DAL MESSAGGIO ALLA CALL */}
+        <section className="relative border-t border-white/[0.06] py-28">
+          <div className="orb right-10 top-20 h-64 w-64 bg-cyan/15" />
+          <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
+            <Reveal className="mx-auto mb-16 max-w-2xl text-center">
+              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-accent">Outreach</p>
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-white sm:text-5xl">Dal primo messaggio alla call.</h2>
+              <p className="mt-5 text-lg text-zinc-400">Ogni giorno Yeppo ti dice chi contattare. Tu premi invia, il resto lo segue lui.</p>
+            </Reveal>
+            <div className="relative grid gap-4 md:grid-cols-4">
+              <div className="absolute left-0 right-0 top-9 hidden h-px bg-gradient-to-r from-transparent via-accent/50 to-transparent md:block" />
+              {[
+                { icon: "✉", title: "Messaggio scritto dall'AI", text: "Personalizzato sul loro sito, per il canale giusto. Si apre già pronto." },
+                { icon: "🔥", title: "Aprono il report", text: "Yeppo te lo segnala: è il momento perfetto per il follow-up." },
+                { icon: "📞", title: "Ti chiedono la call", text: "Dal report, in un clic. Ti arriva la notifica in Richieste." },
+                { icon: "✓", title: "Accetti e rispondi", text: "Conferma già scritta su WhatsApp, email o Instagram." },
+              ].map((x, i) => (
+                <Reveal key={x.title} delay={i * 150}>
+                  <div className="relative h-full rounded-2xl border border-white/[0.07] bg-panel p-6 text-center">
+                    <span className="relative mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-accent/30 to-cyan/20 text-xl ring-1 ring-white/10">
+                      {x.icon}
+                    </span>
+                    <p className="font-semibold text-white">{x.title}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-zinc-400">{x.text}</p>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* REPORT */}
         <section className="border-t border-white/[0.06] py-28">
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -223,36 +263,43 @@ export default function Home() {
                 Quello che riceve l&apos;azienda.
               </h2>
               <p className="mt-5 text-lg text-zinc-400">
-                Un documento professionale, ottimizzato per il telefono, che sembra una consulenza. Non una pubblicità.
+                Corto, chiaro, pensato per il telefono: il problema, la tua soluzione e la call da prenotare subito.
               </p>
             </Reveal>
             <Reveal>
-              <div className="glow-border mx-auto max-w-3xl rounded-3xl bg-panel p-6 sm:p-10">
-                <p className="text-xs uppercase tracking-[0.2em] text-accent">Indice della qualità delle schede prodotto</p>
-                <p className="mt-3 font-display text-3xl font-semibold text-white">Report per Atelier Milano</p>
-                <div className="mt-8 grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
-                    <p className="text-xs text-zinc-500">Posizione</p>
-                    <p className="font-display text-3xl font-semibold text-white">24<span className="text-base text-zinc-500"> / 30</span></p>
-                  </div>
-                  <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
-                    <p className="text-xs text-zinc-500">Punteggio</p>
-                    <p className="font-display text-3xl font-semibold text-white">34<span className="text-base text-zinc-500">/100</span></p>
-                  </div>
-                  <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
-                    <p className="text-xs text-zinc-500">Media settore</p>
-                    <p className="font-display text-3xl font-semibold text-white">52</p>
-                  </div>
+              <div className="glow-border mx-auto max-w-xl rounded-3xl bg-panel p-6 sm:p-8">
+                <p className="text-xs uppercase tracking-[0.2em] text-accent">Analisi gratuita</p>
+                <p className="mt-3 font-display text-2xl font-semibold leading-tight text-white">Atelier Milano, il tuo sito perde clienti in 3 punti.</p>
+                <div className="mt-5 grid grid-cols-3 gap-2">
+                  {[
+                    ["Posizione", "24", "/30"],
+                    ["Punteggio", "34", "/100"],
+                    ["Media settore", "52", ""],
+                  ].map(([l, v, u]) => (
+                    <div key={l} className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
+                      <p className="text-[11px] text-zinc-500">{l}</p>
+                      <p className="font-display text-2xl font-semibold text-white">{v}<span className="text-xs text-zinc-500">{u}</span></p>
+                    </div>
+                  ))}
                 </div>
-                <div className="mt-8 space-y-3">
+                <div className="mt-5 rounded-2xl border border-accent/30 bg-accent-soft p-4">
+                  <p className="text-sm font-semibold text-white">Come possiamo risolverlo</p>
+                  <p className="mt-1 text-xs leading-relaxed text-zinc-300">Foto e video prodotto con l&apos;AI in 48 ore: schede che mostrano il capo indossato e in movimento.</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="h-8 rounded-lg bg-white/[0.06]" />
+                    <div className="h-8 rounded-lg bg-white/[0.06]" />
+                  </div>
+                  <div className="mt-2 rounded-lg bg-gradient-to-r from-accent to-cyan py-2 text-center text-xs font-semibold text-ink">Prenota la call gratuita</div>
+                </div>
+                <div className="mt-4 space-y-2">
                   {["Le schede non spiegano vestibilità e taglie", "Foto senza contesto d'uso", "Nessuna guida per chi è indeciso"].map((t, i) => (
-                    <div key={t} className="flex items-center gap-4 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-bold text-ink">{i + 1}</span>
+                    <div key={t} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-[11px] font-bold text-ink">{i + 1}</span>
                       <span className="text-sm text-zinc-200">{t}</span>
                     </div>
                   ))}
                 </div>
-                <p className="mt-6 text-center text-xs text-zinc-600">Esempio illustrativo</p>
+                <p className="mt-5 text-center text-xs text-zinc-600">Esempio illustrativo</p>
               </div>
             </Reveal>
           </div>
