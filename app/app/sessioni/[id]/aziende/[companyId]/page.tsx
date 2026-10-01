@@ -24,6 +24,10 @@ function describeEvent(e: EventRow): string {
       return `Stato: ${statusLabel(String(e.data?.from ?? ""))} → ${statusLabel(String(e.data?.to ?? ""))}${e.data?.auto ? " (automatico)" : ""}`;
     case "analysis_done":
       return `Analisi completata (${e.data?.total_score ?? "?"}/100)`;
+    case "message_sent":
+      return `Messaggio inviato su ${e.data?.channel ?? "?"} (${Number(e.data?.step ?? 0) === 0 ? "primo contatto" : `follow-up ${e.data?.step}`})`;
+    case "call_request":
+      return `📞 Ha chiesto una call dal report (${e.data?.channel ?? ""})`;
     case "analysis_error":
       return `Analisi non riuscita: ${e.data?.message ?? ""}`;
     default:

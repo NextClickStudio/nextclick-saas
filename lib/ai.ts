@@ -71,7 +71,8 @@ async function callGemini(prompt: string, schema: object, temperature: number): 
       const response = await gemini.models.generateContent({
         model,
         contents: prompt,
-        config: { temperature, responseMimeType: "application/json", responseJsonSchema: schema },
+        // massimo 40 secondi per modello: se uno è lento si passa al successivo
+        config: { temperature, responseMimeType: "application/json", responseJsonSchema: schema, httpOptions: { timeout: 40_000 } },
       });
       return response.text ?? "";
     } catch (err) {
@@ -494,6 +495,8 @@ export async function generateOutreach(input: {
   senderName: string;
   senderCompany: string;
   senderRole: string;
+  senderWebsite: string;
+  senderOffer: string;
   bookingUrl: string;
   reportUrl: string;
   position: number | null;
@@ -518,7 +521,8 @@ ricorda il link al report e proponi, senza insistere, 15 minuti per parlarne${in
   const prompt = `Scrivi messaggi di contatto commerciale B2B in italiano, personalizzati per l'azienda "${input.companyName}" (settore: ${input.sector}).
 
 Chi scrive: ${input.senderName || "il mittente"}${input.senderRole ? `, ${input.senderRole}` : ""}${input.senderCompany ? ` di ${input.senderCompany}` : ""}.
-Cosa offre (NON va descritto come pubblicità, al massimo accennato nel follow-up): ${input.productDescription}
+Cosa offre (NON va descritto come pubblicità, al massimo accennato nel follow-up): ${input.senderOffer || input.productDescription}
+${input.senderWebsite ? `Sito di chi scrive (solo nella firma dell'email): ${input.senderWebsite}` : ""}
 
 Dati dell'analisi del loro sito:
 - posizione ${input.position ?? "?"} su ${input.total} aziende analizzate, punteggio ${input.score}/100
@@ -535,6 +539,7 @@ REGOLE
 - Usa il nome dell'azienda. Sembra scritto a mano da una persona, non un template. Niente frasi fatte ("spero tu stia bene").
 - Non dire mai che sai se hanno aperto il report. Non inventare dati che non sono qui sopra.
 - Inserisci il link al report esattamente così: ${input.reportUrl}
+- Dal report l'azienda può chiedere una call in un clic: nel follow-up puoi ricordarlo ("trovi anche il pulsante per fissare 15 minuti").
 - Il campo channel deve essere esattamente uno di: ${input.channels.join(", ")}.`;
 
   const result = await generateJson({ prompt, schema: outreachJsonSchema, validator: outreachSchema, temperature: 0.7 });

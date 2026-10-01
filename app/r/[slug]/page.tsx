@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import CallRequest from "@/components/call-request";
 import { ScoreBar, scoreColor } from "@/components/ui";
 import { db } from "@/lib/db";
 import { getReportData, isBot } from "@/lib/report";
@@ -23,7 +24,8 @@ export default async function ReportPage({ params }: Props) {
   const { slug } = await params;
   const data = await getReportData(slug);
   if (!data) notFound();
-  const { project, criteria, row, analysis, stats, inTopN } = data;
+  const { project, criteria, row, analysis, stats, inTopN, sender } = data;
+  const senderName = sender?.full_name || project.sender_name || "";
 
   // Conta la visita, ma non se la apre chi ha creato la sessione o un bot/anteprima link.
   const viewer = await getCurrentUser();
@@ -160,18 +162,26 @@ export default async function ReportPage({ params }: Props) {
         </section>
 
         <section className="glow-border rounded-3xl bg-panel p-6 sm:p-8">
-          <p className="mb-5 font-display text-xl font-semibold leading-snug text-white">{project.report_cta_text}</p>
-          {project.report_cta_url && (
-            <a
-              href={project.report_cta_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex rounded-xl bg-gradient-to-r from-accent to-[#6ee7d8] px-5 py-3 text-sm font-semibold text-ink hover:brightness-110"
-            >
-              {project.report_cta_text.length <= 40 ? project.report_cta_text : "Prenota ora"}
-            </a>
-          )}
-          {project.sender_name && <p className="mt-5 text-sm text-zinc-400">— {project.sender_name}</p>}
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#c4b8ff]">Chi ha preparato questa analisi</p>
+          <div className="mt-4 flex items-start gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-accent to-cyan font-display text-lg font-bold text-ink">
+              {(senderName || "?").slice(0, 1).toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <p className="font-display text-lg font-semibold text-white">{senderName || "Il team che ha realizzato l'analisi"}</p>
+              {(sender?.sender_role || sender?.company_name) && (
+                <p className="text-sm text-zinc-400">{[sender?.sender_role, sender?.company_name].filter(Boolean).join(" · ")}</p>
+              )}
+              {sender?.company_offer && <p className="mt-2 text-sm leading-relaxed text-zinc-300">{sender.company_offer}</p>}
+              {sender?.company_website && (
+                <a href={sender.company_website} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-[#c4b8ff] hover:underline">
+                  {sender.company_website.replace(/^https?:\/\//, "").replace(/\/$/, "")} ↗
+                </a>
+              )}
+            </div>
+          </div>
+          <p className="mb-5 mt-6 font-display text-xl font-semibold leading-snug text-white">{project.report_cta_text}</p>
+          <CallRequest slug={slug} senderFirstName={(senderName || "").split(" ")[0]} bookingUrl={sender?.booking_url || project.report_cta_url} />
         </section>
 
         <div className="mt-12 flex flex-col items-center gap-3 text-center">

@@ -53,7 +53,15 @@ export type Account = {
   sender_role: string | null;
   sender_pitch: string | null;
   booking_url: string | null;
+  company_website: string | null;
+  company_offer: string | null;
+  onboarded_at: string | null;
 };
+
+/** Il profilo è completo quando l'AI ha tutto per firmare i messaggi e presentarti nel report. */
+export function profileComplete(a: Account): boolean {
+  return Boolean(a.full_name && a.company_name && a.company_website && a.company_offer);
+}
 
 /** Profilo e crediti dell'utente (lo crea se manca). */
 export async function getAccount(userId: string): Promise<Account> {

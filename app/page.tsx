@@ -25,7 +25,7 @@ const STEPS = [
   {
     n: "04",
     title: "L'AI scrive, tu invii con un clic",
-    text: "Per ogni azienda: report privato, canale più diretto e messaggio personalizzato per Instagram, WhatsApp, LinkedIn o email. Yeppo programma i follow-up e ti avvisa quando aprono il report.",
+    text: "Per ogni azienda: report privato, canale più diretto e messaggio personalizzato per Instagram, WhatsApp, LinkedIn o email. Yeppo programma i follow-up, ti avvisa quando aprono il report e quando ti chiedono una call.",
   },
 ];
 

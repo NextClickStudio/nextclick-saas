@@ -10,14 +10,18 @@ export default function AccountForms({
   companyName,
   senderRole,
   bookingUrl,
+  companyWebsite,
+  companyOffer,
 }: {
   fullName: string;
   companyName: string;
   senderRole: string;
   bookingUrl: string;
+  companyWebsite: string;
+  companyOffer: string;
 }) {
   const router = useRouter();
-  const [profile, setProfile] = useState({ full_name: fullName, company_name: companyName, sender_role: senderRole, booking_url: bookingUrl });
+  const [profile, setProfile] = useState({ full_name: fullName, company_name: companyName, sender_role: senderRole, booking_url: bookingUrl, company_website: companyWebsite, company_offer: companyOffer });
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState<{ profile?: string; password?: string; error?: string }>({});
   const [loading, setLoading] = useState("");
@@ -55,7 +59,23 @@ export default function AccountForms({
             <input id="r" className={input} placeholder="Founder, Account manager…" value={profile.sender_role} onChange={(e) => setProfile({ ...profile, sender_role: e.target.value })} />
           </div>
           <div>
-            <label className={label} htmlFor="b">Link per prenotare una call</label>
+            <label className={label} htmlFor="w">Sito della tua azienda</label>
+            <input id="w" className={input} placeholder="https://tuosito.it" value={profile.company_website} onChange={(e) => setProfile({ ...profile, company_website: e.target.value })} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={label} htmlFor="o">Cosa offri, in una frase</label>
+            <textarea
+              id="o"
+              rows={2}
+              className={input}
+              placeholder="Es. Aiutiamo gli e-commerce di moda ad avere foto e video prodotto professionali in 48 ore, con l'AI."
+              value={profile.company_offer}
+              onChange={(e) => setProfile({ ...profile, company_offer: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-zinc-600">Compare nel report sotto &quot;Chi ha preparato questa analisi&quot;.</p>
+          </div>
+          <div>
+            <label className={label} htmlFor="b">Link per prenotare una call <span className="text-zinc-600">(facoltativo)</span></label>
             <input id="b" className={input} placeholder="https://calendly.com/…" value={profile.booking_url} onChange={(e) => setProfile({ ...profile, booking_url: e.target.value })} />
           </div>
         </div>

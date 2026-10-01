@@ -33,6 +33,8 @@ export async function POST(request: Request) {
       senderName: account.full_name ?? project.sender_name ?? "",
       senderCompany: account.company_name ?? "",
       senderRole: account.sender_role ?? "",
+      senderWebsite: account.company_website ?? "",
+      senderOffer: account.company_offer ?? "",
       bookingUrl: account.booking_url ?? project.report_cta_url ?? "",
       reportUrl: `${SITE_URL}/r/${row.report.slug}`,
       position: row.position,

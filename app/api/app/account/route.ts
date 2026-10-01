@@ -13,6 +13,14 @@ export async function PATCH(request: Request) {
         full_name: z.string().trim().min(2, "Inserisci nome e cognome.").max(120),
         company_name: z.string().trim().max(160),
         sender_role: z.string().trim().max(120).optional().default(""),
+        company_website: z
+          .string()
+          .trim()
+          .max(300)
+          .refine((v) => v === "" || /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i.test(v), "Il sito non sembra valido (es. https://tuosito.it).")
+          .optional()
+          .default(""),
+        company_offer: z.string().trim().max(400).optional().default(""),
         booking_url: z
           .string()
           .trim()
@@ -29,8 +37,20 @@ export async function PATCH(request: Request) {
         company_name: input.company_name || null,
         sender_role: input.sender_role || null,
         booking_url: input.booking_url || null,
+        company_website: input.company_website ? (/^https?:\/\//i.test(input.company_website) ? input.company_website : `https://${input.company_website}`) : null,
+        company_offer: input.company_offer || null,
       })
       .eq("user_id", user.id);
+    if (error) throw error;
+    return { ok: true };
+  });
+}
+
+/** Segna la guida introduttiva come vista. */
+export async function POST() {
+  return handle(async () => {
+    const user = await requireUser();
+    const { error } = await db().from("accounts").update({ onboarded_at: new Date().toISOString() }).eq("user_id", user.id);
     if (error) throw error;
     return { ok: true };
   });

@@ -91,10 +91,22 @@ export function NotesInput({ companyId, value, multiline = false }: { companyId:
   );
 }
 
+function isStale(iso: string): boolean {
+  return new Date(iso).getTime() < Date.now() - 3 * 60 * 1000;
+}
+
 export function AnalysisBadge({ row }: { row: CompanyRow }) {
   const last = row.lastAttempt;
   if (!last) return <span className="text-xs text-zinc-500">Non analizzata</span>;
-  if (last.status === "in_corso") return <span className="text-xs font-medium text-amber-300">In corso…</span>;
+  if (last.status === "in_corso") {
+    // un'analisi "in corso" da più di 3 minuti è stata interrotta (pagina chiusa o tempo scaduto)
+    const stale = isStale(last.created_at);
+    return stale ? (
+      <span className="text-xs font-medium text-red-300">Interrotta · rianalizza</span>
+    ) : (
+      <span className="text-xs font-medium text-amber-300">In corso…</span>
+    );
+  }
   if (last.status === "errore")
     return (
       <span className="text-xs font-medium text-red-300" title={last.error_message ?? ""}>

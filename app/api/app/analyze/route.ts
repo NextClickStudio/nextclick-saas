@@ -42,8 +42,13 @@ export async function POST(request: Request) {
     if (insError) throw insError;
 
     try {
-      const { pages, channels } = await crawlSite(company.website_url);
-      const evaluation = await evaluateWebsite({
+      // tetto di sicurezza: se l'analisi supera 75 secondi si ferma con un errore chiaro
+      // (altrimenti Vercel interrompe la funzione e l'analisi resterebbe "in corso" per sempre)
+      const deadline = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new UserError("L'analisi ha richiesto troppo tempo (sito lento o AI molto richiesta). Riprova.")), 75_000),
+      );
+      const { pages, channels } = await Promise.race([crawlSite(company.website_url), deadline]);
+      const evaluation = await Promise.race([evaluateWebsite({
         companyName: company.name,
         productDescription: project.product_description,
         targetCustomer: project.target_customer,
@@ -51,7 +56,7 @@ export async function POST(request: Request) {
         channels,
         criteria,
         pages,
-      });
+      }), deadline]);
       const total = computeTotalScore(criteria, evaluation.scores);
       const now = new Date().toISOString();
 

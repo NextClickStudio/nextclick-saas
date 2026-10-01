@@ -77,3 +77,24 @@ export function sendLink(
 /** Giorni di attesa prima del follow-up successivo (dopo il passo indicato). */
 export const FOLLOWUP_DAYS = [3, 4];
 export const MAX_STEP = 2;
+
+/** Link per rispondere a una richiesta di call sul canale scelto dall'azienda. */
+export function replyLink(channel: string, contact: string, text: string, subject = "Call di 15 minuti"): { href: string; prefilled: boolean } {
+  const digits = contact.replace(/[^\d+]/g, "").replace(/^00/, "+");
+  // numeri italiani senza prefisso: aggiunge +39
+  const intl = digits.startsWith("+") ? digits.slice(1) : digits.startsWith("3") || digits.startsWith("0") ? `39${digits}` : digits;
+  switch (channel) {
+    case "whatsapp":
+      return { href: `https://wa.me/${intl}?text=${encodeURIComponent(text)}`, prefilled: true };
+    case "telefono":
+      return { href: `tel:+${intl}`, prefilled: false };
+    case "email":
+      return { href: `mailto:${contact}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`, prefilled: true };
+    case "instagram": {
+      const handle = contact.replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/.*$/, "");
+      return { href: `https://ig.me/m/${handle}`, prefilled: false };
+    }
+    default:
+      return { href: "#", prefilled: false };
+  }
+}

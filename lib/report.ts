@@ -19,8 +19,30 @@ export async function getReportData(slug: string) {
   if (!row?.analysis) return null; // nessuna analisi completata: il report non è ancora pronto
 
   const stats = sectorStats(rows);
+  // chi ha preparato l'analisi (profilo dell'utente proprietario della sessione)
+  const { data: sender } = await db()
+    .from("accounts")
+    .select("full_name, company_name, sender_role, company_website, company_offer, booking_url")
+    .eq("user_id", project.user_id)
+    .maybeSingle();
   const inTopN = project.public_ranking_enabled && row.position !== null && row.position <= project.public_top_n;
-  return { report: report as Report, project, criteria, row, analysis: row.analysis, stats, inTopN };
+  return {
+    report: report as Report,
+    project,
+    criteria,
+    row,
+    analysis: row.analysis,
+    stats,
+    inTopN,
+    sender: sender as {
+      full_name: string | null;
+      company_name: string | null;
+      sender_role: string | null;
+      company_website: string | null;
+      company_offer: string | null;
+      booking_url: string | null;
+    } | null,
+  };
 }
 
 /** User-agent di anteprime link e crawler: non contano come visite. */
