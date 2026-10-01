@@ -1,17 +1,12 @@
 "use client";
 
 // Mostrato se una pagina dell'area riservata non riesce a caricare i dati.
-export default function AdminError({ reset }: { error: Error; reset: () => void }) {
+export default function AppError({ reset }: { error: Error; reset: () => void }) {
   return (
-    <div className="mx-auto max-w-lg rounded-xl border border-red-200 bg-white p-6 text-center">
-      <h1 className="mb-2 text-lg font-semibold">Impossibile caricare la pagina</h1>
-      <p className="mb-4 text-sm text-gray-600">
-        Controlla che il database sia configurato (SUPABASE_SERVICE_ROLE_KEY su Vercel) e che lo schema sia stato
-        creato. Poi riprova.
-      </p>
-      <button onClick={reset} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white">
-        Riprova
-      </button>
+    <div className="mx-auto max-w-lg rounded-2xl border border-red-500/30 bg-red-500/[0.06] p-8 text-center">
+      <h1 className="mb-2 font-display text-xl font-semibold text-white">Impossibile caricare la pagina</h1>
+      <p className="mb-5 text-sm text-zinc-400">C&apos;è stato un problema temporaneo. Riprova tra qualche istante.</p>
+      <button onClick={reset} className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-ink">Riprova</button>
     </div>
   );
 }

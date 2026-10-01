@@ -1,0 +1,108 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { api } from "@/components/client-utils";
+import { Card, ErrorBox, btn, input, label } from "@/components/ui";
+
+export default function AccountForms({ fullName, companyName }: { fullName: string; companyName: string }) {
+  const router = useRouter();
+  const [profile, setProfile] = useState({ full_name: fullName, company_name: companyName });
+  const [password, setPassword] = useState("");
+  const [msg, setMsg] = useState<{ profile?: string; password?: string; error?: string }>({});
+  const [loading, setLoading] = useState("");
+
+  async function run(key: string, fn: () => Promise<void>) {
+    setLoading(key);
+    setMsg({});
+    try {
+      await fn();
+    } catch (err) {
+      setMsg({ error: (err as Error).message });
+    } finally {
+      setLoading("");
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card className="space-y-4 p-6">
+        <h2 className="font-semibold text-white">Profilo</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className={label} htmlFor="n">Nome e cognome</label>
+            <input id="n" className={input} value={profile.full_name} onChange={(e) => setProfile({ ...profile, full_name: e.target.value })} />
+          </div>
+          <div>
+            <label className={label} htmlFor="c">Azienda</label>
+            <input id="c" className={input} value={profile.company_name} onChange={(e) => setProfile({ ...profile, company_name: e.target.value })} />
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            className={btn.primary}
+            disabled={loading !== ""}
+            onClick={() =>
+              run("profile", async () => {
+                await api("/api/app/account", { method: "PATCH", body: profile });
+                setMsg({ profile: "Salvato ✓" });
+                router.refresh();
+              })
+            }
+          >
+            Salva
+          </button>
+          {msg.profile && <span className="text-sm text-emerald-300">{msg.profile}</span>}
+        </div>
+      </Card>
+
+      <Card className="space-y-4 p-6">
+        <h2 className="font-semibold text-white">Cambia password</h2>
+        <div>
+          <label className={label} htmlFor="p">Nuova password</label>
+          <input id="p" type="password" minLength={8} autoComplete="new-password" className={input} value={password} onChange={(e) => setPassword(e.target.value)} />
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            className={btn.secondary}
+            disabled={loading !== "" || password.length < 8}
+            onClick={() =>
+              run("password", async () => {
+                await api("/api/auth/update-password", { body: { password } });
+                setPassword("");
+                setMsg({ password: "Password aggiornata ✓" });
+              })
+            }
+          >
+            Aggiorna password
+          </button>
+          {msg.password && <span className="text-sm text-emerald-300">{msg.password}</span>}
+        </div>
+      </Card>
+
+      <ErrorBox>{msg.error}</ErrorBox>
+
+      <Card className="border-red-500/25 p-6">
+        <h2 className="font-semibold text-red-300">Elimina account</h2>
+        <p className="mb-4 mt-1 text-sm text-zinc-400">
+          Elimina definitivamente account, sessioni, aziende, analisi e report. Le sessioni non usate andranno perse. Non si può annullare.
+        </p>
+        <button
+          className={btn.danger}
+          disabled={loading !== ""}
+          onClick={() => {
+            if (prompt("Per confermare scrivi: ELIMINA") !== "ELIMINA") return;
+            void run("delete", async () => {
+              await api("/api/app/account", { method: "DELETE" });
+              // ricarica completa voluta: così la pagina legge i nuovi cookie di login
+              // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+              window.location.href = "/";
+            });
+          }}
+        >
+          Elimina il mio account
+        </button>
+      </Card>
+    </div>
+  );
+}

@@ -32,6 +32,28 @@ export type Project = {
   report_cta_url: string | null;
   sender_name: string | null;
   created_at: string;
+  user_id: string;
+  target_size: TargetSize;
+  target_country: string;
+  company_limit: number;
+  credit_used_at: string | null;
+};
+
+export const TARGET_SIZES = [
+  { value: "piccole", label: "Piccole", hint: "brand emergenti, fino a ~10 persone" },
+  { value: "medie", label: "Medie", hint: "brand affermati, 10-250 persone" },
+  { value: "grandi", label: "Grandi", hint: "leader di mercato" },
+  { value: "tutte", label: "Tutte", hint: "mix di dimensioni" },
+] as const;
+export type TargetSize = (typeof TARGET_SIZES)[number]["value"];
+
+export type ContactChannel = { type: string; label: string; url?: string };
+export type ContactPlan = {
+  channel_type: string;
+  channel_label: string;
+  why: string;
+  steps: string[];
+  opening_angle: string;
 };
 
 export type Criterion = {
@@ -79,6 +101,11 @@ export type Company = {
   status: CompanyStatus;
   notes: string | null;
   created_at: string;
+  source: "ricerca" | "manuale";
+  size_estimate: string | null;
+  discovery_reason: string | null;
+  contact_channels: ContactChannel[] | null;
+  contact_plan: ContactPlan | null;
 };
 
 /** Riga "completa" usata nelle tabelle dell'area riservata. */
@@ -100,13 +127,14 @@ export type CriterionDraft = {
   weight: number;
 };
 
-/** Esempio NextClick usato nei placeholder e nei dati di prova. */
+/** Esempio generico usato nei placeholder dei form. */
 export const EXAMPLE = {
-  name: "NextClick – Beauty e integratori",
+  name: "Foto prodotto AI – E-commerce moda",
   product:
-    "NextClick Studio: un widget AI per Shopify che fa qualche domanda al cliente e gli consiglia il prodotto giusto, come farebbe una commessa esperta.",
-  customer: "E-commerce italiani di beauty e integratori su Shopify, con cataloghi ampi (50+ prodotti).",
-  sector: "Beauty e integratori Italia",
+    "Un servizio di foto e video prodotto realizzati con l'AI per e-commerce di moda: schede prodotto più ricche in 48 ore, a una frazione del costo di uno shooting.",
+  customer: "E-commerce di moda e accessori con più di 100 prodotti a catalogo.",
+  sector: "Moda e accessori online",
+  country: "Italia",
 };
 
 export function formatDate(iso: string | null | undefined, withTime = false): string {

@@ -16,7 +16,7 @@ export function StatusSelect({ companyId, value }: { companyId: string; value: s
     setCurrent(next);
     setSaving(true);
     try {
-      await api(`/api/admin/companies/${companyId}`, { method: "PATCH", body: { status: next } });
+      await api(`/api/app/companies/${companyId}`, { method: "PATCH", body: { status: next } });
       router.refresh();
     } catch (err) {
       setCurrent(prev);
@@ -28,7 +28,7 @@ export function StatusSelect({ companyId, value }: { companyId: string; value: s
 
   return (
     <select
-      className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm disabled:opacity-60"
+      className="rounded-lg border border-white/[0.12] bg-panel px-2 py-1.5 text-sm text-zinc-200 disabled:opacity-60"
       value={current}
       disabled={saving}
       onChange={(e) => change(e.target.value)}
@@ -50,7 +50,7 @@ export function NotesInput({ companyId, value, multiline = false }: { companyId:
     if (text === (value ?? "")) return;
     setState("saving");
     try {
-      await api(`/api/admin/companies/${companyId}`, { method: "PATCH", body: { notes: text } });
+      await api(`/api/app/companies/${companyId}`, { method: "PATCH", body: { notes: text } });
       setState("saved");
       setTimeout(() => setState(""), 1500);
     } catch {
@@ -59,14 +59,14 @@ export function NotesInput({ companyId, value, multiline = false }: { companyId:
   }
 
   const cls = `w-full rounded-md border px-2 py-1 text-sm focus:border-accent focus:outline-none ${
-    state === "error" ? "border-red-400" : "border-transparent hover:border-gray-300 bg-transparent"
+    state === "error" ? "border-red-400" : "border-transparent hover:border-white/[0.12] bg-transparent"
   }`;
   return (
     <div className="relative">
       {multiline ? (
         <textarea
           rows={4}
-          className={`${cls} border-gray-300 bg-white`}
+          className={`${cls} border-white/[0.12] bg-white/[0.03]`}
           placeholder="Aggiungi una nota…"
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -83,7 +83,7 @@ export function NotesInput({ companyId, value, multiline = false }: { companyId:
         />
       )}
       {state && (
-        <span className={`text-xs ${state === "error" ? "text-red-600" : "text-gray-500"}`}>
+        <span className={`text-xs ${state === "error" ? "text-red-400" : "text-zinc-500"}`}>
           {state === "saving" ? "Salvataggio…" : state === "saved" ? "Salvata" : "Non salvata, riprova"}
         </span>
       )}
@@ -93,15 +93,15 @@ export function NotesInput({ companyId, value, multiline = false }: { companyId:
 
 export function AnalysisBadge({ row }: { row: CompanyRow }) {
   const last = row.lastAttempt;
-  if (!last) return <span className="text-xs text-gray-500">Non analizzata</span>;
-  if (last.status === "in_corso") return <span className="text-xs font-medium text-amber-700">In corso…</span>;
+  if (!last) return <span className="text-xs text-zinc-500">Non analizzata</span>;
+  if (last.status === "in_corso") return <span className="text-xs font-medium text-amber-300">In corso…</span>;
   if (last.status === "errore")
     return (
-      <span className="text-xs font-medium text-red-700" title={last.error_message ?? ""}>
+      <span className="text-xs font-medium text-red-300" title={last.error_message ?? ""}>
         Errore{row.analysis ? " (vale l'analisi precedente)" : ""}
       </span>
     );
-  return <span className="text-xs font-medium text-emerald-700">Completata</span>;
+  return <span className="text-xs font-medium text-emerald-300">Completata</span>;
 }
 
 export function CopyButton({ text, label = "Copia link" }: { text: string; label?: string }) {
@@ -109,7 +109,7 @@ export function CopyButton({ text, label = "Copia link" }: { text: string; label
   return (
     <button
       type="button"
-      className="rounded-md px-2 py-1 text-xs font-medium text-accent hover:bg-accent-soft"
+      className="rounded-md px-2 py-1 text-xs font-medium text-[#c4b8ff] hover:bg-accent-soft"
       onClick={async () => {
         if (await copyText(text)) {
           setDone(true);

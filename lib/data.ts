@@ -4,17 +4,28 @@ import { db } from "@/lib/db";
 import { rankByScore, average } from "@/lib/scoring";
 import type { Analysis, Company, CompanyRow, Criterion, Project, Report } from "@/lib/types";
 
-export async function getProjects(): Promise<Project[]> {
-  const { data, error } = await db().from("projects").select("*").order("created_at", { ascending: false });
+export async function getProjects(userId: string): Promise<Project[]> {
+  const { data, error } = await db()
+    .from("projects")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
   if (error) throw error;
   return data as Project[];
 }
 
+/** Progetto senza controllo del proprietario: solo per pagine pubbliche e uso interno. */
 export async function getProject(id: string): Promise<Project | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const { data, error } = await db().from("projects").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   return data as Project | null;
+}
+
+/** Progetto solo se appartiene all'utente. */
+export async function getUserProject(id: string, userId: string): Promise<Project | null> {
+  const project = await getProject(id);
+  return project && project.user_id === userId ? project : null;
 }
 
 export async function getCriteria(projectId: string): Promise<Criterion[]> {

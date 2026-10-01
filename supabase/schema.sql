@@ -1,5 +1,5 @@
 -- =====================================================================
--- ZEPPO v1 — schema del database
+-- YEPPO — schema del database
 -- Incolla tutto questo file nel SQL Editor di Supabase e premi "Run".
 -- Si può eseguire più volte: le istruzioni usano "if not exists".
 -- =====================================================================
@@ -129,9 +129,96 @@ grant execute on function register_report_view(text) to service_role;
 
 -- Row Level Security attiva ovunque, SENZA policy pubbliche:
 -- il browser non può leggere né scrivere nulla; solo il server con la service role key.
+-- ---------------------------------------------------------------------
+-- v2: account utenti, crediti, pagamenti, ricerca aziende e contatti
+-- ---------------------------------------------------------------------
+create table if not exists accounts (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  full_name text,
+  company_name text,
+  free_sessions int not null default 1 check (free_sessions >= 0),
+  credits int not null default 0 check (credits >= 0),
+  unlimited boolean not null default false,
+  accepted_terms_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists purchases (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  stripe_session_id text unique not null,
+  plan text not null,
+  credits int not null,
+  amount_cents int not null,
+  currency text not null default 'eur',
+  status text not null default 'pending' check (status in ('pending','paid','failed')),
+  created_at timestamptz not null default now(),
+  paid_at timestamptz
+);
+create index if not exists purchases_user_idx on purchases(user_id, created_at desc);
+
+alter table projects
+  add column if not exists user_id uuid references auth.users(id) on delete cascade,
+  add column if not exists target_size text not null default 'tutte'
+    check (target_size in ('piccole','medie','grandi','tutte')),
+  add column if not exists target_country text not null default 'Italia',
+  add column if not exists company_limit int not null default 0,
+  add column if not exists credit_used_at timestamptz,
+  add column if not exists discovery_notes text;
+create index if not exists projects_user_idx on projects(user_id, created_at desc);
+
+alter table companies
+  add column if not exists source text not null default 'manuale' check (source in ('ricerca','manuale')),
+  add column if not exists size_estimate text,
+  add column if not exists discovery_reason text,
+  add column if not exists contact_channels jsonb,
+  add column if not exists contact_plan jsonb;
+
+-- Usa una sessione: prima quelle gratuite (fino a 10 aziende), poi i crediti (fino a 30).
+create or replace function use_session_credit(p_user uuid, p_project uuid)
+returns int language plpgsql security invoker set search_path = public as $$
+declare v_limit int := 0; v_acc accounts%rowtype;
+begin
+  select * into v_acc from accounts where user_id = p_user for update;
+  if not found then return 0; end if;
+  if exists (select 1 from projects where id = p_project and user_id = p_user and credit_used_at is not null) then
+    return (select company_limit from projects where id = p_project);
+  end if;
+  if v_acc.unlimited then v_limit := 30;
+  elsif v_acc.free_sessions > 0 then
+    update accounts set free_sessions = free_sessions - 1 where user_id = p_user; v_limit := 10;
+  elsif v_acc.credits > 0 then
+    update accounts set credits = credits - 1 where user_id = p_user; v_limit := 30;
+  else return 0;
+  end if;
+  update projects set credit_used_at = now(), company_limit = v_limit where id = p_project and user_id = p_user;
+  return v_limit;
+end; $$;
+
+-- Segna un acquisto come pagato e aggiunge i crediti (una sola volta).
+create or replace function complete_purchase(p_stripe_session text)
+returns boolean language plpgsql security invoker set search_path = public as $$
+declare v_user uuid; v_credits int;
+begin
+  update purchases set status = 'paid', paid_at = now()
+   where stripe_session_id = p_stripe_session and status <> 'paid'
+  returning user_id, credits into v_user, v_credits;
+  if v_user is null then return false; end if;
+  update accounts set credits = credits + v_credits where user_id = v_user;
+  return true;
+end; $$;
+
+revoke all on function use_session_credit(uuid, uuid) from public, anon, authenticated;
+revoke all on function complete_purchase(text) from public, anon, authenticated;
+grant execute on function use_session_credit(uuid, uuid) to service_role;
+grant execute on function complete_purchase(text) to service_role;
+
+alter table accounts enable row level security;
+alter table purchases enable row level security;
 alter table projects enable row level security;
 alter table criteria enable row level security;
 alter table companies enable row level security;
 alter table analyses enable row level security;
 alter table reports enable row level security;
 alter table events enable row level security;
+alter table projects alter column user_id set not null;

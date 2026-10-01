@@ -26,19 +26,19 @@ export default function CriteriaEditor({
   return (
     <div className="space-y-3">
       {criteria.map((c, i) => (
-        <div key={c.id ?? `new-${i}`} className="rounded-xl border border-gray-200 bg-white p-4">
+        <div key={c.id ?? `new-${i}`} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-gray-500">#{i + 1}</span>
+            <span className="text-xs font-semibold text-zinc-500">#{i + 1}</span>
             <input
               className={`${input} flex-1 font-medium`}
               placeholder="Nome del criterio (es. Guida alla scelta del prodotto)"
               value={c.name}
               onChange={(e) => update(i, { name: e.target.value })}
             />
-            <label className="flex items-center gap-2 text-sm text-gray-700">
+            <label className="flex items-center gap-2 text-sm text-zinc-300">
               Peso
               <select
-                className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm"
+                className="rounded-lg border border-white/[0.12] bg-panel px-2 py-2 text-sm text-zinc-200"
                 value={c.weight}
                 onChange={(e) => update(i, { weight: Number(e.target.value) })}
               >
@@ -56,7 +56,7 @@ export default function CriteriaEditor({
               <button type="button" className={btn.ghost} onClick={() => move(i, 1)} aria-label="Sposta giù">
                 ↓
               </button>
-              <button type="button" className={`${btn.ghost} text-red-600`} onClick={() => remove(i)}>
+              <button type="button" className={`${btn.ghost} text-red-400`} onClick={() => remove(i)}>
                 Rimuovi
               </button>
             </div>

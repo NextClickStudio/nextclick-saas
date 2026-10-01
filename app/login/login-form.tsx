@@ -1,14 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ErrorBox, btn, input, label } from "@/components/ui";
 import { api } from "@/components/client-utils";
+import { ErrorBox, btn, input, label } from "@/components/ui";
 
 export default function LoginForm() {
   const params = useSearchParams();
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [error, setError] = useState(params.get("errore") === "link" ? "Il link non è valido o è scaduto. Richiedine uno nuovo." : "");
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
@@ -16,9 +17,8 @@ export default function LoginForm() {
     setLoading(true);
     setError("");
     try {
-      await api("/api/auth/login", { body: { password } });
+      await api("/api/auth/login", { body: form });
       const next = params.get("next");
-      // solo percorsi interni, per evitare redirect verso altri siti
       window.location.href = next && next.startsWith("/app") ? next : "/app";
     } catch (err) {
       setError((err as Error).message);
@@ -29,22 +29,19 @@ export default function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div>
-        <label htmlFor="password" className={label}>
-          Password
-        </label>
-        <input
-          id="password"
-          type="password"
-          autoFocus
-          autoComplete="current-password"
-          className={input}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <label htmlFor="email" className={label}>Email</label>
+        <input id="email" type="email" autoComplete="email" required className={input} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+      </div>
+      <div>
+        <div className="flex items-center justify-between">
+          <label htmlFor="password" className={label}>Password</label>
+          <Link href="/password-dimenticata" className="mb-1.5 text-xs text-zinc-500 hover:text-white">Password dimenticata?</Link>
+        </div>
+        <input id="password" type="password" autoComplete="current-password" required className={input} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
       </div>
       <ErrorBox>{error}</ErrorBox>
-      <button type="submit" className={`${btn.primary} w-full`} disabled={loading || !password}>
-        {loading ? "Accesso in corso…" : "Entra"}
+      <button type="submit" className={`${btn.primary} w-full !py-3`} disabled={loading}>
+        {loading ? "Accesso in corso…" : "Accedi"}
       </button>
     </form>
   );

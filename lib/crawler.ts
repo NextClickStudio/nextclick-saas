@@ -22,9 +22,31 @@ export type ExtractedPage = {
   content: string; // testo già pronto da passare all'AI
 };
 
+/** Canale di contatto pubblicato dall'azienda sul proprio sito (mai email o telefoni personali). */
+export type ContactChannel = {
+  type:
+    | "pagina_contatti"
+    | "form_contatti"
+    | "chat_live"
+    | "whatsapp"
+    | "instagram"
+    | "facebook"
+    | "linkedin"
+    | "tiktok"
+    | "youtube"
+    | "telegram"
+    | "pagina_partner"
+    | "lavora_con_noi"
+    | "pagina_stampa";
+  label: string;
+  url?: string;
+};
+
+export type CrawlResult = { pages: ExtractedPage[]; channels: ContactChannel[] };
+
 function userAgent(): string {
-  const site = process.env.NEXT_PUBLIC_SITE_URL || "https://zeppo";
-  return `ZeppoBot/1.0 (+${site})`;
+  const site = process.env.NEXT_PUBLIC_SITE_URL || "https://yeppo.it";
+  return `YeppoBot/1.0 (+${site})`;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -54,7 +76,7 @@ type FetchResult = { finalUrl: URL; status: number; contentType: string; body: s
  * fetch "sicuro": segue i redirect a mano (controllando ogni tappa),
  * si ferma dopo 10 secondi e legge al massimo 2 MB.
  */
-async function safeFetch(startUrl: string, maxBytes = MAX_BYTES, timeoutMs = TIMEOUT_MS): Promise<FetchResult> {
+export async function safeFetch(startUrl: string, maxBytes = MAX_BYTES, timeoutMs = TIMEOUT_MS): Promise<FetchResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -110,7 +132,7 @@ async function readLimited(res: Response, maxBytes: number): Promise<string> {
 
 /**
  * Controllo semplice di robots.txt: blocca solo se "Disallow: /"
- * vale per tutti (User-agent: *) o per ZeppoBot.
+ * vale per tutti (User-agent: *) o per YeppoBot.
  */
 export function robotsBlocksAll(robotsTxt: string): boolean {
   const groups: { agents: string[]; rules: string[] }[] = [];
@@ -137,8 +159,8 @@ export function robotsBlocksAll(robotsTxt: string): boolean {
     }
   }
 
-  // se esiste un gruppo specifico per ZeppoBot vale quello, altrimenti "*"
-  const specific = groups.filter((g) => g.agents.some((a) => a.includes("zeppobot")));
+  // se esiste un gruppo specifico per YeppoBot vale quello, altrimenti "*"
+  const specific = groups.filter((g) => g.agents.some((a) => a.includes("yeppobot")));
   const relevant = specific.length > 0 ? specific : groups.filter((g) => g.agents.includes("*"));
   return relevant.some((g) => g.rules.includes("disallow:/") && !g.rules.includes("allow:/"));
 }
@@ -236,6 +258,81 @@ export function extractPage(html: string, pageUrl: string): { title: string; con
   return { title: title.slice(0, 200), content, links };
 }
 
+const CHAT_PROVIDERS: [RegExp, string][] = [
+  [/tidio/, "Tidio"],
+  [/intercom/, "Intercom"],
+  [/zendesk|zdassets/, "Zendesk"],
+  [/crisp\.chat/, "Crisp"],
+  [/livechatinc|livechat\.com/, "LiveChat"],
+  [/tawk\.to/, "Tawk.to"],
+  [/gorgias/, "Gorgias"],
+  [/hs-scripts|hubspot.*conversations/, "HubSpot"],
+  [/shopify-chat|shopify_chat|inbox\.shopify/, "Shopify Inbox"],
+  [/smartsupp/, "Smartsupp"],
+  [/freshchat|freshworks/, "Freshchat"],
+];
+
+/**
+ * Trova i canali di contatto "diretti" che l'azienda pubblica sul proprio sito:
+ * chat, WhatsApp, profili social aziendali, pagine contatti/partner/B2B.
+ * Non raccoglie email né numeri di telefono.
+ */
+export function extractChannels(html: string, pageUrl: string): ContactChannel[] {
+  const $ = cheerio.load(html);
+  const lower = html.toLowerCase();
+  const base = new URL(pageUrl);
+  const baseHost = base.hostname.replace(/^www\./, "");
+  const found = new Map<string, ContactChannel>();
+  const add = (c: ContactChannel) => {
+    if (!found.has(c.type)) found.set(c.type, c);
+  };
+
+  for (const [re, name] of CHAT_PROVIDERS) {
+    if (re.test(lower)) {
+      add({ type: "chat_live", label: `Chat sul sito (${name})`, url: base.origin });
+      break;
+    }
+  }
+  if ($("form").filter((_, f) => /contatt|contact|messag/i.test($(f).text() + ($(f).attr("action") ?? ""))).length > 0) {
+    add({ type: "form_contatti", label: "Modulo di contatto in homepage", url: pageUrl });
+  }
+
+  $("a[href]").each((_, el) => {
+    const href = ($(el).attr("href") || "").trim();
+    const text = $(el).text().replace(/\s+/g, " ").trim().toLowerCase();
+    let u: URL;
+    try {
+      u = new URL(href, pageUrl);
+    } catch {
+      return;
+    }
+    const host = u.hostname.replace(/^www\./, "");
+    const path = u.pathname.toLowerCase();
+    const isSocialProfile = (h: string) => host === h || host.endsWith("." + h);
+    const firstSegment = path.split("/").filter(Boolean)[0] ?? "";
+    // link a condivisioni, post singoli o pagine generiche dei social: non sono il profilo dell'azienda
+    const genericSocial = /^(share|sharer|intent|p|reel|watch|hashtag|explore|groups|events|home|login)$/.test(firstSegment);
+
+    if (/^(wa\.me|api\.whatsapp\.com|chat\.whatsapp\.com)$/.test(host)) add({ type: "whatsapp", label: "WhatsApp aziendale", url: u.toString() });
+    else if (isSocialProfile("instagram.com") && firstSegment && !genericSocial) add({ type: "instagram", label: `Instagram @${firstSegment}`, url: `https://instagram.com/${firstSegment}` });
+    else if ((isSocialProfile("facebook.com") || host === "fb.com") && firstSegment && !genericSocial) add({ type: "facebook", label: "Pagina Facebook", url: u.origin + u.pathname });
+    else if (isSocialProfile("linkedin.com") && /^\/(company|school|showcase)\//.test(path)) add({ type: "linkedin", label: "Pagina LinkedIn aziendale", url: u.origin + u.pathname });
+    else if (isSocialProfile("tiktok.com") && firstSegment.startsWith("@")) add({ type: "tiktok", label: `TikTok ${firstSegment}`, url: u.origin + u.pathname });
+    else if (isSocialProfile("youtube.com") && firstSegment && !genericSocial) add({ type: "youtube", label: "Canale YouTube", url: u.origin + u.pathname });
+    else if (host === "t.me") add({ type: "telegram", label: "Telegram", url: u.toString() });
+    else if (host === baseHost || host.endsWith("." + baseHost)) {
+      const target = path + " " + text;
+      if (/partner|rivendit|wholesale|ingrosso|b2b|affiliat|collabora|diventa-?(nostro)?|reseller|distribut|corporate|aziende/.test(target))
+        add({ type: "pagina_partner", label: "Pagina partner / B2B / collaborazioni", url: u.toString() });
+      else if (/lavora-?con-?noi|careers|jobs|carriere/.test(target)) add({ type: "lavora_con_noi", label: "Lavora con noi", url: u.toString() });
+      else if (/press|stampa|media-?kit/.test(target)) add({ type: "pagina_stampa", label: "Area stampa", url: u.toString() });
+      else if (/contatt|contact|assistenza|supporto|help|faq-?contatti/.test(target))
+        add({ type: "pagina_contatti", label: "Pagina contatti", url: u.toString() });
+    }
+  });
+  return [...found.values()];
+}
+
 /** Sceglie al massimo 2 pagine interne da analizzare, in ordine di priorità. */
 export function pickInternalPages(links: string[], homeUrl: string): string[] {
   const home = new URL(homeUrl);
@@ -276,7 +373,7 @@ export function pickInternalPages(links: string[], homeUrl: string): string[] {
  * Analizza il sito: robots.txt, homepage e fino a 2 pagine interne.
  * Lancia UserError con un messaggio chiaro se qualcosa va storto.
  */
-export async function crawlSite(websiteUrl: string): Promise<ExtractedPage[]> {
+export async function crawlSite(websiteUrl: string): Promise<CrawlResult> {
   const started = Date.now();
   let start: URL;
   try {
@@ -302,6 +399,7 @@ export async function crawlSite(websiteUrl: string): Promise<ExtractedPage[]> {
     throw new UserError("La homepage non contiene testo leggibile (forse il sito è costruito solo in JavaScript).");
   }
   const pages: ExtractedPage[] = [{ url: home.finalUrl.toString(), title: homeData.title, content: homeData.content }];
+  const channels = extractChannels(home.body, home.finalUrl.toString());
 
   for (const pageUrl of pickInternalPages(homeData.links, home.finalUrl.toString())) {
     if (Date.now() - started > CRAWL_BUDGET_MS) break;
@@ -311,9 +409,23 @@ export async function crawlSite(websiteUrl: string): Promise<ExtractedPage[]> {
       if (res.status >= 400) continue;
       const data = extractPage(res.body, res.finalUrl.toString());
       pages.push({ url: res.finalUrl.toString(), title: data.title, content: data.content });
+      // canali trovati anche nelle pagine interne (es. chat caricata solo nelle schede prodotto)
+      for (const c of extractChannels(res.body, res.finalUrl.toString())) {
+        if (!channels.some((x) => x.type === c.type)) channels.push(c);
+      }
     } catch {
       // una pagina interna che non si carica non blocca l'analisi
     }
   }
-  return pages;
+  return { pages, channels };
+}
+
+/** Verifica veloce che un sito esista e risponda (usata per i risultati della ricerca automatica). */
+export async function siteResponds(url: string): Promise<boolean> {
+  try {
+    const res = await safeFetch(url, 300 * 1024, 8_000);
+    return res.status < 400 && /html/i.test(res.contentType);
+  } catch {
+    return false;
+  }
 }

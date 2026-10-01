@@ -1,57 +1,89 @@
 import Link from "next/link";
-import { connection } from "next/server";
-import { Card, EmptyState, btn } from "@/components/ui";
+import { Badge, Card, EmptyState, btn } from "@/components/ui";
 import { getProjects } from "@/lib/data";
 import { db } from "@/lib/db";
+import { COMPANIES_PER_FREE_SESSION } from "@/lib/plans";
+import { availableSessions, getAccount, getCurrentUser } from "@/lib/supabase-auth";
 import { formatDate } from "@/lib/types";
 
-export default async function ProjectsPage() {
-  await connection(); // dati sempre aggiornati: niente pagina pre-generata
-  const projects = await getProjects();
+export default async function DashboardPage() {
+  const user = (await getCurrentUser())!;
+  const [account, projects] = await Promise.all([getAccount(user.id), getProjects(user.id)]);
+  const sessions = availableSessions(account);
 
-  // numero di aziende per progetto
-  const counts = new Map<string, number>();
-  if (projects.length > 0) {
-    const { data } = await db().from("companies").select("project_id").in("project_id", projects.map((p) => p.id));
-    for (const row of data ?? []) counts.set(row.project_id, (counts.get(row.project_id) ?? 0) + 1);
+  // statistiche: aziende, analisi completate, report aperti
+  const ids = projects.map((p) => p.id);
+  const stats = { companies: 0, opened: 0, replied: 0 };
+  const perProject = new Map<string, number>();
+  if (ids.length > 0) {
+    const { data: companies } = await db().from("companies").select("id, project_id, status").in("project_id", ids);
+    for (const c of companies ?? []) {
+      perProject.set(c.project_id, (perProject.get(c.project_id) ?? 0) + 1);
+      stats.companies++;
+      if (["report_aperto", "ha_risposto", "chiamata", "cliente"].includes(c.status)) stats.opened++;
+      if (["ha_risposto", "chiamata", "cliente"].includes(c.status)) stats.replied++;
+    }
   }
 
+  const firstName = (account.full_name ?? "").split(" ")[0];
+
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">Progetti</h1>
-        <Link href="/app/progetti/nuovo" className={btn.primary}>
-          + Nuovo progetto
+    <div className="space-y-10">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-sm text-zinc-500">Dashboard</p>
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-white">Ciao{firstName ? ` ${firstName}` : ""} 👋</h1>
+        </div>
+        <Link href={sessions > 0 ? "/app/sessioni/nuova" : "/app/piani"} className={btn.accent}>
+          + Nuova sessione
         </Link>
       </div>
 
-      {projects.length === 0 ? (
-        <EmptyState>
-          Nessun progetto ancora. <Link href="/app/progetti/nuovo" className="font-semibold text-accent">Crea il primo</Link>{" "}
-          descrivendo cosa vendi e a chi.
-        </EmptyState>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {projects.map((p) => (
-            <Link key={p.id} href={`/app/progetti/${p.id}`}>
-              <Card className="h-full transition-colors hover:border-accent">
-                <div className="mb-1 flex items-start justify-between gap-3">
-                  <h2 className="font-semibold text-gray-950">{p.name}</h2>
-                  {p.public_ranking_enabled && (
-                    <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
-                      Classifica pubblica
-                    </span>
-                  )}
-                </div>
-                <p className="mb-3 text-sm text-gray-600">{p.target_sector}</p>
-                <p className="text-xs text-gray-500">
-                  {counts.get(p.id) ?? 0} aziende · creato il {formatDate(p.created_at)}
-                </p>
-              </Card>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: "Sessioni disponibili", value: sessions === Infinity ? "∞" : String(sessions), hint: account.free_sessions > 0 ? `di cui 1 di prova (max ${COMPANIES_PER_FREE_SESSION} aziende)` : "acquista altre sessioni in Piani" },
+          { label: "Aziende trovate", value: String(stats.companies), hint: `in ${projects.length} ${projects.length === 1 ? "sessione" : "sessioni"}` },
+          { label: "Hanno aperto il report", value: String(stats.opened), hint: "tracciato in automatico" },
+          { label: "Conversazioni avviate", value: String(stats.replied), hint: "risposte, chiamate, clienti" },
+        ].map((s) => (
+          <Card key={s.label} className="relative overflow-hidden">
+            <p className="text-sm text-zinc-500">{s.label}</p>
+            <p className="mt-2 font-display text-4xl font-semibold text-white">{s.value}</p>
+            <p className="mt-1 text-xs text-zinc-600">{s.hint}</p>
+          </Card>
+        ))}
+      </div>
+
+      <div>
+        <h2 className="mb-4 font-display text-xl font-semibold text-white">Le tue sessioni</h2>
+        {projects.length === 0 ? (
+          <EmptyState>
+            <p className="mb-4 text-base text-zinc-300">Nessuna sessione ancora.</p>
+            <p className="mb-6">Descrivi cosa vendi: Yeppo troverà le aziende giuste, le analizzerà e ti dirà come contattarle.</p>
+            <Link href={sessions > 0 ? "/app/sessioni/nuova" : "/app/piani"} className={btn.accent}>
+              Crea la prima sessione
             </Link>
-          ))}
-        </div>
-      )}
+          </EmptyState>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((p) => (
+              <Link key={p.id} href={`/app/sessioni/${p.id}`}>
+                <Card className="group h-full transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-white/[0.04]">
+                  <div className="mb-3 flex items-center gap-2">
+                    {p.credit_used_at ? <Badge tone="green">Attiva</Badge> : <Badge tone="amber">Da avviare</Badge>}
+                    {p.public_ranking_enabled && <Badge tone="accent">Classifica pubblica</Badge>}
+                  </div>
+                  <h3 className="font-semibold text-white group-hover:text-[#c4b8ff]">{p.name}</h3>
+                  <p className="mt-1 text-sm text-zinc-500">{p.target_sector} · {p.target_country}</p>
+                  <p className="mt-4 text-xs text-zinc-600">
+                    {perProject.get(p.id) ?? 0}/{p.company_limit || "—"} aziende · {formatDate(p.created_at)}
+                  </p>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

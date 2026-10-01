@@ -14,13 +14,16 @@ import { UserError } from "@/lib/db";
 // Nome del modello in un punto solo: per cambiarlo modifica solo queste righe.
 export const GEMINI_MODEL = "gemini-2.5-flash"; // usato con GEMINI_API_KEY
 export const GATEWAY_MODEL = process.env.AI_MODEL || "google/gemini-2.5-flash"; // usato con AI Gateway
+// modello con ricerca web, per trovare le aziende (via AI Gateway)
+export const DISCOVERY_MODEL = process.env.DISCOVERY_MODEL || "perplexity/sonar-pro";
 const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
 
 let gemini: GoogleGenAI | null = null;
 
 /** Una chiamata al modello che restituisce il testo JSON grezzo. */
-async function callModel(prompt: string, schema: object, temperature: number): Promise<string> {
-  if (process.env.GEMINI_API_KEY) {
+async function callModel(prompt: string, schema: object, temperature: number, model = GATEWAY_MODEL): Promise<string> {
+  // con GEMINI_API_KEY si usa Gemini diretto (tranne per la ricerca web, che richiede AI Gateway)
+  if (process.env.GEMINI_API_KEY && model === GATEWAY_MODEL) {
     gemini ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const response = await gemini.models.generateContent({
       model: GEMINI_MODEL,
@@ -44,7 +47,7 @@ async function callModel(prompt: string, schema: object, temperature: number): P
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: GATEWAY_MODEL,
+      model,
       temperature,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_schema", json_schema: { name: "risposta", schema } },
@@ -67,13 +70,14 @@ async function generateJson<T>(opts: {
   schema: object;
   validator: z.ZodType<T>;
   temperature: number;
+  model?: string;
 }): Promise<T> {
   let lastProblem = "";
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const text = (await callModel(opts.prompt, opts.schema, opts.temperature))
-        .replace(/^```(?:json)?\s*|\s*```$/g, "") // alcuni modelli racchiudono il JSON in ```
-        .trim();
+      const raw = await callModel(opts.prompt, opts.schema, opts.temperature, opts.model);
+      // alcuni modelli aggiungono testo o ``` attorno al JSON: tieni solo l'oggetto
+      const text = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
       const parsed = opts.validator.safeParse(JSON.parse(text));
       if (parsed.success) return parsed.data;
       lastProblem = "risposta AI non valida";
@@ -190,6 +194,13 @@ const evaluationSchema = z.object({
     .min(1)
     .max(5),
   summary: z.string().trim().min(1).max(800),
+  contact_plan: z.object({
+    channel_type: z.string().trim().min(1).max(40),
+    channel_label: z.string().trim().min(1).max(200),
+    why: z.string().trim().min(1).max(800),
+    steps: z.array(z.string().trim().min(1).max(500)).min(2).max(5),
+    opening_angle: z.string().trim().min(1).max(600),
+  }),
 });
 export type Evaluation = z.infer<typeof evaluationSchema>;
 
@@ -225,14 +236,29 @@ const evaluationJsonSchema = {
       },
     },
     summary: { type: "string" },
+    contact_plan: {
+      type: "object",
+      properties: {
+        channel_type: { type: "string" },
+        channel_label: { type: "string" },
+        why: { type: "string" },
+        steps: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 5 },
+        opening_angle: { type: "string" },
+      },
+      required: ["channel_type", "channel_label", "why", "steps", "opening_angle"],
+      additionalProperties: false,
+    },
   },
-  required: ["scores", "weak_points", "summary"],
+  required: ["scores", "weak_points", "summary", "contact_plan"],
   additionalProperties: false,
 };
 
 export async function evaluateWebsite(input: {
+  companyName: string;
   productDescription: string;
+  targetCustomer: string;
   symptom: string;
+  channels: { type: string; label: string; url?: string }[];
   criteria: { id: string; name: string; description: string; how_to_check: string }[];
   pages: { url: string; content: string }[];
 }): Promise<Evaluation> {
@@ -254,6 +280,9 @@ ${criteriaText}
 TESTO ESTRATTO DAL SITO
 ${pagesText}
 
+CANALI DI CONTATTO PUBBLICATI DALL'AZIENDA "${input.companyName}" SUL SITO
+${input.channels.length ? input.channels.map((c) => `- ${c.type}: ${c.label}${c.url ? ` (${c.url})` : ""}`).join("\n") : "- nessun canale trovato oltre al sito"}
+
 ISTRUZIONI
 - Per OGNI criterio (usa esattamente il suo id) assegna un punteggio intero da 0 a 10 (10 = eccellente, sintomo assente) e una prova concreta: cosa hai visto o NON hai visto nel testo, citando brevemente la pagina (es. "In homepage...", "Nella pagina prodotto...").
 - Non inventare: se l'informazione non è nel testo, dillo e assegna un punteggio prudente.
@@ -261,7 +290,18 @@ ISTRUZIONI
 - Non nominare mai il prodotto di chi chiede l'analisi e non fare pubblicità: descrivi solo il problema.
 - Scrivi un riassunto di 2 frasi.
 - Non riportare email, numeri di telefono o nomi di persone.
-Scrivi tutto in italiano, dando del "tu" al titolare.`;
+Scrivi tutto in italiano, dando del "tu" al titolare.
+
+PIANO DI CONTATTO (privato: lo legge solo chi vende, NON l'azienda analizzata)
+Chi vende "${input.productDescription}" a "${input.targetCustomer}" vuole contattare questa azienda SENZA cold email.
+- Scegli il canale più diretto e con più probabilità di arrivare al titolare o a chi decide, tra i canali elencati sopra
+  (es. DM Instagram del brand, WhatsApp aziendale, chat del sito, pagina LinkedIn aziendale per individuare chi decide, modulo partner/B2B).
+  Se non c'è nessun canale, proponi LinkedIn: cercare titolare o responsabile e-commerce dell'azienda.
+- channel_type: il tipo del canale scelto (usa uno dei tipi elencati, oppure "linkedin"). channel_label: nome leggibile del canale.
+- why: perché questo canale funziona per questa azienda (1-2 frasi concrete).
+- steps: 3-4 passi pratici e brevi. Il primo contatto deve essere un valore regalato, non una vendita: il report gratuito
+  con la posizione in classifica e i 3 punti deboli. Niente link sospetti al primo messaggio se il canale lo sconsiglia.
+- opening_angle: l'aggancio personalizzato da usare, basato sul punto debole più forte trovato (1-2 frasi, tono rispettoso).`;
 
   const ids = new Set(input.criteria.map((c) => c.id));
   // lo schema zod controlla anche che ci sia un punteggio per ogni criterio
@@ -278,4 +318,90 @@ Scrivi tutto in italiano, dando del "tu" al titolare.`;
     .map((s) => ({ ...s, score: Math.round(s.score) }));
   result.weak_points = result.weak_points.slice(0, 3);
   return result;
+}
+
+// ---------------------------------------------------------------------
+// C) Ricerca automatica delle aziende (con ricerca web)
+// ---------------------------------------------------------------------
+
+const discoverySchema = z.object({
+  companies: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(200),
+        website: z.string().trim().min(4).max(300),
+        size: z.string().trim().max(40).optional().default(""),
+        reason: z.string().trim().max(500).optional().default(""),
+      }),
+    )
+    .min(1),
+});
+export type DiscoveredCompany = z.infer<typeof discoverySchema>["companies"][number];
+
+const discoveryJsonSchema = {
+  type: "object",
+  properties: {
+    companies: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          website: { type: "string", description: "URL della homepage, es. https://www.esempio.it" },
+          size: { type: "string", description: "piccola, media o grande" },
+          reason: { type: "string", description: "Perché è un buon prospect (1 frase)" },
+        },
+        required: ["name", "website", "size", "reason"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["companies"],
+  additionalProperties: false,
+};
+
+const SIZE_TEXT: Record<string, string> = {
+  piccole: "PICCOLE (indicativamente fino a 10 dipendenti o fatturato sotto 2 milioni €, brand emergenti o di nicchia)",
+  medie: "MEDIE (indicativamente 10-250 dipendenti, brand affermati ma non leader nazionali)",
+  grandi: "GRANDI (leader di mercato, oltre 250 dipendenti o brand molto noti)",
+  tutte: "di qualunque dimensione (con un buon mix di piccole e medie)",
+};
+
+export async function discoverCompanies(input: {
+  productDescription: string;
+  targetCustomer: string;
+  targetSector: string;
+  targetSize: string;
+  country: string;
+  symptom: string;
+  count: number;
+  exclude: string[];
+}): Promise<DiscoveredCompany[]> {
+  const prompt = `Sei un ricercatore commerciale B2B. Cerca sul web aziende REALI e ATTIVE che siano ottimi potenziali clienti.
+
+Chi vende offre: """${input.productDescription}"""
+Cliente ideale: """${input.targetCustomer}"""
+Settore: ${input.targetSector}
+Area geografica: ${input.country}
+Dimensione: ${SIZE_TEXT[input.targetSize] ?? SIZE_TEXT.tutte}
+Segnale da cercare (il loro problema): ${input.symptom}
+
+Trova ${input.count} aziende diverse, ciascuna con il proprio sito web ufficiale (dominio dell'azienda, non marketplace,
+non Amazon/Etsy/Facebook, non directory o articoli). Preferisci aziende che con buona probabilità hanno il problema descritto.
+${input.exclude.length ? `NON includere questi siti già trovati: ${input.exclude.slice(0, 80).join(", ")}` : ""}
+
+Per ogni azienda: name, website (homepage), size (piccola/media/grande, stima), reason (1 frase sul perché è un buon prospect).
+Rispondi SOLO con il JSON richiesto.`;
+
+  const ask = (model: string) =>
+    generateJson({ prompt, schema: discoveryJsonSchema, validator: discoverySchema, temperature: 0.3, model });
+  try {
+    return (await ask(DISCOVERY_MODEL)).companies;
+  } catch (err) {
+    // se il modello con ricerca web non è disponibile, usa il modello normale:
+    // i siti proposti vengono comunque verificati uno per uno prima di essere salvati
+    if (err instanceof UserError && err.message.startsWith("Crediti AI")) throw err;
+    console.error("Ricerca web non riuscita, uso il modello standard", err);
+    return (await ask(GATEWAY_MODEL)).companies;
+  }
 }
