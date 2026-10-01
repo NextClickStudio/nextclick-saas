@@ -27,8 +27,8 @@ export function Card({ children, className = "" }: { children: React.ReactNode; 
 export function Logo({ href = "/", size = "md" }: { href?: string; size?: "md" | "lg" }) {
   return (
     <Link href={href} className={`group flex items-center gap-2.5 font-display font-semibold tracking-tight text-white ${size === "lg" ? "text-xl" : "text-lg"}`}>
-      <LogoMark size={size === "lg" ? 36 : 32} className="drop-shadow-[0_0_14px_rgba(139,123,255,0.55)] transition-transform group-hover:rotate-[-6deg]" />
-      Yeppo
+      <LogoMark size={size === "lg" ? 34 : 30} className="shadow-[0_0_24px_-6px_rgba(139,123,255,0.6)] rounded-[9px] transition-transform duration-300 group-hover:scale-105" />
+      <span className="tracking-[-0.02em]">Yeppo</span>
     </Link>
   );
 }
