@@ -53,6 +53,11 @@ async function callModel(prompt: string, schema: object, temperature: number, mo
       response_format: { type: "json_schema", json_schema: { name: "risposta", schema } },
     }),
   });
+  if (res.status === 403) {
+    throw new UserError(
+      "L'AI non è ancora attiva: su Vercel → AI Gateway aggiungi una carta di credito per sbloccare i crediti gratuiti.",
+    );
+  }
   if (res.status === 402 || res.status === 429) {
     throw new UserError("Crediti AI esauriti o troppe richieste: riprova più tardi o aggiungi crediti su Vercel → AI Gateway.");
   }
