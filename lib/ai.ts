@@ -419,7 +419,7 @@ Segnale da cercare (il loro problema): ${input.symptom}
 
 Trova ${input.count} aziende diverse, ciascuna con il proprio sito web ufficiale e funzionante (dominio dell'azienda, non marketplace,
 non Amazon/Etsy/Facebook, non directory o articoli). Preferisci aziende che con buona probabilità hanno il problema descritto.
-${input.exclude.length ? `NON includere questi siti già trovati: ${input.exclude.slice(0, 80).join(", ")}` : ""}
+${input.exclude.length ? `NON includere queste aziende, già contattate in passato (proponine di NUOVE e diverse, anche meno famose): ${input.exclude.slice(0, 200).join(", ")}` : ""}
 
 Per ogni azienda: name, website (homepage), size (piccola/media/grande, stima), reason (1 frase sul perché è un buon prospect).
 Rispondi SOLO con il JSON richiesto.`;
@@ -436,4 +436,107 @@ Rispondi SOLO con il JSON richiesto.`;
     console.error("Ricerca web non riuscita, uso il modello standard", err);
     return (await ask(GATEWAY_MODEL)).companies;
   }
+}
+
+// ---------------------------------------------------------------------
+// D) Messaggi personalizzati per canale (primo contatto e follow-up)
+// ---------------------------------------------------------------------
+
+export const OUTREACH_STEPS = ["Primo contatto", "Follow-up 1", "Follow-up 2"] as const;
+
+const outreachSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        channel: z.string().trim().min(1).max(40),
+        subject: z.string().trim().max(200).optional().default(""),
+        body: z.string().trim().min(1).max(3000),
+      }),
+    )
+    .min(1),
+});
+export type OutreachDraft = z.infer<typeof outreachSchema>["messages"][number];
+
+const outreachJsonSchema = {
+  type: "object",
+  properties: {
+    messages: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          channel: { type: "string" },
+          subject: { type: "string", description: "Solo per email, altrimenti stringa vuota" },
+          body: { type: "string" },
+        },
+        required: ["channel", "subject", "body"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["messages"],
+  additionalProperties: false,
+};
+
+const CHANNEL_RULES: Record<string, string> = {
+  instagram: "DM Instagram: massimo 450 caratteri, tono umano e diretto, niente formalità da email, al massimo 1 emoji.",
+  whatsapp: "WhatsApp: massimo 400 caratteri, tono cordiale e diretto, presentati con nome e azienda nella prima riga.",
+  facebook: "Messenger della pagina Facebook: massimo 450 caratteri, tono cordiale.",
+  linkedin: "LinkedIn (nota di collegamento o messaggio alla persona che decide): massimo 280 caratteri.",
+  sito: "Modulo contatti o chat del sito: massimo 600 caratteri, chiedi di inoltrare al titolare o al responsabile e-commerce.",
+  email: "Email: oggetto breve e specifico (massimo 60 caratteri, niente clickbait) e corpo di massimo 120 parole, firma con nome e azienda.",
+};
+
+export async function generateOutreach(input: {
+  companyName: string;
+  sector: string;
+  productDescription: string;
+  senderName: string;
+  senderCompany: string;
+  senderRole: string;
+  bookingUrl: string;
+  reportUrl: string;
+  position: number | null;
+  total: number;
+  score: number;
+  weakPoints: { title: string; explanation: string }[];
+  openingAngle: string;
+  channels: string[];
+  step: number;
+  previous: string[];
+}): Promise<OutreachDraft[]> {
+  const stepText =
+    input.step === 0
+      ? `PRIMO CONTATTO. Obiettivo: far aprire il report gratuito. Regala valore: cita UN punto debole concreto in modo rispettoso,
+spiega che hai preparato un'analisi gratuita del loro sito rispetto ad altre ${input.total} aziende del settore e metti il link.
+Non vendere il prodotto, non chiedere una call nel primo messaggio.`
+      : input.step === 1
+        ? `FOLLOW-UP 1 (dopo qualche giorno senza risposta). Breve. Aggiungi UNA nuova osservazione utile (un altro punto debole),
+ricorda il link al report e proponi, senza insistere, 15 minuti per parlarne${input.bookingUrl ? ` (link per prenotare: ${input.bookingUrl})` : ""}.`
+        : `FOLLOW-UP 2 (ultimo messaggio). Brevissimo e cortese: chiudi il ciclo, lascia la porta aperta, nessuna pressione.`;
+
+  const prompt = `Scrivi messaggi di contatto commerciale B2B in italiano, personalizzati per l'azienda "${input.companyName}" (settore: ${input.sector}).
+
+Chi scrive: ${input.senderName || "il mittente"}${input.senderRole ? `, ${input.senderRole}` : ""}${input.senderCompany ? ` di ${input.senderCompany}` : ""}.
+Cosa offre (NON va descritto come pubblicità, al massimo accennato nel follow-up): ${input.productDescription}
+
+Dati dell'analisi del loro sito:
+- posizione ${input.position ?? "?"} su ${input.total} aziende analizzate, punteggio ${input.score}/100
+- punti deboli: ${input.weakPoints.map((w) => `${w.title} (${w.explanation})`).join(" | ")}
+- aggancio suggerito: ${input.openingAngle}
+- link al report privato: ${input.reportUrl}
+
+${stepText}
+${input.previous.length ? `Messaggi già inviati (non ripeterli):\n${input.previous.map((p) => `- ${p.slice(0, 300)}`).join("\n")}` : ""}
+
+REGOLE
+- Scrivi un messaggio per ciascuno di questi canali: ${input.channels.join(", ")}.
+- ${input.channels.map((c) => CHANNEL_RULES[c] ?? c).join("\n- ")}
+- Usa il nome dell'azienda. Sembra scritto a mano da una persona, non un template. Niente frasi fatte ("spero tu stia bene").
+- Non dire mai che sai se hanno aperto il report. Non inventare dati che non sono qui sopra.
+- Inserisci il link al report esattamente così: ${input.reportUrl}
+- Il campo channel deve essere esattamente uno di: ${input.channels.join(", ")}.`;
+
+  const result = await generateJson({ prompt, schema: outreachJsonSchema, validator: outreachSchema, temperature: 0.7 });
+  return result.messages.filter((m) => input.channels.includes(m.channel));
 }

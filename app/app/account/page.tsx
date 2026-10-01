@@ -14,7 +14,12 @@ export default async function AccountPage() {
         <h1 className="font-display text-3xl font-semibold tracking-tight text-white">Account</h1>
         <p className="mt-2 text-sm text-zinc-500">{user.email} · cliente dal {formatDate(account.created_at)}</p>
       </div>
-      <AccountForms fullName={account.full_name ?? ""} companyName={account.company_name ?? ""} />
+      <AccountForms
+        fullName={account.full_name ?? ""}
+        companyName={account.company_name ?? ""}
+        senderRole={account.sender_role ?? ""}
+        bookingUrl={account.booking_url ?? ""}
+      />
     </div>
   );
 }

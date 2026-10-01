@@ -50,6 +50,9 @@ export type Account = {
   credits: number;
   unlimited: boolean;
   created_at: string;
+  sender_role: string | null;
+  sender_pitch: string | null;
+  booking_url: string | null;
 };
 
 /** Profilo e crediti dell'utente (lo crea se manca). */

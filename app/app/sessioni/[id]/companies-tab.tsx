@@ -55,10 +55,17 @@ export default function CompaniesTab({
     setSearchStep(0);
     const timer = setInterval(() => setSearchStep((s) => Math.min(s + 1, SEARCH_MESSAGES.length - 1)), 9000);
     try {
-      const res = await api<{ found: number; discarded: number; remaining: number }>(`/api/app/projects/${project.id}/discover`, { body: {} });
+      const res = await api<{ found: number; discarded: number; duplicates: number; remaining: number }>(
+        `/api/app/projects/${project.id}/discover`,
+        { body: {} },
+      );
+      const extra = [
+        res.duplicates ? `${res.duplicates} già presenti nelle tue sessioni` : "",
+        res.discarded ? `${res.discarded} con sito non raggiungibile` : "",
+      ].filter(Boolean);
       setMessage(
         res.found > 0
-          ? `Trovate ${res.found} aziende verificate${res.discarded ? ` (${res.discarded} scartate perché il sito non rispondeva)` : ""}.`
+          ? `Trovate ${res.found} nuove aziende verificate${extra.length ? ` (scartate: ${extra.join(", ")})` : ""}.`
           : "Nessuna nuova azienda verificata questa volta. Riprova o aggiungine qualcuna a mano.",
       );
       router.refresh();

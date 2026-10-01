@@ -13,15 +13,24 @@ export default async function DashboardPage() {
 
   // statistiche: aziende, analisi completate, report aperti
   const ids = projects.map((p) => p.id);
-  const stats = { companies: 0, opened: 0, replied: 0 };
+  const stats = { companies: 0, opened: 0, replied: 0, due: 0, hot: 0 };
+  const nowIso = new Date().toISOString();
   const perProject = new Map<string, number>();
   if (ids.length > 0) {
-    const { data: companies } = await db().from("companies").select("id, project_id, status").in("project_id", ids);
+    const { data: companies } = await db()
+      .from("companies")
+      .select("id, project_id, status, next_followup_at, reports(view_count)")
+      .in("project_id", ids);
     for (const c of companies ?? []) {
       perProject.set(c.project_id, (perProject.get(c.project_id) ?? 0) + 1);
       stats.companies++;
       if (["report_aperto", "ha_risposto", "chiamata", "cliente"].includes(c.status)) stats.opened++;
       if (["ha_risposto", "chiamata", "cliente"].includes(c.status)) stats.replied++;
+      const open = ["contattata", "report_aperto"].includes(c.status);
+      if (open && c.next_followup_at && c.next_followup_at <= nowIso) stats.due++;
+      const views = (c.reports as unknown as { view_count: number }[] | { view_count: number } | null) ?? null;
+      const viewCount = Array.isArray(views) ? (views[0]?.view_count ?? 0) : (views?.view_count ?? 0);
+      if (open && viewCount > 0) stats.hot++;
     }
   }
 
@@ -38,6 +47,20 @@ export default async function DashboardPage() {
           + Nuova sessione
         </Link>
       </div>
+
+      {(stats.due > 0 || stats.hot > 0) && (
+        <Link href="/app/outreach" className="glow-border flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-panel p-5 transition hover:brightness-110">
+          <div>
+            <p className="font-display text-lg font-semibold text-white">Oggi hai cose da fare</p>
+            <p className="text-sm text-zinc-400">
+              {stats.hot > 0 && `🔥 ${stats.hot} ${stats.hot === 1 ? "azienda ha" : "aziende hanno"} aperto il report`}
+              {stats.hot > 0 && stats.due > 0 && " · "}
+              {stats.due > 0 && `${stats.due} follow-up in scadenza`}
+            </p>
+          </div>
+          <span className={btn.accent}>Apri Outreach →</span>
+        </Link>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[

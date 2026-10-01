@@ -19,9 +19,15 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const project = (await getUserProject(id, user.id))!;
     if (!project.credit_used_at) throw new UserError("Avvia prima la sessione.");
 
-    const { data: existing, error } = await db().from("companies").select("website_url").eq("project_id", id);
+    // aziende di questa sessione (per il limite) e di TUTTE le sessioni dell'utente (per non riproporle mai)
+    const { data: existing, error } = await db()
+      .from("companies")
+      .select("website_url, project_id, projects!inner(user_id)")
+      .eq("projects.user_id", user.id);
     if (error) throw error;
-    const known = new Set((existing ?? []).map((c) => c.website_url as string));
+    const all = (existing ?? []) as { website_url: string; project_id: string }[];
+    const known = new Set(all.filter((c) => c.project_id === id).map((c) => c.website_url));
+    const everSeen = new Set(all.map((c) => c.website_url));
     const missing = project.company_limit - known.size;
     if (missing <= 0) throw new UserError(`Hai già raggiunto il massimo di ${project.company_limit} aziende per questa sessione.`);
 
@@ -32,14 +38,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       targetSize: project.target_size,
       country: project.target_country,
       symptom: project.symptom ?? "",
-      count: Math.min(40, Math.ceil(missing * 1.5)),
-      exclude: [...known],
+      count: Math.min(45, Math.ceil(missing * 1.8)),
+      exclude: [...everSeen].map((u) => new URL(u).hostname.replace(/^www\./, "")),
     });
 
     // normalizza, scarta doppioni e domini non aziendali
     const candidates: typeof found = [];
-    const seen = new Set(known);
-    const seenHosts = new Set([...known].map((u) => new URL(u).hostname.replace(/^www\./, "")));
+    const seen = new Set(everSeen);
+    const seenHosts = new Set([...everSeen].map((u) => new URL(u).hostname.replace(/^www\./, "")));
     for (const c of found) {
       const url = normalizeUrl(c.website);
       if (!url) continue;
@@ -70,6 +76,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         );
       if (insError) throw insError;
     }
-    return { found: verified.length, discarded: candidates.length - verified.length, remaining: missing - verified.length };
+    return {
+      found: verified.length,
+      discarded: candidates.length - verified.length,
+      duplicates: found.length - candidates.length,
+      remaining: missing - verified.length,
+    };
   });
 }

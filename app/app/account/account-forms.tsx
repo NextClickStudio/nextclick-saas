@@ -5,9 +5,19 @@ import { useRouter } from "next/navigation";
 import { api } from "@/components/client-utils";
 import { Card, ErrorBox, btn, input, label } from "@/components/ui";
 
-export default function AccountForms({ fullName, companyName }: { fullName: string; companyName: string }) {
+export default function AccountForms({
+  fullName,
+  companyName,
+  senderRole,
+  bookingUrl,
+}: {
+  fullName: string;
+  companyName: string;
+  senderRole: string;
+  bookingUrl: string;
+}) {
   const router = useRouter();
-  const [profile, setProfile] = useState({ full_name: fullName, company_name: companyName });
+  const [profile, setProfile] = useState({ full_name: fullName, company_name: companyName, sender_role: senderRole, booking_url: bookingUrl });
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState<{ profile?: string; password?: string; error?: string }>({});
   const [loading, setLoading] = useState("");
@@ -27,7 +37,10 @@ export default function AccountForms({ fullName, companyName }: { fullName: stri
   return (
     <div className="space-y-6">
       <Card className="space-y-4 p-6">
-        <h2 className="font-semibold text-white">Profilo</h2>
+        <div>
+          <h2 className="font-semibold text-white">Profilo e firma dei messaggi</h2>
+          <p className="mt-1 text-sm text-zinc-500">L&apos;AI usa questi dati per firmare i messaggi di outreach.</p>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className={label} htmlFor="n">Nome e cognome</label>
@@ -36,6 +49,14 @@ export default function AccountForms({ fullName, companyName }: { fullName: stri
           <div>
             <label className={label} htmlFor="c">Azienda</label>
             <input id="c" className={input} value={profile.company_name} onChange={(e) => setProfile({ ...profile, company_name: e.target.value })} />
+          </div>
+          <div>
+            <label className={label} htmlFor="r">Ruolo</label>
+            <input id="r" className={input} placeholder="Founder, Account manager…" value={profile.sender_role} onChange={(e) => setProfile({ ...profile, sender_role: e.target.value })} />
+          </div>
+          <div>
+            <label className={label} htmlFor="b">Link per prenotare una call</label>
+            <input id="b" className={input} placeholder="https://calendly.com/…" value={profile.booking_url} onChange={(e) => setProfile({ ...profile, booking_url: e.target.value })} />
           </div>
         </div>
         <div className="flex items-center gap-3">

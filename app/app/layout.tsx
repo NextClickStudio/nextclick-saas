@@ -20,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Logo href="/app" />
             <nav className="hidden items-center gap-1 text-sm sm:flex">
               <Link href="/app" className="rounded-lg px-3 py-1.5 text-zinc-400 hover:bg-white/[0.05] hover:text-white">Dashboard</Link>
+              <Link href="/app/outreach" className="rounded-lg px-3 py-1.5 text-zinc-400 hover:bg-white/[0.05] hover:text-white">Outreach</Link>
               <Link href="/app/piani" className="rounded-lg px-3 py-1.5 text-zinc-400 hover:bg-white/[0.05] hover:text-white">Piani</Link>
               <Link href="/app/account" className="rounded-lg px-3 py-1.5 text-zinc-400 hover:bg-white/[0.05] hover:text-white">Account</Link>
             </nav>
@@ -40,6 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
         <nav className="flex gap-1 border-t border-white/[0.04] px-4 py-1.5 text-sm sm:hidden">
           <Link href="/app" className="rounded-lg px-3 py-1 text-zinc-400">Dashboard</Link>
+          <Link href="/app/outreach" className="rounded-lg px-3 py-1 text-zinc-400">Outreach</Link>
           <Link href="/app/piani" className="rounded-lg px-3 py-1 text-zinc-400">Piani</Link>
           <Link href="/app/account" className="rounded-lg px-3 py-1 text-zinc-400">Account</Link>
         </nav>

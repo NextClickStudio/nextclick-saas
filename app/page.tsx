@@ -24,8 +24,8 @@ const STEPS = [
   },
   {
     n: "04",
-    title: "Contatti con un motivo vero",
-    text: "Per ogni azienda: un report privato con posizione in classifica e i 3 punti in cui perde clienti, più il canale diretto migliore per fargliela arrivare.",
+    title: "L'AI scrive, tu invii con un clic",
+    text: "Per ogni azienda: report privato, canale più diretto e messaggio personalizzato per Instagram, WhatsApp, LinkedIn o email. Yeppo programma i follow-up e ti avvisa quando aprono il report.",
   },
 ];
 
@@ -53,7 +53,7 @@ const FAQ = [
   },
   {
     q: "Yeppo invia messaggi al posto mio?",
-    a: "No. Yeppo ti dice chi contattare, dove e con quale aggancio. Il contatto lo fai tu, in modo personale: è questo che lo rende efficace e rispettoso.",
+    a: "Yeppo scrive i messaggi per te, uno diverso per ogni azienda e per ogni canale, e apre la chat giusta con il testo pronto: tu controlli e premi invia. Poi programma i follow-up. Niente invii di massa automatici: Instagram e WhatsApp li vietano e bloccano gli account che li fanno, e sono proprio i messaggi di massa che le aziende ignorano.",
   },
   {
     q: "Quanto costa?",

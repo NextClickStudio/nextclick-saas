@@ -106,6 +106,10 @@ export type Company = {
   discovery_reason: string | null;
   contact_channels: ContactChannel[] | null;
   contact_plan: ContactPlan | null;
+  last_contacted_at: string | null;
+  next_followup_at: string | null;
+  followup_step: number;
+  drafts: Record<string, { generated_at: string; messages: { channel: string; subject?: string; body: string }[] }> | null;
 };
 
 /** Riga "completa" usata nelle tabelle dell'area riservata. */
