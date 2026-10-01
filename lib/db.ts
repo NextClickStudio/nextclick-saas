@@ -7,10 +7,11 @@ let client: SupabaseClient | null = null;
 
 export function db(): SupabaseClient {
   if (client) return client;
-  const url = process.env.SUPABASE_URL;
+  // l'URL non è segreto: se manca si usa quello del progetto Supabase "yeppo"
+  const url = process.env.SUPABASE_URL || "https://djzzjybrcknrvvovvlpq.supabase.co";
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error("Configurazione mancante: imposta SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.");
+  if (!key) {
+    throw new Error("Configurazione mancante: imposta SUPABASE_SERVICE_ROLE_KEY.");
   }
   client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },

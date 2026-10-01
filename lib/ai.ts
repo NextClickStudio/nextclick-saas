@@ -1,51 +1,87 @@
-// Chiamate a Google Gemini: schemi di output, prompt (in italiano) e validazione.
+// Chiamate all'AI: schemi di output, prompt (in italiano) e validazione.
+//
+// Due modi per usare l'AI (si sceglie da solo):
+// 1. Vercel AI Gateway (predefinito): su Vercel funziona senza chiavi, grazie al token
+//    OIDC del progetto, e usa i crediti gratuiti mensili di Vercel.
+//    In locale serve AI_GATEWAY_API_KEY (Vercel → AI Gateway → API Keys).
+// 2. Google Gemini diretto: solo se imposti GEMINI_API_KEY.
 import "server-only";
-import { GoogleGenAI, Type, type Schema } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
+import { getVercelOidcToken } from "@vercel/oidc";
 import { z } from "zod";
 import { UserError } from "@/lib/db";
 
-// Nome del modello in un punto solo: per cambiarlo modifica solo questa riga.
-export const GEMINI_MODEL = "gemini-2.5-flash";
+// Nome del modello in un punto solo: per cambiarlo modifica solo queste righe.
+export const GEMINI_MODEL = "gemini-2.5-flash"; // usato con GEMINI_API_KEY
+export const GATEWAY_MODEL = process.env.AI_MODEL || "google/gemini-2.5-flash"; // usato con AI Gateway
+const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
 
-let client: GoogleGenAI | null = null;
-function gemini(): GoogleGenAI {
-  if (client) return client;
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new UserError("Configurazione mancante: imposta GEMINI_API_KEY.");
-  client = new GoogleGenAI({ apiKey });
-  return client;
+let gemini: GoogleGenAI | null = null;
+
+/** Una chiamata al modello che restituisce il testo JSON grezzo. */
+async function callModel(prompt: string, schema: object, temperature: number): Promise<string> {
+  if (process.env.GEMINI_API_KEY) {
+    gemini ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const response = await gemini.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt,
+      config: { temperature, responseMimeType: "application/json", responseJsonSchema: schema },
+    });
+    return response.text ?? "";
+  }
+
+  let token = process.env.AI_GATEWAY_API_KEY;
+  if (!token) {
+    try {
+      token = await getVercelOidcToken();
+    } catch {
+      throw new UserError(
+        "Configurazione mancante: su Vercel l'AI funziona da sola; in locale imposta AI_GATEWAY_API_KEY (o GEMINI_API_KEY).",
+      );
+    }
+  }
+  const res = await fetch(GATEWAY_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: GATEWAY_MODEL,
+      temperature,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_schema", json_schema: { name: "risposta", schema } },
+    }),
+  });
+  if (res.status === 402 || res.status === 429) {
+    throw new UserError("Crediti AI esauriti o troppe richieste: riprova più tardi o aggiungi crediti su Vercel → AI Gateway.");
+  }
+  if (!res.ok) throw new Error(`AI Gateway ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  return data.choices?.[0]?.message?.content ?? "";
 }
 
 /**
- * Chiama Gemini chiedendo JSON con uno schema preciso, poi valida con zod.
+ * Chiede al modello JSON con uno schema preciso, poi valida con zod.
  * Se la risposta non è valida riprova una volta; poi restituisce un errore leggibile.
  */
 async function generateJson<T>(opts: {
   prompt: string;
-  schema: Schema;
+  schema: object;
   validator: z.ZodType<T>;
   temperature: number;
 }): Promise<T> {
   let lastProblem = "";
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const response = await gemini().models.generateContent({
-        model: GEMINI_MODEL,
-        contents: opts.prompt,
-        config: {
-          temperature: opts.temperature,
-          responseMimeType: "application/json",
-          responseSchema: opts.schema,
-        },
-      });
-      const parsed = opts.validator.safeParse(JSON.parse(response.text ?? ""));
+      const text = (await callModel(opts.prompt, opts.schema, opts.temperature))
+        .replace(/^```(?:json)?\s*|\s*```$/g, "") // alcuni modelli racchiudono il JSON in ```
+        .trim();
+      const parsed = opts.validator.safeParse(JSON.parse(text));
       if (parsed.success) return parsed.data;
       lastProblem = "risposta AI non valida";
-      console.error("Gemini: JSON non valido", parsed.error.issues.slice(0, 5));
+      console.error("AI: JSON non valido", parsed.error.issues.slice(0, 5));
     } catch (err) {
       if (err instanceof UserError) throw err;
       lastProblem = "errore di comunicazione con l'AI";
-      console.error("Gemini: errore", err);
+      console.error("AI: errore", err);
     }
   }
   throw new UserError(`L'AI non ha restituito una risposta utilizzabile (${lastProblem}). Riprova tra qualche istante.`);
@@ -69,33 +105,34 @@ const symptomResultSchema = z.object({
 });
 export type SymptomResult = z.infer<typeof symptomResultSchema>;
 
-const symptomGeminiSchema: Schema = {
-  type: Type.OBJECT,
+// Schema JSON standard dell'output (lo capiscono sia Gemini sia AI Gateway).
+const symptomJsonSchema = {
+  type: "object",
   properties: {
-    symptom: { type: Type.STRING, description: "Il sintomo visibile, in 1-3 frasi" },
+    symptom: { type: "string", description: "Il sintomo visibile, in 1-3 frasi" },
     index_name: {
-      type: Type.STRING,
+      type: "string",
       description: 'Nome breve per una classifica pubblica di settore, es. "Indice della consulenza online"',
     },
     criteria: {
-      type: Type.ARRAY,
-      minItems: "6",
-      maxItems: "10",
+      type: "array",
+      minItems: 6,
+      maxItems: 10,
       items: {
-        type: Type.OBJECT,
+        type: "object",
         properties: {
-          name: { type: Type.STRING },
-          description: { type: Type.STRING },
-          how_to_check: { type: Type.STRING },
-          weight: { type: Type.INTEGER, description: "Importanza da 1 a 5" },
+          name: { type: "string" },
+          description: { type: "string" },
+          how_to_check: { type: "string" },
+          weight: { type: "integer", description: "Importanza da 1 a 5" },
         },
         required: ["name", "description", "how_to_check", "weight"],
-        propertyOrdering: ["name", "description", "how_to_check", "weight"],
+        additionalProperties: false,
       },
     },
   },
   required: ["symptom", "index_name", "criteria"],
-  propertyOrdering: ["symptom", "index_name", "criteria"],
+  additionalProperties: false,
 };
 
 export async function generateSymptomAndCriteria(input: {
@@ -127,7 +164,7 @@ Ogni criterio deve essere:
 Per ogni criterio indica: name (breve), description (cosa misura), how_to_check (cosa cercare concretamente nel testo della pagina), weight (1-5, quanto pesa sul sintomo).
 Scrivi tutto in italiano.`;
 
-  return generateJson({ prompt, schema: symptomGeminiSchema, validator: symptomResultSchema, temperature: 0.6 });
+  return generateJson({ prompt, schema: symptomJsonSchema, validator: symptomResultSchema, temperature: 0.6 });
 }
 
 // ---------------------------------------------------------------------
@@ -156,41 +193,41 @@ const evaluationSchema = z.object({
 });
 export type Evaluation = z.infer<typeof evaluationSchema>;
 
-const evaluationGeminiSchema: Schema = {
-  type: Type.OBJECT,
+const evaluationJsonSchema = {
+  type: "object",
   properties: {
     scores: {
-      type: Type.ARRAY,
+      type: "array",
       items: {
-        type: Type.OBJECT,
+        type: "object",
         properties: {
-          criterion_id: { type: Type.STRING },
-          score: { type: Type.INTEGER, description: "Da 0 a 10" },
-          evidence: { type: Type.STRING },
+          criterion_id: { type: "string" },
+          score: { type: "integer", description: "Da 0 a 10" },
+          evidence: { type: "string" },
         },
         required: ["criterion_id", "score", "evidence"],
-        propertyOrdering: ["criterion_id", "score", "evidence"],
+        additionalProperties: false,
       },
     },
     weak_points: {
-      type: Type.ARRAY,
-      minItems: "3",
-      maxItems: "3",
+      type: "array",
+      minItems: 3,
+      maxItems: 3,
       items: {
-        type: Type.OBJECT,
+        type: "object",
         properties: {
-          title: { type: Type.STRING },
-          explanation: { type: Type.STRING },
-          evidence: { type: Type.STRING },
+          title: { type: "string" },
+          explanation: { type: "string" },
+          evidence: { type: "string" },
         },
         required: ["title", "explanation", "evidence"],
-        propertyOrdering: ["title", "explanation", "evidence"],
+        additionalProperties: false,
       },
     },
-    summary: { type: Type.STRING },
+    summary: { type: "string" },
   },
   required: ["scores", "weak_points", "summary"],
-  propertyOrdering: ["scores", "weak_points", "summary"],
+  additionalProperties: false,
 };
 
 export async function evaluateWebsite(input: {
@@ -233,7 +270,7 @@ Scrivi tutto in italiano, dando del "tu" al titolare.`;
     { message: "punteggi mancanti per alcuni criteri" },
   );
 
-  const result = await generateJson({ prompt, schema: evaluationGeminiSchema, validator, temperature: 0.2 });
+  const result = await generateJson({ prompt, schema: evaluationJsonSchema, validator, temperature: 0.2 });
   // tieni solo i criteri conosciuti, una volta ciascuno, con punteggi interi
   const seen = new Set<string>();
   result.scores = result.scores

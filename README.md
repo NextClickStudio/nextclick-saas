@@ -6,7 +6,7 @@ Zeppo individua il "sintomo visibile" del problema che il tuo prodotto risolve, 
 settore, crea una **classifica pubblica** (solo le migliori, da pubblicare su LinkedIn) e un **report privato** per ogni
 azienda con i 3 punti in cui perde clienti. Il report è il motivo per aprire la conversazione.
 
-Stack: Next.js 16 (App Router) + TypeScript + Tailwind CSS · Supabase (Postgres) · Google Gemini 2.5 Flash · Vercel.
+Stack: Next.js 16 (App Router) + TypeScript + Tailwind CSS · Supabase (Postgres) · Gemini 2.5 Flash tramite Vercel AI Gateway (crediti gratuiti) · Vercel.
 
 ---
 
@@ -27,13 +27,23 @@ solo il server di Zeppo con la chiave segreta. Supabase mostrerà l'avviso infor
 
 ## 2. Le chiavi
 
+Su Vercel servono **solo due variabili**:
+
 | Variabile | Dove si trova |
 | --- | --- |
-| `SUPABASE_URL` | Supabase → **Project Settings → Data API** (o API) → *Project URL*. Per yeppo: `https://djzzjybrcknrvvovvlpq.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → **Project Settings → API Keys** → chiave **`service_role`** (tab "Legacy API keys") oppure una **Secret key** `sb_secret_...`. È segreta: non condividerla mai. |
-| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey) → **Create API key** |
 | `ADMIN_PASSWORD` | La scegli tu: la password dell'area riservata. Usane una lunga. |
-| `NEXT_PUBLIC_SITE_URL` | L'indirizzo del sito, senza slash finale: `https://yeppo.it` |
+
+Facoltative: `SUPABASE_URL` (predefinito: il progetto "yeppo"), `NEXT_PUBLIC_SITE_URL` (es. `https://yeppo.it`),
+`AI_MODEL` (modello AI Gateway, predefinito `google/gemini-2.5-flash`), `GEMINI_API_KEY` (per usare Gemini diretto).
+
+### L'AI: Vercel AI Gateway (gratis per iniziare)
+
+Zeppo usa **Vercel AI Gateway**, che dà a ogni account dei **crediti gratuiti ogni mese** e su Vercel funziona
+**senza chiavi** (il progetto si autentica da solo). Il modello predefinito è Gemini 2.5 Flash; si cambia con
+`AI_MODEL` (es. `openai/gpt-5-mini`, `google/gemini-2.5-flash-lite` per spendere ancora meno).
+Saldo e consumi: Vercel → **AI Gateway**. Se i crediti finiscono, l'analisi mostra un messaggio chiaro.
+Se un giorno attivi la fatturazione Google, basta impostare `GEMINI_API_KEY` e Zeppo userà Gemini direttamente.
 
 ## 3. Provare in locale
 
@@ -41,7 +51,7 @@ Serve [Node.js](https://nodejs.org) 20 o più recente.
 
 ```bash
 npm install
-cp .env.example .env.local   # poi apri .env.local e compila i valori
+cp .env.example .env.local   # compila SUPABASE_SERVICE_ROLE_KEY, ADMIN_PASSWORD e AI_GATEWAY_API_KEY
 npm run dev
 ```
 
@@ -53,9 +63,10 @@ Altri comandi: `npm test` (test di punteggi e URL), `npm run lint`, `npm run bui
 
 Il progetto Vercel si chiama **"yeppo"** ed è già collegato al dominio `yeppo.it`.
 
-1. Vercel → progetto **yeppo** → **Settings → Environment Variables**. Aggiungi le 5 variabili della tabella sopra
-   (ambiente: *Production* e *Preview*). Se esistono variabili del vecchio sito che non servono più, puoi eliminarle.
+1. Vercel → progetto **yeppo** → **Settings → Environment Variables**. Aggiungi `SUPABASE_SERVICE_ROLE_KEY` e
+   `ADMIN_PASSWORD` (ambiente: *Production* e *Preview*). Elimina le variabili del vecchio sito che non servono più.
 2. **Settings → Git**: collega il repository GitHub `NextClickStudio/nextclick-saas` (production branch: `main`).
+   Se Vercel non vede il repository, installa l'app Vercel su GitHub per l'organizzazione NextClickStudio.
    Da quel momento ogni push su `main` pubblica automaticamente il sito.
 3. Dopo aver aggiunto o cambiato le variabili serve un nuovo deploy: **Deployments → ⋯ → Redeploy**.
 4. Apri `https://yeppo.it` → **Area riservata** → inserisci `ADMIN_PASSWORD`.
@@ -64,15 +75,13 @@ Nota: la route di analisi ha `maxDuration = 60` secondi. Con il piano Hobby di V
 
 ## 5. Quanto costa l'AI
 
-Stima con **Gemini 2.5 Flash** (prezzi di listino al momento dello sviluppo: circa 0,30 $ per milione di token in
-ingresso e 2,50 $ per milione in uscita, "ragionamento" incluso — verifica su
-[ai.google.dev/pricing](https://ai.google.dev/pricing)):
+Stima con **Gemini 2.5 Flash** (circa 0,30 $ per milione di token in ingresso e 2,50 $ in uscita, "ragionamento"
+incluso; prezzi aggiornati su Vercel → AI Gateway → Models):
 
 - una analisi legge fino a 3 pagine (≈ 12.000 token in ingresso) e produce ≈ 3.000-5.000 token in uscita
   → **circa 1,5-2 centesimi per azienda**;
-- **30 aziende ≈ 0,50 $** (anche contando qualche nuovo tentativo); la generazione dei criteri costa meno di 1 centesimo.
-
-Con il piano gratuito di Google AI Studio puoi fare le prime prove senza pagare, ma con limiti di richieste al minuto.
+- **30 aziende ≈ 0,50 $**, quindi rientrano ampiamente nei crediti gratuiti mensili di AI Gateway;
+- con `AI_MODEL=google/gemini-2.5-flash-lite` il costo scende di circa 4-5 volte.
 
 ## 6. Come si usa (esempio NextClick)
 
@@ -98,6 +107,8 @@ e un report di esempio su `/r/demoVitaInt002`.
 
 ## 7. Decisioni prese in autonomia
 
+- **AI tramite Vercel AI Gateway**: Gemini diretto ora richiede un account di fatturazione Google; AI Gateway usa
+  lo stesso modello con i crediti gratuiti Vercel e senza chiavi. Gemini diretto resta disponibile con `GEMINI_API_KEY`.
 - **`proxy.ts` invece di `middleware.ts`**: in Next.js 16 il file `middleware.ts` è stato rinominato `proxy.ts`
   (stessa funzione). Protegge `/app` e `/api/admin`.
 - **Nome dell'indice**: aggiunta la colonna `projects.index_name` (es. "Indice della consulenza online"), proposta
@@ -116,8 +127,8 @@ e un report di esempio su `/r/demoVitaInt002`.
 - **Criteri modificati dopo le analisi**: i vecchi punteggi restano; l'interfaccia avvisa di rianalizzare.
 - **Test**: scritti con il test runner integrato di Node (`node --test`), senza librerie in più.
 - **Eliminazione**: si possono eliminare singole aziende e interi progetti (con conferma scritta "ELIMINA").
-- **Database condiviso**: il progetto Supabase "yeppo" conteneva già le tabelle `maison_*` del sito precedente.
-  Non sono state toccate (i nomi non si sovrappongono): se non servono più si possono eliminare dal Table Editor.
+- **Database ripulito**: dal progetto Supabase "yeppo" sono stati eliminati tabelle, funzioni, job pianificati e utenti
+  del sito precedente ("maison"). Restano solo le tabelle di Zeppo.
 
 ## 8. Cosa NON c'è in questa versione
 
@@ -141,7 +152,7 @@ app/
   api/auth/login|logout
 components/                         componenti grafici scritti a mano
 lib/
-  ai.ts        chiamate Gemini + schemi + prompt (modello in GEMINI_MODEL)
+  ai.ts        chiamate AI (AI Gateway o Gemini) + schemi + prompt (modello in GATEWAY_MODEL/GEMINI_MODEL)
   crawler.ts   robots.txt, fetch sicuro, estrazione testo con cheerio
   db.ts        client Supabase server-only
   data.ts      letture riusate (aziende + analisi + report + posizioni)
