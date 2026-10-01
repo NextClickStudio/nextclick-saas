@@ -6,7 +6,7 @@
 //    In locale serve AI_GATEWAY_API_KEY (Vercel → AI Gateway → API Keys).
 // 2. Google Gemini diretto: solo se imposti GEMINI_API_KEY.
 import "server-only";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { z } from "zod";
 import { UserError } from "@/lib/db";
@@ -685,20 +685,11 @@ export async function findPeopleOnWeb(
   if (!process.env.GEMINI_API_KEY) return [];
   gemini ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const domain = input.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/.*$/, "");
-  const prompt = `Cerca sul web chi guida l'azienda "${input.companyName}" (sito ${domain}, settore ${input.sector}, Italia).
-Cerca: fondatore/founder, titolare, CEO, soci, responsabile marketing, responsabile commerciale/vendite, e-commerce manager.
-Fonti utili: LinkedIn, articoli di giornale e interviste, registro imprese, pagina "chi siamo", profilo Instagram del brand (bio e tag).
-
-Per ogni persona TROVATA NEI RISULTATI DI RICERCA (massimo 5, prima chi decide):
-- name: nome e cognome
-- role: ruolo nell'azienda
-- linkedin_url: URL del profilo LinkedIn personale (linkedin.com/in/...) se compare nei risultati, altrimenti ""
-- instagram_url: URL del profilo Instagram personale se compare nei risultati ed è chiaramente suo, altrimenti ""
-- source: dove l'hai trovata (es. "LinkedIn", "Corriere della Sera, intervista 2024", "registro imprese")
-
-Regole: solo persone che lavorano OGGI in questa azienda (non omonimi, non altre aziende con nome simile).
-Non inventare nulla: se non trovi nessuno rispondi {"people": []}. Niente numeri di telefono né email.
-Rispondi SOLO con JSON: {"people":[{"name":"","role":"","linkedin_url":"","instagram_url":"","source":""}]}`;
+  // domanda breve e diretta: con richieste lunghe il modello fa troppe ricerche e supera i 45 secondi
+  const prompt = `Chi sono fondatore/titolare/CEO, responsabile marketing e responsabile commerciale di "${input.companyName}" (${domain}, ${input.sector}, Italia)?
+Massimo 5 persone, solo se trovate nei risultati di ricerca, che lavorano oggi in questa azienda (non omonimi). Mai inventare.
+Rispondi SOLO con JSON: {"people":[{"name":"Nome Cognome","role":"ruolo","linkedin_url":"URL linkedin.com/in/... se nei risultati, altrimenti vuoto","instagram_url":"URL Instagram personale se nei risultati, altrimenti vuoto","source":"fonte breve"}]}
+Se non trovi nessuno: {"people":[]}. Niente telefoni né email.`;
 
   let lastError: unknown = null;
   for (const model of GEMINI_MODELS.filter((m) => !m.includes("lite")).concat(GEMINI_MODELS.filter((m) => m.includes("lite")))) {
@@ -706,7 +697,12 @@ Rispondi SOLO con JSON: {"people":[{"name":"","role":"","linkedin_url":"","insta
       const response = await gemini.models.generateContent({
         model,
         contents: prompt,
-        config: { temperature: 0.1, tools: [{ googleSearch: {} }], httpOptions: { timeout: 45_000 } },
+        config: {
+          temperature: 0.1,
+          tools: [{ googleSearch: {} }],
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          httpOptions: { timeout: 35_000 },
+        },
       });
       const raw = response.text ?? "";
       const meta = response.candidates?.[0]?.groundingMetadata;
