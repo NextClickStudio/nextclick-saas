@@ -8,7 +8,7 @@ export const LEGAL = {
   project: "Yeppo è un progetto in fase di sviluppo e test (beta), non ancora gestito tramite partita IVA.",
   address: "Italia",
   vat: "", // vuoto finché non c'è la partita IVA
-  email: "ciao@yeppo.it",
+  email: "info@yeppo.it",
   pec: "", // vuota finché non c'è
   lastUpdate: "1 ottobre 2026",
 };

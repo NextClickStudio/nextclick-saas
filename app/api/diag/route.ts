@@ -1,11 +1,21 @@
 // TEMPORANEO: verifica della chiave Gemini e della ricerca persone. Da rimuovere dopo il test.
 import { GoogleGenAI } from "@google/genai";
+import { findPeopleOnWeb } from "@/lib/ai";
 
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
   const q = new URL(request.url).searchParams;
   if (q.get("t") !== "39d2262a1164efabf8b11eca56cf024a") return new Response("Not found", { status: 404 });
+  if (q.get("people")) {
+    const t1 = Date.now();
+    try {
+      const people = await findPeopleOnWeb({ companyName: q.get("people")!, website: q.get("site") || "", sector: q.get("sector") || "" });
+      return Response.json({ ok: true, s: (Date.now() - t1) / 1000, people });
+    } catch (e) {
+      return Response.json({ ok: false, s: (Date.now() - t1) / 1000, error: (e as Error).message });
+    }
+  }
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
   const model = q.get("model") || "gemini-3.5-flash";
   const search = q.get("search") === "1";
