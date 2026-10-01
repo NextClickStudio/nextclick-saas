@@ -9,12 +9,13 @@ export async function GET(request: Request) {
   if (q.get("t") !== "39d2262a1164efabf8b11eca56cf024a") return new Response("Not found", { status: 404 });
   if (q.get("people")) {
     const t1 = Date.now();
-    try {
-      const people = await findPeopleOnWeb({ companyName: q.get("people")!, website: q.get("site") || "", sector: q.get("sector") || "" });
-      return Response.json({ ok: true, s: (Date.now() - t1) / 1000, people });
-    } catch (e) {
-      return Response.json({ ok: false, s: (Date.now() - t1) / 1000, error: (e as Error).message });
-    }
+    const steps: Record<string, unknown>[] = [];
+    const run = findPeopleOnWeb({ companyName: q.get("people")!, website: q.get("site") || "", sector: q.get("sector") || "" }, (i) =>
+      steps.push({ ...i, s: (Date.now() - t1) / 1000 }),
+    ).then((people) => ({ people }), (e: Error) => ({ error: e.message }));
+    // risposta entro 50 s anche se la ricerca è lenta, con i passi fatti finora
+    const result = await Promise.race([run, new Promise((r) => setTimeout(() => r({ timeout: true }), 50_000))]);
+    return Response.json({ s: (Date.now() - t1) / 1000, result, steps });
   }
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
   const model = q.get("model") || "gemini-3.5-flash";

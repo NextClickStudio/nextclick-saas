@@ -678,7 +678,10 @@ export type WebPerson = z.infer<typeof webPeopleSchema>["people"][number];
  * professionali/pubblici. Solo nomi, ruoli e profili: niente numeri di telefono o email personali.
  * Richiede la fatturazione Gemini attiva (la ricerca Google non è inclusa nel piano gratuito).
  */
-export async function findPeopleOnWeb(input: { companyName: string; website: string; sector: string }): Promise<WebPerson[]> {
+export async function findPeopleOnWeb(
+  input: { companyName: string; website: string; sector: string },
+  debug?: (info: Record<string, unknown>) => void,
+): Promise<WebPerson[]> {
   if (!process.env.GEMINI_API_KEY) return [];
   gemini ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const domain = input.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/.*$/, "");
@@ -708,6 +711,7 @@ Rispondi SOLO con JSON: {"people":[{"name":"","role":"","linkedin_url":"","insta
       const raw = response.text ?? "";
       const meta = response.candidates?.[0]?.groundingMetadata;
       const chunks = meta?.groundingChunks ?? [];
+      debug?.({ model, raw: raw.slice(0, 1500), chunks: chunks.length, supports: meta?.groundingSupports?.length ?? 0 });
       // senza risultati di ricerca reali non ci fidiamo: il modello potrebbe "ricordare" male
       if (chunks.length === 0) return [];
       const text = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
@@ -728,6 +732,7 @@ Rispondi SOLO con JSON: {"people":[{"name":"","role":"","linkedin_url":"","insta
     } catch (err) {
       lastError = err;
       const status = (err as { status?: number }).status;
+      debug?.({ model, error: String((err as Error).message).slice(0, 300), status });
       console.error(`Ricerca persone ${model}: ${status ?? ""} ${(err instanceof Error ? err.message : "").slice(0, 200)}`);
       if (status === 400 && /api key|API_KEY/i.test(String(err))) break;
     }
