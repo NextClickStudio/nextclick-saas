@@ -4,12 +4,20 @@ import Link from "next/link";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/components/client-utils";
+import GoogleButton from "@/components/google-button";
 import { ErrorBox, btn, input, label } from "@/components/ui";
 
 export default function LoginForm() {
   const params = useSearchParams();
   const [form, setForm] = useState({ email: "", password: "" });
-  const [error, setError] = useState(params.get("errore") === "link" ? "Il link non è valido o è scaduto. Richiedine uno nuovo." : "");
+  const errorParam = params.get("errore");
+  const [error, setError] = useState(
+    errorParam === "google"
+      ? "Accesso con Google non disponibile al momento. Usa email e password."
+      : errorParam === "link"
+        ? "Il link non è valido o è scaduto. Riprova."
+        : "",
+  );
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
@@ -27,6 +35,8 @@ export default function LoginForm() {
   }
 
   return (
+    <>
+    <GoogleButton next={params.get("next") ?? undefined} />
     <form onSubmit={onSubmit} className="space-y-4">
       <div>
         <label htmlFor="email" className={label}>Email</label>
@@ -44,5 +54,6 @@ export default function LoginForm() {
         {loading ? "Accesso in corso…" : "Accedi"}
       </button>
     </form>
+    </>
   );
 }

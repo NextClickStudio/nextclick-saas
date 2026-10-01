@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { api } from "@/components/client-utils";
+import GoogleButton from "@/components/google-button";
 import { ErrorBox, btn, input, label } from "@/components/ui";
 
 export default function RegisterForm() {
@@ -28,6 +29,8 @@ export default function RegisterForm() {
   }
 
   return (
+    <>
+    <GoogleButton />
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -59,6 +62,10 @@ export default function RegisterForm() {
       <button type="submit" className={`${btn.accent} w-full !py-3`} disabled={loading || !accept}>
         {loading ? "Creazione account…" : "Crea account gratis"}
       </button>
+      <p className="text-center text-xs text-zinc-600">
+        Con Google accetti i <Link href="/termini" className="underline">Termini</Link> e la <Link href="/privacy" className="underline">Privacy policy</Link>.
+      </p>
     </form>
+    </>
   );
 }
