@@ -1,5 +1,6 @@
 // Componenti grafici riusati ovunque (tema scuro, niente librerie esterne).
 import Link from "next/link";
+import LogoMark from "@/components/logo-mark";
 
 export const btn = {
   primary:
@@ -26,9 +27,7 @@ export function Card({ children, className = "" }: { children: React.ReactNode; 
 export function Logo({ href = "/", size = "md" }: { href?: string; size?: "md" | "lg" }) {
   return (
     <Link href={href} className={`group flex items-center gap-2.5 font-display font-semibold tracking-tight text-white ${size === "lg" ? "text-xl" : "text-lg"}`}>
-      <span className="relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-[10px] bg-gradient-to-br from-accent to-[#5eead4] text-[15px] font-bold text-ink shadow-[0_0_24px_-4px_rgba(139,123,255,0.8)]">
-        Y
-      </span>
+      <LogoMark size={size === "lg" ? 36 : 32} className="drop-shadow-[0_0_14px_rgba(139,123,255,0.55)] transition-transform group-hover:rotate-[-6deg]" />
       Yeppo
     </Link>
   );

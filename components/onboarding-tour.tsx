@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/components/client-utils";
+import LogoMark from "@/components/logo-mark";
 import { btn } from "@/components/ui";
 
 const SLIDES = [
@@ -40,9 +41,7 @@ function Art({ kind }: { kind: string }) {
     return (
       <div className="relative flex h-40 items-center justify-center">
         <div className="orb h-32 w-32 bg-accent/50" />
-        <span className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-accent to-cyan font-display text-4xl font-bold text-ink shadow-[0_0_60px_-10px_rgba(139,123,255,0.9)]">
-          Y
-        </span>
+        <LogoMark size={88} className="relative drop-shadow-[0_0_40px_rgba(139,123,255,0.8)]" />
       </div>
     );
   if (kind === "form")
