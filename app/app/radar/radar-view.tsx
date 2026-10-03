@@ -38,6 +38,8 @@ const SIGNAL_LABEL: Record<string, string> = {
 export default function RadarView({
   profile,
   lastRun,
+  runsLeft,
+  runsPerDay,
   hasOffer,
   instagram,
   metaReady,
@@ -46,6 +48,8 @@ export default function RadarView({
 }: {
   profile: RadarProfileInput | null;
   lastRun: string | null;
+  runsLeft: number;
+  runsPerDay: number;
   hasOffer: boolean;
   instagram: { username: string; expiringSoon: boolean } | null;
   metaReady: boolean;
@@ -71,35 +75,34 @@ export default function RadarView({
   async function scan() {
     setScanMsg("");
     setScanning(true);
-    type Mon = { added: number; read: number; hashtagChecked: number; authorsFound: number; droppedPeople: number; droppedUnknown: number; errors: string[] };
-    type Disc = { added: number; proposed: number; verified: number; brands: number; sample: string[]; errors: string[] };
-    const [mon, disc] = await Promise.allSettled([
-      api<Mon>("/api/app/radar/scan", { body: {} }),
-      api<Disc>("/api/app/radar/discover", { body: {} }),
-    ]);
-    const parts: string[] = [];
-    let added = 0;
-    if (disc.status === "fulfilled") {
-      added += disc.value.added;
-      parts.push(
-        disc.value.brands > 0
-          ? `🆕 ${disc.value.brands} brand nuovi scoperti (su ${disc.value.proposed} controllati)`
-          : `nessun brand nuovo verificato (${disc.value.proposed} proposti, ${disc.value.verified} trovati su Instagram)`,
-      );
-      if (disc.value.verified === 0 && disc.value.sample.length) parts.push(`proposti: ${disc.value.sample.map((h) => "@" + h).join(", ")}`);
-      if (disc.value.errors.length) parts.push(`errori Instagram: ${disc.value.errors.join(" | ")}`);
-    } else parts.push(`scoperta brand: ${(disc.reason as Error).message}`);
-    if (mon.status === "fulfilled") {
-      added += mon.value.added;
-      if (mon.value.read > 0) parts.push(`${mon.value.read} post letti da brand seguiti e hashtag`);
-      if (mon.value.hashtagChecked > 0) parts.push(`autori trovati ${mon.value.authorsFound}/${mon.value.hashtagChecked} post da hashtag`);
-      if (mon.value.droppedPeople + mon.value.droppedUnknown > 0) parts.push(`${mon.value.droppedPeople + mon.value.droppedUnknown} post di persone o autori non verificabili scartati`);
-      if (mon.value.errors.length) parts.push(`errori anteprima: ${mon.value.errors.join(" | ")}`);
-    } else parts.push((mon.reason as Error).message);
-    setScanMsg(`${added > 0 ? `Trovati ${added} nuovi post di brand da commentare.` : "Nessun post nuovo da commentare per ora."} ${parts.join(" · ")}`);
-    setView("nuovo");
-    setScanning(false);
-    router.refresh();
+    type Mon = { added: number; read: number; hashtagChecked: number; authorsFound: number; droppedPeople: number; droppedUnknown: number; errors: string[] } | { error: string };
+    type Disc = { added: number; proposed: number; verified: number; brands: number; sample: string[]; errors: string[] } | { error: string };
+    try {
+      const res = await api<{ left: number; monitor: Mon; discovery: Disc }>("/api/app/radar/run", { body: {} });
+      const parts: string[] = [];
+      let added = 0;
+      const disc = res.discovery;
+      if ("error" in disc) parts.push(`scoperta brand: ${disc.error}`);
+      else {
+        added += disc.added;
+        parts.push(disc.brands > 0 ? `🆕 ${disc.brands} brand nuovi scoperti` : "nessun brand nuovo verificato questa volta");
+        if (disc.errors.length) parts.push(`errori Instagram: ${disc.errors.slice(0, 2).join(" | ")}`);
+      }
+      const mon = res.monitor;
+      if ("error" in mon) parts.push(mon.error);
+      else {
+        added += mon.added;
+        if (mon.read > 0) parts.push(`${mon.read} post letti dai brand seguiti`);
+      }
+      parts.push(`ricerche rimaste oggi: ${res.left}/${runsPerDay}`);
+      setScanMsg(`${added > 0 ? `Trovati ${added} nuovi post di brand da commentare.` : "Nessun post nuovo da commentare."} ${parts.join(" · ")}`);
+      setView("nuovo");
+      router.refresh();
+    } catch (err) {
+      setScanMsg((err as Error).message);
+    } finally {
+      setScanning(false);
+    }
   }
 
   async function disconnect() {
@@ -159,7 +162,7 @@ export default function RadarView({
             )}
           </p>
           <p className="mt-1 text-xs text-zinc-500">
-            {lastRun ? `Ultima ricerca ${formatDate(lastRun)}` : "Mai cercato"} · ricerca automatica ogni mattina
+            {lastRun ? `Ultima ricerca ${formatDate(lastRun)}` : "Mai cercato"} · ricerche oggi {runsPerDay - Math.max(0, runsLeft)}/{runsPerDay} · promemoria ogni mattina
             {instagram.expiringSoon && " · ⚠️ collegamento in scadenza: ricollega Instagram"}
           </p>
           <div className="mt-1 flex gap-3 text-xs">
@@ -169,8 +172,8 @@ export default function RadarView({
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <button className={btn.accent} onClick={scan} disabled={scanning}>
-            {scanning ? "Cerco brand e post… (fino a 50 s)" : "🔎 Cerca brand e post"}
+          <button className={btn.accent} onClick={scan} disabled={scanning || runsLeft <= 0}>
+            {scanning ? "Cerco brand e post… (fino a 50 s)" : runsLeft <= 0 ? "Ricerche di oggi finite" : `🔎 Cerca brand e post (${runsLeft} rimaste)`}
           </button>
           <PushButton />
         </div>
@@ -201,7 +204,7 @@ export default function RadarView({
           {items.length === 0 ? (
             <>
               <p className="mb-4">Ancora nessun post: avvia la prima ricerca.</p>
-              <button className={btn.accent} onClick={scan} disabled={scanning}>🔎 Cerca ora</button>
+              <button className={btn.accent} onClick={scan} disabled={scanning || runsLeft <= 0}>🔎 Cerca brand e post</button>
             </>
           ) : (
             "Nessun post in questa vista."

@@ -1,39 +1,30 @@
-// Job giornaliero (Vercel Cron): avvia il Radar Instagram per ogni utente collegato con il profilo compilato.
-// Ogni utente gira in una chiamata separata, così ognuna resta sotto il limite di tempo.
-// Chiamarlo più volte non fa danni: salta chi è già stato cercato nelle ultime 20 ore.
+// Job giornaliero (Vercel Cron): niente ricerche automatiche, solo un promemoria a chi non ha ancora fatto la ricerca di oggi.
 import { db } from "@/lib/db";
-import { SITE_URL } from "@/lib/config";
-import { getOrCreateSecret } from "@/lib/secrets";
-import { randomBytes } from "node:crypto";
+import { sendPush } from "@/lib/push";
 
 export const maxDuration = 60;
 
 export async function GET() {
-  const since = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString();
-  // solo chi ha collegato Instagram e non è stato cercato nelle ultime 20 ore
-  const { data: conns, error } = await db().from("instagram_connections").select("user_id").limit(500);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); // AAAA-MM-GG
+  const { data: conns, error } = await db().from("instagram_connections").select("user_id").limit(1000);
   if (error) return Response.json({ error: error.message }, { status: 500 });
   const ids = (conns ?? []).map((c) => c.user_id as string);
-  const { data: accounts } = ids.length
-    ? await db()
-        .from("accounts")
-        .select("user_id")
-        .in("user_id", ids)
-        .not("radar_profile", "is", null)
-        .or(`radar_last_run_at.is.null,radar_last_run_at.lt.${since}`)
-        .limit(40)
-    : { data: [] as { user_id: string }[] };
-  const key = await getOrCreateSecret("cron", () => randomBytes(24).toString("hex"));
-  // una chiamata per utente, tutte in parallelo (ognuna dura circa 30 secondi)
+  if (ids.length === 0) return Response.json({ reminded: 0 });
+  const { data: accounts } = await db()
+    .from("accounts")
+    .select("user_id, radar_runs_day")
+    .in("user_id", ids)
+    .not("radar_profile", "is", null);
+  const toRemind = (accounts ?? []).filter((a) => a.radar_runs_day !== today);
+  let reminded = 0;
   await Promise.all(
-    (accounts ?? []).map((a) =>
-      fetch(`${SITE_URL}/api/cron/radar/user`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-yeppo-key": key },
-        body: JSON.stringify({ userId: a.user_id }),
-        signal: AbortSignal.timeout(55_000),
-      }).catch(() => null),
-    ),
+    toRemind.map(async (a) => {
+      reminded += (await sendPush(a.user_id as string, {
+        title: "Il Radar di oggi ti aspetta 🔎",
+        body: "Scopri i brand nuovi del tuo settore e commenta per primo i loro post.",
+        url: "/app/radar",
+      })) > 0 ? 1 : 0;
+    }),
   );
-  return Response.json({ started: accounts?.length ?? 0 });
+  return Response.json({ reminded });
 }

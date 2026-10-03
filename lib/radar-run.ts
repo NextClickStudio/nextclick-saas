@@ -3,26 +3,11 @@ import "server-only";
 import { classifyBrandProfiles, discoverInstagramBrands, filterInstagramPosts } from "@/lib/ai";
 import { db, UserError } from "@/lib/db";
 import { brandPosts, brandWithPosts, getConnection, hashtagPosts, lastOembedErrors, lastProfileErrors, postAuthor, profileInfo, type IgPost, type IgProfile } from "@/lib/instagram";
-import { sendPush } from "@/lib/push";
 import { MAX_DISCOVERED, readProfile, type RadarProfile } from "@/lib/radar";
 
 const MAX_AGE_DAYS = 7;
 
 export type RadarStats = { added: number; read: number; hashtagChecked: number; authorsFound: number; droppedPeople: number; droppedUnknown: number; errors: string[] };
-
-/** Job giornaliero: monitoraggio + scoperta di brand nuovi in parallelo, poi una sola notifica. */
-export async function runRadarForUser(userId: string): Promise<number> {
-  const [a, b] = await Promise.allSettled([runRadar(userId), runDiscovery(userId)]);
-  const added = (a.status === "fulfilled" ? a.value.added : 0) + (b.status === "fulfilled" ? b.value.added : 0);
-  const discovered = b.status === "fulfilled" ? b.value.brands : 0;
-  if (added > 0) {
-    await sendPush(userId, {
-      title: `Radar: ${added} ${added === 1 ? "nuovo post" : "nuovi post"} da commentare`,
-      body: discovered > 0 ? `Ho scoperto ${discovered} brand nuovi nel tuo settore. Commenta per primo e fatti notare.` : "Brand del tuo target hanno appena pubblicato. Commenta per primo.",
-    });
-  }
-  return added;
-}
 
 export async function runRadar(userId: string): Promise<RadarStats> {
   const stats: RadarStats = { added: 0, read: 0, hashtagChecked: 0, authorsFound: 0, droppedPeople: 0, droppedUnknown: 0, errors: [] };

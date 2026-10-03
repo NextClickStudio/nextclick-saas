@@ -19,6 +19,8 @@ export type RadarProfile = {
 export const MAX_HASHTAGS = 10;
 export const MAX_BRANDS = 40;
 export const MAX_DISCOVERED = 60;
+/** Ricerche manuali al giorno per utente (ognuna usa AI e ricerche Google). */
+export const RADAR_RUNS_PER_DAY = 2;
 
 /** Profilo letto dal database, con valori sicuri. */
 export function readProfile(raw: unknown): RadarProfile | null {
