@@ -2,7 +2,7 @@
 // esprimono un bisogno legato a quello che vendi (richieste, annunci di lavoro, lanci, discussioni).
 // Ogni link viene verificato contro le fonti reali restituite da Google: niente post inventati.
 import "server-only";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { z } from "zod";
 import { UserError } from "@/lib/db";
 
@@ -106,7 +106,7 @@ async function searchSignal(
   debug?: (info: Record<string, unknown>) => void,
 ): Promise<RadarFinding[]> {
   const prompt = `Cerca ${what}. Paese: ${p.country || "Italia"}. Solo contenuti degli ultimi 30 giorni.
-Per ogni risultato trovato nella ricerca (massimo 5, i più recenti prima) dai: url (indirizzo esatto della pagina), platform, author, company,
+Per ogni risultato trovato nella ricerca (massimo 5, i più recenti prima) dai: url (copia il link del risultato di ricerca), platform, author, company,
 date, excerpt (cosa dice, 1-2 frasi fedeli), why (perché è un'occasione commerciale, 1 frase), intent (3 = cerca proprio questo, 2 = bisogno chiaro, 1 = debole).
 Mai inventare. Rispondi SOLO con JSON {"items":[...]} (vuoto se non trovi nulla).`;
   const t0 = Date.now();
@@ -114,7 +114,12 @@ Mai inventare. Rispondi SOLO con JSON {"items":[...]} (vuoto se non trovi nulla)
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",
       contents: prompt,
-      config: { temperature: 0.2, tools: [{ googleSearch: {} }], httpOptions: { timeout: 42_000 } },
+      config: {
+        temperature: 0.2,
+        tools: [{ googleSearch: {} }],
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        httpOptions: { timeout: 40_000 },
+      },
     });
     const raw = response.text ?? "";
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
@@ -125,9 +130,18 @@ Mai inventare. Rispondi SOLO con JSON {"items":[...]} (vuoto se non trovi nulla)
     debug?.({ signal, s: (Date.now() - t0) / 1000, chunks: chunks.length, resolved, raw: raw.slice(0, 1500) });
     const parsed = findingSchema.safeParse(JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1) || "{}"));
     if (!parsed.success) return [];
-    // solo link che compaiono davvero tra le fonti di Google
-    return parsed.data.items
-      .filter((i) => sources.has(normalizeUrl(i.url)))
+    // solo link verificati: o sono un link di Google che si risolve in un indirizzo reale, o compaiono tra le fonti
+    const checked = await Promise.all(
+      parsed.data.items.map(async (i) => {
+        if (/vertexaisearch|grounding-api-redirect/.test(i.url)) {
+          const real = await resolveSource(i.url);
+          return real && /^https?:\/\//.test(real) ? { ...i, url: real } : null;
+        }
+        return sources.has(normalizeUrl(i.url)) ? i : null;
+      }),
+    );
+    return checked
+      .filter((i): i is NonNullable<typeof i> => i !== null)
       .map((i) => ({ ...i, signal: i.signal || signal, intent: Math.round(i.intent) }));
   } catch (err) {
     debug?.({ signal, s: (Date.now() - t0) / 1000, error: String((err as Error).message).slice(0, 200), status: (err as { status?: number }).status });
