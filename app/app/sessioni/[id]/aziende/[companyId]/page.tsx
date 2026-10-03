@@ -26,7 +26,7 @@ function describeEvent(e: EventRow): string {
     case "analysis_done":
       return `Analisi completata (${e.data?.total_score ?? "?"}/100)`;
     case "message_sent":
-      return `Messaggio inviato su ${e.data?.channel ?? "?"} (${Number(e.data?.step ?? 0) === 0 ? "primo contatto" : `follow-up ${e.data?.step}`})`;
+      return `Messaggio inviato su ${e.data?.channel ?? "?"} (${Number(e.data?.step ?? 0) === 0 ? "aggancio" : Number(e.data?.step) === 1 ? "follow-up con soluzione" : "ultimo messaggio"})`;
     case "call_request":
       return `📞 Ha chiesto una call dal report (${e.data?.channel ?? ""})`;
     case "analysis_error":

@@ -26,7 +26,7 @@ const SLIDES = [
   },
   {
     title: "3 · L'AI scrive, tu invii con un clic",
-    text: "In Outreach trovi ogni giorno chi contattare: messaggio personalizzato per Instagram, WhatsApp, LinkedIn o email, già pronto. Yeppo programma i follow-up.",
+    text: "In Outreach trovi ogni giorno chi contattare: prima un aggancio umano senza link (chi sei e una domanda sul loro problema), poi il follow-up con la soluzione personalizzata. Su Instagram, WhatsApp, LinkedIn o email.",
     art: "message",
   },
   {
@@ -81,7 +81,7 @@ function Art({ kind }: { kind: string }) {
           ))}
         </div>
         <div className="fade-in rounded-xl rounded-tl-sm bg-white/[0.07] p-2.5 text-[11px] leading-relaxed text-zinc-200" style={{ animationDelay: "200ms" }}>
-          Ciao! Ho analizzato il vostro sito: le schede prodotto hanno una sola foto… ecco il report gratuito 👉
+          Ciao Giulia, sono Carlo. Ho visto che le schede prodotto hanno una sola foto: vi capita che i clienti chiedano com'è indossato?
         </div>
         <div className="fade-in ml-auto w-fit rounded-lg bg-gradient-to-r from-accent to-cyan px-3 py-1 text-[11px] font-semibold text-ink" style={{ animationDelay: "700ms" }}>
           Invia ↗

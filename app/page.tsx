@@ -202,7 +202,7 @@ export default function Home() {
                 decide. Ti dà i passi da seguire e l&apos;aggancio personalizzato, basato sul punto debole più forte trovato.
               </p>
               <ul className="mt-8 space-y-3 text-sm text-zinc-300">
-                {["Nessuna email fredda: il primo contatto è un regalo", "Aggancio costruito sui dati del loro sito", "Sai quando aprono il report"].map((t) => (
+                {["Nessuna email fredda: il primo messaggio è una domanda, non una vendita", "Aggancio costruito sui dati del loro sito", "Sai quando aprono il report"].map((t) => (
                   <li key={t} className="flex items-center gap-3">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/15 text-[11px] text-emerald-300">✓</span>
                     {t}
@@ -235,8 +235,8 @@ export default function Home() {
             <div className="relative grid gap-4 md:grid-cols-4">
               <div className="absolute left-0 right-0 top-9 hidden h-px bg-gradient-to-r from-transparent via-accent/50 to-transparent md:block" />
               {[
-                { icon: "✉", title: "Messaggio scritto dall'AI", text: "Personalizzato sul loro sito, per il canale giusto. Si apre già pronto." },
-                { icon: "🔥", title: "Aprono il report", text: "Yeppo te lo segnala: è il momento perfetto per il follow-up." },
+                { icon: "✉", title: "L'aggancio", text: "Chi sei e una domanda sul loro problema. Niente link, niente vendita: solo una conversazione." },
+                { icon: "🔥", title: "La soluzione", text: "Nel follow-up arriva la pagina con la soluzione su misura. Yeppo ti dice quando la aprono." },
                 { icon: "📞", title: "Ti chiedono la call", text: "Dal report, in un clic. Ti arriva la notifica in Richieste." },
                 { icon: "✓", title: "Accetti e rispondi", text: "Conferma già scritta su WhatsApp, email o Instagram." },
               ].map((x, i) => (

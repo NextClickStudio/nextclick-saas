@@ -41,7 +41,7 @@ export default function ContactsTab({ project, rows, siteUrl }: TabProps) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-2xl text-sm text-zinc-400">
           In cima le aziende con il sintomo più forte. Per ognuna: il canale più diretto pubblicato sul loro sito, i passi e
-          l&apos;aggancio. Il primo messaggio è sempre il report gratuito, mai una vendita.
+          la domanda-aggancio. Il primo messaggio è solo un aggancio senza link; la soluzione arriva nel follow-up.
         </p>
         <Link href={`/app/outreach/${project.id}`} className={btn.accent}>Scrivi e invia i messaggi →</Link>
         <div className="inline-flex rounded-xl border border-white/[0.08] bg-white/[0.02] p-0.5 text-sm">

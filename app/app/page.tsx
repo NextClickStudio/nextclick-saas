@@ -70,7 +70,7 @@ export default async function DashboardPage() {
     },
     {
       done: stats.messages > 0,
-      title: "Invia il primo messaggio",
+      title: "Invia il primo aggancio",
       text: "In Outreach l'AI scrive il messaggio: tu lo invii con un clic.",
       href: "/app/outreach",
       cta: "Apri Outreach",

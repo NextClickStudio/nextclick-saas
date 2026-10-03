@@ -6,25 +6,25 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, copyText } from "@/components/client-utils";
 import { Badge, EmptyState, ErrorBox, btn, input } from "@/components/ui";
-import { MAX_STEP, SEND_CHANNEL_LABELS, DONE_STATUSES, groupOutreach, sendChannelsFor, sendLink, type OutreachItem, type SendChannel } from "@/lib/outreach";
+import { MAX_STEP, SEND_CHANNEL_LABELS, CLOSED_STATUSES, groupOutreach, sendChannelsFor, sendLink, type OutreachItem, type SendChannel } from "@/lib/outreach";
 import { formatDate } from "@/lib/types";
 
-const STEP_NAMES = ["Primo contatto", "Follow-up 1", "Follow-up 2"];
+const STEP_NAMES = ["Aggancio", "Follow-up con soluzione", "Ultimo messaggio"];
 
-type View = "oggi" | "caldi" | "nuovi" | "attesa" | "tutti";
+type View = "oggi" | "nuovi" | "followup" | "caldi" | "tutti";
 
 export default function OutreachBoard({ items }: { items: OutreachItem[] }) {
   const groups = useMemo(() => groupOutreach(items), [items]);
 
   const [view, setView] = useState<View>("oggi");
   const list =
-    view === "oggi" ? groups.today : view === "caldi" ? groups.hot : view === "nuovi" ? groups.fresh : view === "attesa" ? groups.waiting : items;
+    view === "oggi" ? groups.today : view === "caldi" ? groups.hot : view === "nuovi" ? groups.fresh : view === "followup" ? groups.followup : items;
 
   const tabs: { id: View; label: string; count: number }[] = [
     { id: "oggi", label: "Oggi", count: groups.today.length },
+    { id: "nuovi", label: "1 · Aggancio", count: groups.fresh.length },
+    { id: "followup", label: "2 · Follow-up", count: groups.followup.length },
     { id: "caldi", label: "🔥 Caldi", count: groups.hot.length },
-    { id: "nuovi", label: "Da contattare", count: groups.fresh.length },
-    { id: "attesa", label: "In attesa", count: groups.waiting.length },
     { id: "tutti", label: "Tutte", count: items.length },
   ];
 
@@ -32,10 +32,10 @@ export default function OutreachBoard({ items }: { items: OutreachItem[] }) {
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-4">
         {[
+          { label: "Agganci da inviare", value: groups.fresh.length },
+          { label: "Hanno risposto", value: groups.replied.length },
           { label: "Follow-up in scadenza", value: groups.due.length },
-          { label: "Hanno aperto il report", value: groups.hot.length },
-          { label: "Da contattare", value: groups.fresh.length },
-          { label: "Conversazioni avviate", value: groups.done.filter((i) => i.status !== "non_interessata").length },
+          { label: "Hanno aperto la soluzione", value: groups.hot.length },
         ].map((s) => (
           <div key={s.label} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
             <p className="text-xs text-zinc-500">{s.label}</p>
@@ -58,6 +58,14 @@ export default function OutreachBoard({ items }: { items: OutreachItem[] }) {
         </div>
       </div>
 
+      <p className="text-sm text-zinc-500">
+        {view === "nuovi"
+          ? "Primo messaggio: solo chi sei e una domanda sul loro problema. Niente link, niente vendita: l'obiettivo è che ti rispondano."
+          : view === "followup"
+            ? "Aggancio già inviato. Se ti hanno risposto incolla la risposta: l'AI scrive il messaggio con il link alla soluzione personalizzata."
+            : "Prima chi ti ha risposto, poi chi ha aperto la soluzione, i follow-up in scadenza e i nuovi agganci."}
+      </p>
+
       {list.length === 0 ? (
         <EmptyState>{view === "oggi" ? "Per oggi hai finito. Torna domani per i follow-up 👌" : "Nessuna azienda in questa vista."}</EmptyState>
       ) : (
@@ -74,7 +82,7 @@ export default function OutreachBoard({ items }: { items: OutreachItem[] }) {
 function OutreachCard({ item }: { item: OutreachItem }) {
   const router = useRouter();
   const step = Math.min(item.step, MAX_STEP);
-  const finished = item.step > MAX_STEP || DONE_STATUSES.includes(item.status);
+  const finished = item.step > MAX_STEP || CLOSED_STATUSES.includes(item.status);
   const channels = sendChannelsFor(item.channels, item.plan?.channel_type);
   const saved = item.drafts?.[String(step)]?.messages ?? [];
 
@@ -84,6 +92,7 @@ function OutreachCard({ item }: { item: OutreachItem }) {
   const [loading, setLoading] = useState<"" | "draft" | "sent" | "status">("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [reply, setReply] = useState("");
 
   const current = messages.find((m) => m.channel === active);
   const due = item.due;
@@ -92,7 +101,7 @@ function OutreachCard({ item }: { item: OutreachItem }) {
     setLoading("draft");
     setError("");
     try {
-      const res = await api<{ messages: typeof messages }>("/api/app/outreach/draft", { body: { companyId: item.id, step } });
+      const res = await api<{ messages: typeof messages }>("/api/app/outreach/draft", { body: { companyId: item.id, step, reply: reply.trim() || undefined } });
       setMessages(res.messages);
       if (!res.messages.some((m) => m.channel === active) && res.messages[0]) setActive(res.messages[0].channel as SendChannel);
     } catch (err) {
@@ -151,10 +160,11 @@ function OutreachCard({ item }: { item: OutreachItem }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-semibold text-white">{item.name}</p>
-            {item.views > 0 && <Badge tone="amber">🔥 report aperto {item.views}×</Badge>}
+            {item.status === "ha_risposto" && !finished && <Badge tone="green">💬 Ha risposto</Badge>}
+            {item.views > 0 && <Badge tone="amber">🔥 soluzione aperta {item.views}×</Badge>}
             {due && !finished && <Badge tone="accent">Follow-up oggi</Badge>}
             {item.status === "da_contattare" && <Badge>Nuovo</Badge>}
-            {DONE_STATUSES.includes(item.status) && <Badge tone="green">{item.status.replace("_", " ")}</Badge>}
+            {CLOSED_STATUSES.includes(item.status) && <Badge tone="green">{item.status.replace("_", " ")}</Badge>}
           </div>
           <p className="mt-0.5 truncate text-xs text-zinc-500">
             {item.sessionName} · {item.website.replace(/^https?:\/\//, "")}
@@ -175,7 +185,7 @@ function OutreachCard({ item }: { item: OutreachItem }) {
         <div className="border-t border-white/[0.06] p-5">
           {item.plan && (
             <p className="mb-4 rounded-xl bg-accent-soft px-3.5 py-2.5 text-sm text-[#d6ceff]">
-              <strong className="text-white">Aggancio:</strong> {item.plan.opening_angle}
+              <strong className="text-white">Problema da sollevare:</strong> {item.plan.opening_angle}
             </p>
           )}
 
@@ -199,15 +209,31 @@ function OutreachCard({ item }: { item: OutreachItem }) {
                 ))}
                 {messages.length > 0 && (
                   <button className={`${btn.ghost} ml-auto`} onClick={draft} disabled={loading !== ""}>
-                    {loading === "draft" ? "L'AI sta scrivendo…" : "↻ Rigenera"}
+                    {loading === "draft" ? "L'AI sta scrivendo…" : reply.trim() ? "↻ Riscrivi con la loro risposta" : "↻ Rigenera"}
                   </button>
                 )}
               </div>
 
+              {step > 0 && (
+                <div className="mb-3">
+                  <label className="mb-1.5 block text-xs text-zinc-500">
+                    Ti hanno risposto? Incolla qui la loro risposta (facoltativo): il follow-up risponderà a quello che hanno scritto.
+                  </label>
+                  <textarea
+                    className={`${input} min-h-[70px] text-sm`}
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    placeholder="Es. «Sì, in effetti ci chiedono spesso quale prodotto scegliere…»"
+                  />
+                </div>
+              )}
+
               {messages.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-white/12 p-6 text-center">
                   <p className="mb-4 text-sm text-zinc-400">
-                    L&apos;AI scrive un messaggio personalizzato per ogni canale, basato sul report di {item.name}.
+                    {step === 0
+                      ? `L'AI scrive un aggancio umano: chi sei e una domanda sul problema di ${item.name}. Nessun link.`
+                      : `L'AI scrive il follow-up coerente con l'aggancio, con il link alla soluzione personalizzata per ${item.name}.`}
                   </p>
                   <button className={btn.accent} onClick={draft} disabled={loading !== ""}>
                     {loading === "draft" ? "Sto scrivendo… (circa 15 s)" : `Scrivi ${STEP_NAMES[step].toLowerCase()}`}
@@ -232,7 +258,8 @@ function OutreachCard({ item }: { item: OutreachItem }) {
                     {sendLink(active, item.channels, "", "", item.website).prefilled
                       ? "Il messaggio si apre già scritto: controllalo e premi invia."
                       : "Il testo viene copiato e si apre la chat dell'azienda: incolla e invia."}{" "}
-                    Dopo l&apos;invio premi &quot;Segna come inviato&quot;: Yeppo programma il follow-up.
+                    Dopo l&apos;invio premi &quot;Segna come inviato&quot;:{" "}
+                    {step === 0 ? "l'azienda passa in Follow-up." : "Yeppo programma il messaggio successivo."}
                   </p>
                 </div>
               ) : (
@@ -245,11 +272,13 @@ function OutreachCard({ item }: { item: OutreachItem }) {
 
           <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-4 text-sm">
             <span className="text-zinc-500">Ha risposto?</span>
-            <button className={btn.ghost} onClick={() => setStatus("ha_risposto")} disabled={loading !== ""}>Sì, ha risposto</button>
+            {item.status !== "ha_risposto" && (
+              <button className={btn.ghost} onClick={() => setStatus("ha_risposto")} disabled={loading !== ""}>Sì, ha risposto</button>
+            )}
             <button className={btn.ghost} onClick={() => setStatus("chiamata")} disabled={loading !== ""}>Chiamata fissata</button>
             <button className={btn.ghost} onClick={() => setStatus("non_interessata")} disabled={loading !== ""}>Non interessata</button>
             <span className="ml-auto flex gap-3">
-              <a href={item.reportUrl} target="_blank" className="text-xs text-[#c4b8ff] hover:underline">Report ↗</a>
+              <a href={item.reportUrl} target="_blank" className="text-xs text-[#c4b8ff] hover:underline">Pagina soluzione ↗</a>
               <Link href={`/app/sessioni/${item.sessionId}/aziende/${item.id}`} className="text-xs text-zinc-400 hover:text-white">Dettaglio</Link>
             </span>
           </div>

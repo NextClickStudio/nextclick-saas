@@ -384,9 +384,10 @@ Chi vende "${input.productDescription}" a "${input.targetCustomer}" vuole contat
   channel_label: nome leggibile (es. "Instagram di Giulia Bianchi, founder" oppure "WhatsApp aziendale").
 - person_name e person_role: la persona a cui arriva il messaggio se il canale è suo (o se sai a chi chiedere di girarlo), altrimenti stringhe vuote.
 - why: perché questo canale funziona per questa azienda (1-2 frasi concrete).
-- steps: 3-4 passi pratici e brevi. Il primo contatto deve essere un valore regalato, non una vendita: il report gratuito
-  con la posizione in classifica e i 3 punti deboli.
-- opening_angle: l'aggancio personalizzato da usare, basato sul punto debole più forte trovato (1-2 frasi, tono umano).`;
+- steps: 3-4 passi pratici e brevi. Metodo: 1) primo messaggio = solo un aggancio umano (chi sei + una domanda sul loro problema), SENZA link
+  e senza vendere; 2) se rispondono o dopo 2 giorni, follow-up con il link alla pagina con la soluzione personalizzata; 3) proposta di 15 minuti.
+- opening_angle: la domanda-aggancio da fare nel primo messaggio: una domanda specifica sul problema più forte trovato nel loro sito,
+  che faccia emergere il problema senza nominare cosa vende chi scrive (1-2 frasi, tono umano).`;
 
   const ids = new Set(input.criteria.map((c) => c.id));
   // lo schema zod controlla anche che ci sia un punteggio per ogni criterio
@@ -519,7 +520,7 @@ Rispondi SOLO con il JSON richiesto.`;
 // D) Messaggi personalizzati per canale (primo contatto e follow-up)
 // ---------------------------------------------------------------------
 
-export const OUTREACH_STEPS = ["Primo contatto", "Follow-up 1", "Follow-up 2"] as const;
+export const OUTREACH_STEPS = ["Aggancio", "Follow-up con soluzione", "Ultimo messaggio"] as const;
 
 const outreachSchema = z.object({
   messages: z
@@ -558,12 +559,12 @@ const outreachJsonSchema = {
 };
 
 const CHANNEL_RULES: Record<string, string> = {
-  instagram: "instagram (DM): massimo 350 caratteri in tutto, scritto come un DM vero tra persone, al massimo 1 emoji.",
-  whatsapp: "whatsapp: massimo 350 caratteri in tutto, tono da messaggio tra professionisti che si danno del tu; dopo l'aggancio dici chi sei in mezza frase.",
-  facebook: "facebook (Messenger della pagina): massimo 400 caratteri, tono cordiale.",
-  linkedin: "linkedin (nota di collegamento o messaggio): massimo 280 caratteri in tutto.",
-  sito: "sito (modulo contatti o chat): massimo 500 caratteri, chiedi di girarlo al titolare o a chi segue marketing/e-commerce.",
-  email: "email: oggetto breve e specifico in minuscolo (massimo 50 caratteri, niente clickbait), corpo di massimo 90 parole, firma con nome e azienda.",
+  instagram: "instagram (DM): massimo 300 caratteri, scritto come un DM vero tra persone, al massimo 1 emoji.",
+  whatsapp: "whatsapp: massimo 300 caratteri, tono da messaggio tra professionisti che si danno del tu.",
+  facebook: "facebook (Messenger della pagina): massimo 350 caratteri, tono cordiale.",
+  linkedin: "linkedin (nota di collegamento o messaggio): massimo 280 caratteri.",
+  sito: "sito (modulo contatti o chat): massimo 450 caratteri, chiedi di girarlo al titolare o a chi segue marketing/e-commerce.",
+  email: "email: oggetto breve, specifico e in minuscolo, che sembri una domanda tra persone (massimo 50 caratteri, niente clickbait); corpo di massimo 80 parole; firma con nome, ruolo e azienda.",
 };
 
 export async function generateOutreach(input: {
@@ -587,6 +588,8 @@ export async function generateOutreach(input: {
   recipients?: Record<string, { name: string; role: string } | undefined>;
   step: number;
   previous: string[];
+  /** cosa ha risposto l'azienda al messaggio precedente, se l'utente lo incolla */
+  reply?: string;
 }): Promise<OutreachDraft[]> {
   const recipients = input.channels
     .map((c) => {
@@ -597,50 +600,56 @@ export async function generateOutreach(input: {
     })
     .join("\n");
 
+  const who = [input.senderName, input.senderRole, input.senderCompany ? `di ${input.senderCompany}` : ""].filter(Boolean).join(", ");
+  const reply = input.reply?.trim();
+
   const stepText =
     input.step === 0
-      ? `PRIMO CONTATTO. Obiettivo: far aprire il report. Niente vendita, niente call.
-- hook (prima riga): UNA frase brevissima (massimo 12 parole) scritta su misura per ${input.companyName}, che fa venire voglia
-  di sapere di più oppure crea un filo di preoccupazione concreta: un problema reale del loro sito che gli fa perdere clienti,
-  il confronto con i concorrenti, la loro posizione. Deve basarsi sui dati qui sotto, mai inventata.
-  Se il messaggio va a una persona, il saluto con il nome sta all'inizio dell'hook ("Ciao Giulia, ...").
-  Esempi di TONO (non copiarli): "Ho notato una cosa sul vostro sito che vi sta costando ordini." /
-  "Siete 18° su 30 brand del settore che ho analizzato, e il motivo si sistema." / "Chi arriva sulle vostre schede prodotto si blocca in un punto preciso."
-  Niente punti esclamativi, niente maiuscole urlate, niente promesse esagerate.
-- body: continua dopo l'hook senza ripeterlo, 2-3 frasi corte: chi sei in mezza frase, il punto debole più forte detto in parole semplici,
-  il link al report con una frase naturale (es. "ti ho messo tutto qui:"), e chiudi con una domanda leggera oppure con niente.`
+      ? `AGGANCIO (primo messaggio). Obiettivo: ottenere una risposta, NON vendere e NON mandare nulla.
+- hook (prima riga): saluto + chi sei in mezza frase, in modo naturale (es. "Ciao Giulia, sono Carlo, lavoro con brand e-commerce del beauty.").
+  Se il messaggio va a una persona, salutala per nome di battesimo.
+- body: UNA domanda personalizzata su ${input.companyName} che fa emergere il problema più forte trovato nel loro sito,
+  in modo che se lo chiedano davvero (curiosità o un filo di preoccupazione). Deve essere coerente con la soluzione che verrà proposta dopo
+  (${input.senderOffer || input.productDescription}), ma NON nominarla, NON dire cosa vendi, NON offrire nulla.
+  Puoi aggiungere prima della domanda UNA osservazione concreta e specifica sul loro sito (cosa hai notato), mai generica.
+  Esempi di TONO (non copiarli): "Ho visto che sulle schede prodotto non c'è modo di capire quale crema fa per la propria pelle: vi capita
+  che i clienti vi scrivano per chiederlo?" / "Curiosità: quanti carrelli vi si fermano sulla pagina di checkout?"
+- VIETATO in questo messaggio: link, report, analisi, classifiche, punteggi, "ho preparato", "posso mostrarti", call, prezzi, offerte.
+  Chiudi con la domanda. Deve sembrare un messaggio di una persona curiosa del settore, non di un venditore.`
       : input.step === 1
-        ? `FOLLOW-UP 1 (dopo qualche giorno senza risposta). hook = stringa vuota. Breve e leggero, come un secondo messaggio a un conoscente:
-aggiungi UNA nuova osservazione utile (un altro punto debole), ricorda il link al report e proponi, senza insistere, 15 minuti
-per parlarne${input.bookingUrl ? ` (link per prenotare: ${input.bookingUrl})` : ""} o di usare il pulsante nel report.`
-        : `FOLLOW-UP 2 (ultimo messaggio). hook = stringa vuota. Due frasi al massimo, cortese: chiudi il ciclo, lascia la porta aperta, nessuna pressione.`;
+        ? `FOLLOW-UP CON LA SOLUZIONE (secondo messaggio). hook = stringa vuota.
+${reply ? `L'azienda ha risposto così al primo messaggio: """${reply.slice(0, 1200)}""". Rispondi in modo naturale a quello che hanno scritto (prima riga), poi collega la loro risposta al problema.` : "L'azienda non ha ancora risposto al primo messaggio: riprendi la domanda fatta senza ripeterla parola per parola (es. \"Ti riscrivo per la domanda sul...\")."}
+- Collega al problema sollevato nel primo messaggio (vedi "Messaggi già inviati") e mantieni la stessa linea.
+- Spiega in 1 frase che hai preparato per loro una pagina con come risolverlo, personalizzata sul loro sito, e metti il link.
+- Puoi accennare in mezza frase cosa fai tu (${input.senderOffer || input.productDescription}), senza tono da pubblicità.
+- Chiudi proponendo con leggerezza di sentirvi 15 minuti${input.bookingUrl ? ` (link per prenotare: ${input.bookingUrl})` : ""} o di usare il pulsante nella pagina.`
+        : `ULTIMO MESSAGGIO. hook = stringa vuota. Due frasi al massimo, cortese: chiudi il ciclo, ricorda in mezza frase la pagina con la soluzione (con il link) e lascia la porta aperta, nessuna pressione.`;
 
-  const prompt = `Scrivi messaggi di primo contatto B2B in italiano per l'azienda "${input.companyName}" (settore: ${input.sector}).
+  const prompt = `Scrivi messaggi di contatto B2B in italiano per l'azienda "${input.companyName}" (settore: ${input.sector}).
 Devono sembrare scritti a mano da una persona vera, dal telefono: frasi corte, parole semplici, zero gergo da agenzia.
 
-Chi scrive: ${input.senderName || "il mittente"}${input.senderRole ? `, ${input.senderRole}` : ""}${input.senderCompany ? ` di ${input.senderCompany}` : ""}.
-Cosa offre (NON va pubblicizzato; al massimo accennato nei follow-up): ${input.senderOffer || input.productDescription}
-${input.senderWebsite ? `Sito di chi scrive (solo nella firma dell'email): ${input.senderWebsite}` : ""}
+Chi scrive: ${who || "il mittente"}.
+Cosa offre chi scrive (solo per essere coerente; nel primo messaggio NON va mai nominato): ${input.senderOffer || input.productDescription}
+${input.senderWebsite ? `Sito di chi scrive (solo nella firma dell'email, e solo dal secondo messaggio): ${input.senderWebsite}` : ""}
 
-Dati dell'analisi del loro sito:
-- posizione ${input.position ?? "?"} su ${input.total} aziende del settore analizzate, punteggio ${input.score}/100
-- punti deboli: ${input.weakPoints.map((w) => `${w.title} (${w.explanation})`).join(" | ")}
-- aggancio suggerito: ${input.openingAngle}
-- link al report privato: ${input.reportUrl}
+Cosa abbiamo visto sul loro sito (usalo per essere specifico, senza citare punteggi o classifiche nel primo messaggio):
+- problemi principali: ${input.weakPoints.map((w) => `${w.title} (${w.explanation})`).join(" | ")}
+- problema da sollevare: ${input.openingAngle || input.weakPoints[0]?.title || ""}
+${input.step > 0 ? `- link alla pagina con la soluzione personalizzata: ${input.reportUrl}\n- confronto: posizione ${input.position ?? "?"} su ${input.total} aziende del settore (usalo solo se rafforza il messaggio)` : ""}
 
 DESTINATARI
 ${recipients}
 
 ${stepText}
-${input.previous.length ? `Messaggi già inviati (non ripeterli):\n${input.previous.map((p) => `- ${p.slice(0, 300)}`).join("\n")}` : ""}
+${input.previous.length ? `Messaggi già inviati a questa azienda (coerenza, non ripeterli):\n${input.previous.map((p) => `- ${p.slice(0, 600)}`).join("\n")}` : ""}
 
 REGOLE
 - Scrivi un messaggio per ciascuno di questi canali: ${input.channels.join(", ")}.
 - ${input.channels.map((c) => CHANNEL_RULES[c] ?? c).join("\n- ")}
 - Dai del tu. Vietate le frasi fatte: "spero tu stia bene", "mi permetto di", "Gentile", "analisi approfondita", "soluzioni innovative", "sinergie".
 - Niente elenchi puntati, niente grassetti, niente firme lunghe (tranne nell'email).
-- Non dire mai che sai se hanno aperto il report. Non inventare dati che non sono qui sopra.
-- Inserisci il link al report esattamente così: ${input.reportUrl}
+- Non dire mai che sai se hanno aperto link o pagine. Non inventare dati che non sono qui sopra.
+${input.step > 0 ? `- Inserisci il link esattamente così: ${input.reportUrl}` : "- NESSUN link, nessun indirizzo web."}
 - Il campo channel deve essere esattamente uno di: ${input.channels.join(", ")}.`;
 
   const result = await generateJson({ prompt, schema: outreachJsonSchema, validator: outreachSchema, temperature: 0.8 });
@@ -649,7 +658,11 @@ REGOLE
     .map((m) => {
       const hook = input.step === 0 ? m.hook.trim() : "";
       // l'AI a volte ripete l'aggancio all'inizio del corpo: in quel caso non lo duplichiamo
-      const body = hook && !m.body.toLowerCase().startsWith(hook.toLowerCase().slice(0, 25)) ? `${hook}\n\n${m.body}` : m.body;
+      let body = hook && !m.body.toLowerCase().startsWith(hook.toLowerCase().slice(0, 25)) ? `${hook}\n\n${m.body}` : m.body;
+      // primo messaggio: mai link (sembrerebbe una truffa)
+      if (input.step === 0) body = body.replace(/\s*(https?:\/\/|www\.)\S+/gi, "").trim();
+      // dal follow-up in poi il link alla soluzione deve esserci sempre
+      else if (!body.includes(input.reportUrl)) body = `${body}\n\nTi ho preparato qui come risolverlo, su misura per ${input.companyName}: ${input.reportUrl}`;
       return { channel: m.channel, subject: m.subject, body };
     });
 }

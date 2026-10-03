@@ -52,10 +52,10 @@ export default async function OutreachPage() {
               </div>
               <div className="mt-4 grid grid-cols-4 gap-2 text-center">
                 {[
+                  { label: "Agganci", value: groups.fresh.length },
+                  { label: "Risposte", value: groups.replied.length },
+                  { label: "Follow-up", value: groups.followup.length },
                   { label: "🔥 Caldi", value: groups.hot.length },
-                  { label: "Follow-up", value: groups.due.length },
-                  { label: "Da contattare", value: groups.fresh.length },
-                  { label: "Risposte", value: groups.done.filter((x) => x.status !== "non_interessata").length },
                 ].map((s) => (
                   <div key={s.label} className="rounded-xl bg-white/[0.03] px-1 py-2">
                     <p className="font-display text-xl font-semibold text-white">{s.value}</p>

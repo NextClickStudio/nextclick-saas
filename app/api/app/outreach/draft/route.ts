@@ -13,7 +13,10 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   return handle(async () => {
     const user = await requireUser();
-    const { companyId, step } = await readBody(request, z.object({ companyId: uuid, step: z.number().int().min(0).max(MAX_STEP) }));
+    const { companyId, step, reply } = await readBody(
+      request,
+      z.object({ companyId: uuid, step: z.number().int().min(0).max(MAX_STEP), reply: z.string().max(2000).optional() }),
+    );
     const company = await ownedCompany(companyId, user.id);
     const project = (await getUserProject(company.project_id, user.id))!;
     const rows = await getCompanyRows(project.id);
@@ -52,6 +55,7 @@ export async function POST(request: Request) {
       recipients,
       step,
       previous: (previous ?? []).map((m) => m.body as string),
+      reply,
     });
 
     const all = (row.drafts ?? {}) as Record<string, unknown>;

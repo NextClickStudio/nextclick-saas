@@ -75,7 +75,7 @@ export function sendLink(
 }
 
 /** Giorni di attesa prima del follow-up successivo (dopo il passo indicato). */
-export const FOLLOWUP_DAYS = [3, 4];
+export const FOLLOWUP_DAYS = [2, 4];
 export const MAX_STEP = 2;
 
 /** Link per rispondere a una richiesta di call sul canale scelto dall'azienda. */
@@ -124,16 +124,27 @@ export type OutreachItem = {
 };
 
 const OPEN = ["contattata", "report_aperto"];
+/** Conversazioni avviate (per le statistiche). */
 export const DONE_STATUSES = ["ha_risposto", "chiamata", "cliente", "non_interessata"];
+/** Sequenza chiusa: non servono altri messaggi. "Ha risposto" NON chiude: è il momento del follow-up con la soluzione. */
+export const CLOSED_STATUSES = ["chiamata", "cliente", "non_interessata"];
 
-/** Divide le aziende in: oggi, caldi (hanno aperto il report), follow-up scaduti, da contattare, in attesa, concluse. */
+/**
+ * Divide le aziende in: oggi, risposte (da seguire subito), caldi (hanno aperto il report), follow-up
+ * (aggancio già inviato: qui si scrive il messaggio con la soluzione), da contattare (aggancio da inviare), concluse.
+ */
 export function groupOutreach(items: OutreachItem[]) {
-  const hot = items.filter((i) => i.views > 0 && OPEN.includes(i.status));
-  const due = items.filter((i) => OPEN.includes(i.status) && i.due && i.step <= MAX_STEP);
+  const active = (i: OutreachItem) => !CLOSED_STATUSES.includes(i.status) && i.step <= MAX_STEP;
+  const replied = items.filter((i) => i.status === "ha_risposto" && active(i));
+  const hot = items.filter((i) => i.views > 0 && OPEN.includes(i.status) && active(i));
+  const due = items.filter((i) => OPEN.includes(i.status) && i.due && active(i));
   const fresh = items.filter((i) => i.status === "da_contattare").sort((a, b) => a.score - b.score);
-  const waiting = items.filter((i) => OPEN.includes(i.status) && !i.due);
-  // "Oggi": prima i caldi, poi i follow-up scaduti, poi fino a 10 nuovi contatti
+  const rank = (i: OutreachItem) => (i.status === "ha_risposto" ? 0 : i.views > 0 ? 1 : i.due ? 2 : 3);
+  const followup = items
+    .filter((i) => i.step >= 1 && active(i) && (OPEN.includes(i.status) || i.status === "ha_risposto"))
+    .sort((a, b) => rank(a) - rank(b));
+  // "Oggi": prima chi ha risposto, poi i caldi, poi i follow-up scaduti, poi fino a 10 nuovi agganci
   const seen = new Set<string>();
-  const today = [...hot, ...due, ...fresh.slice(0, 10)].filter((i) => !seen.has(i.id) && seen.add(i.id));
-  return { today, hot, due, fresh, waiting, done: items.filter((i) => DONE_STATUSES.includes(i.status)) };
+  const today = [...replied, ...hot, ...due, ...fresh.slice(0, 10)].filter((i) => !seen.has(i.id) && seen.add(i.id));
+  return { today, replied, hot, due, fresh, followup, done: items.filter((i) => DONE_STATUSES.includes(i.status)) };
 }
