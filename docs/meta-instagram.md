@@ -32,10 +32,12 @@ Finché l'app è in "modalità sviluppo" funziona per chi ha un ruolo nell'app (
 ## 4. Approvazione per tutti gli utenti (App Review)
 In **Revisione app → Autorizzazioni e funzionalità** chiedi l'accesso avanzato a:
 - `instagram_basic`
+- `instagram_manage_insights` (necessario per Business Discovery: verifica dei profili e post dei brand)
 - `pages_show_list`
 - `pages_read_engagement`
 - `business_management`
 - funzionalità **Instagram Public Content Access** (per gli hashtag)
+- funzionalità **Meta oEmbed Read** (autore dei post da hashtag: funziona solo dopo l'approvazione)
 
 Per ciascuna serve una breve descrizione d'uso e un video (screencast) del flusso:
 login con Google su Yeppo → Radar → Collega Instagram → Cerca ora → post trovati → "Scrivi un commento" → "Copia e apri su Instagram".

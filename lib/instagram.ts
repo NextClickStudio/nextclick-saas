@@ -7,7 +7,7 @@ import { db, UserError } from "@/lib/db";
 import { SITE_URL } from "@/lib/config";
 
 export const GRAPH = "https://graph.facebook.com/v23.0";
-export const IG_SCOPES = ["instagram_basic", "pages_show_list", "pages_read_engagement", "business_management"];
+export const IG_SCOPES = ["instagram_basic", "instagram_manage_insights", "pages_show_list", "pages_read_engagement", "business_management"];
 export const IG_REDIRECT = `${SITE_URL}/api/instagram/callback`;
 
 export function metaConfigured(): boolean {
