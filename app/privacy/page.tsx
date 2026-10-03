@@ -38,13 +38,19 @@ export default function PrivacyPage() {
         dell&apos;analisi e non sono conservati. Chiunque può chiedere la cancellazione dei propri dati scrivendo
         all&apos;indirizzo indicato nella sezione 1.
       </p>
-      <h3>Radar (contenuti pubblici)</h3>
+      <h3 id="instagram">Radar e collegamento Instagram</h3>
       <p>
-        Su richiesta dell&apos;utente, il Radar cerca tramite Google contenuti pubblici recenti (post, annunci di lavoro, notizie) legati
-        al settore indicato. Per ogni risultato conserviamo il link, la piattaforma, il nome dell&apos;autore o dell&apos;azienda come
-        appare pubblicamente e un breve estratto, solo per mostrarli all&apos;utente che li ha cercati. Non accediamo a contenuti privati
-        e non pubblichiamo nulla per conto dell&apos;utente. Chi desidera la rimozione può scrivere all&apos;indirizzo indicato nella
-        sezione 1.
+        Se l&apos;utente collega il proprio profilo Instagram professionale (tramite il login ufficiale di Facebook/Meta), Yeppo conserva
+        l&apos;identificativo e il nome del profilo e un token di accesso di sola lettura, usati esclusivamente per leggere i post pubblici
+        recenti dei profili aziendali e degli hashtag scelti dall&apos;utente. Per ogni post selezionato conserviamo link, nome del profilo
+        aziendale, didascalia, numero di like e commenti, solo per mostrarli all&apos;utente che li ha cercati. Yeppo non pubblica, non mette
+        like e non invia messaggi per conto dell&apos;utente.
+      </p>
+      <p>
+        <strong>Eliminazione dei dati di Instagram:</strong> l&apos;utente può scollegare Instagram in qualsiasi momento dalla pagina Radar
+        (&quot;Scollega&quot;): il token viene cancellato subito. Eliminando l&apos;account Yeppo vengono cancellati anche tutti i post salvati
+        nel Radar. È possibile chiedere la cancellazione anche scrivendo all&apos;indirizzo indicato nella sezione 1, oppure rimuovendo
+        l&apos;app Yeppo dalle impostazioni di Facebook (Impostazioni → App e siti web).
       </p>
       <h3>Visitatori dei report</h3>
       <p>

@@ -1,4 +1,4 @@
-// Job giornaliero (Vercel Cron): avvia il Radar per ogni utente con il profilo compilato.
+// Job giornaliero (Vercel Cron): avvia il Radar Instagram per ogni utente collegato con il profilo compilato.
 // Ogni utente gira in una chiamata separata, così ognuna resta sotto il limite di tempo.
 // Chiamarlo più volte non fa danni: salta chi è già stato cercato nelle ultime 20 ore.
 import { db } from "@/lib/db";
@@ -10,13 +10,19 @@ export const maxDuration = 60;
 
 export async function GET() {
   const since = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString();
-  const { data: accounts, error } = await db()
-    .from("accounts")
-    .select("user_id")
-    .not("radar_profile", "is", null)
-    .or(`radar_last_run_at.is.null,radar_last_run_at.lt.${since}`)
-    .limit(40);
+  // solo chi ha collegato Instagram e non è stato cercato nelle ultime 20 ore
+  const { data: conns, error } = await db().from("instagram_connections").select("user_id").limit(500);
   if (error) return Response.json({ error: error.message }, { status: 500 });
+  const ids = (conns ?? []).map((c) => c.user_id as string);
+  const { data: accounts } = ids.length
+    ? await db()
+        .from("accounts")
+        .select("user_id")
+        .in("user_id", ids)
+        .not("radar_profile", "is", null)
+        .or(`radar_last_run_at.is.null,radar_last_run_at.lt.${since}`)
+        .limit(40)
+    : { data: [] as { user_id: string }[] };
   const key = await getOrCreateSecret("cron", () => randomBytes(24).toString("hex"));
   // una chiamata per utente, tutte in parallelo (ognuna dura circa 30 secondi)
   await Promise.all(

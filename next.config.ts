@@ -10,6 +10,8 @@ const SERVER_ENV = [
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
   "SUPABASE_URL",
+  "META_APP_ID",
+  "META_APP_SECRET",
 ];
 
 const nextConfig: NextConfig = {

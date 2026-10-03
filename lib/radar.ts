@@ -1,232 +1,41 @@
-// Radar "chi ti sta cercando": cerca con Google post e contenuti pubblici recenti in cui aziende del tuo target
-// esprimono un bisogno legato a quello che vendi (richieste, annunci di lavoro, lanci, discussioni).
-// Ogni link viene verificato contro le fonti reali restituite da Google: niente post inventati.
-import "server-only";
-import { GoogleGenAI, ThinkingLevel } from "@google/genai";
-import { z } from "zod";
-import { UserError } from "@/lib/db";
+// Radar: ogni giorno legge su Instagram (API ufficiale) i nuovi post dei brand che segui e degli hashtag
+// del tuo settore; l'AI tiene solo quelli in cui un tuo commento o messaggio ha senso.
 
 export type RadarProfile = {
-  /** settori / tipi di aziende target (es. "e-commerce beauty", "brand skincare") */
+  /** settori / tipi di aziende target (servono all'AI per capire cosa è rilevante) */
   sectors: string[];
-  /** argomenti, problemi e parole chiave su cui intercettare conversazioni */
+  /** argomenti e problemi legati a quello che vendi */
   topics: string[];
-  /** ruoli delle persone che decidono (es. founder, marketing manager) */
-  roles: string[];
-  /** piattaforme preferite */
-  platforms: string[];
-  country: string;
+  /** profili Instagram dei brand da seguire (senza @) */
+  igBrands: string[];
+  /** hashtag da monitorare (senza #), massimo 30 diversi a settimana */
+  igHashtags: string[];
 };
 
-export const RADAR_PLATFORMS = [
-  { value: "linkedin", label: "LinkedIn" },
-  { value: "instagram", label: "Instagram" },
-  { value: "facebook", label: "Facebook" },
-  { value: "reddit", label: "Reddit" },
-] as const;
-
-export type RadarFinding = {
-  url: string;
-  platform: string;
-  signal: string;
-  author: string;
-  company: string;
-  date: string;
-  excerpt: string;
-  why: string;
-  intent: number;
-};
-
-const findingSchema = z.object({
-  items: z
-    .array(
-      z.object({
-        url: z.string().trim().min(8).max(600),
-        platform: z.string().trim().max(40).optional().default(""),
-        signal: z.string().trim().max(40).optional().default(""),
-        author: z.string().trim().max(160).optional().default(""),
-        company: z.string().trim().max(160).optional().default(""),
-        date: z.string().trim().max(60).optional().default(""),
-        excerpt: z.string().trim().max(1200).optional().default(""),
-        why: z.string().trim().max(600).optional().default(""),
-        intent: z.coerce.number().min(1).max(3).optional().default(2),
-      }),
-    )
-    .max(15),
-});
-
-/** URL confrontabili: senza protocollo, www, query, hash e slash finale. */
-export function normalizeUrl(u: string): string {
-  try {
-    const x = new URL(u);
-    return (x.hostname.replace(/^www\./, "") + x.pathname.replace(/\/+$/, "")).toLowerCase();
-  } catch {
-    return "";
-  }
-}
-
-/** Le fonti di Google arrivano come link di reindirizzamento: ricaviamo l'indirizzo reale senza scaricare la pagina. */
-async function resolveSource(uri: string): Promise<string | null> {
-  if (!/vertexaisearch|grounding-api-redirect/.test(uri)) return uri;
-  try {
-    const res = await fetch(uri, { method: "GET", redirect: "manual", signal: AbortSignal.timeout(6000) });
-    await res.body?.cancel();
-    return res.headers.get("location");
-  } catch {
-    return null;
-  }
-}
-
-const SOCIAL: Record<string, string> = {
-  linkedin: "post LinkedIn (linkedin.com/posts)",
-  instagram: "post e reel Instagram (instagram.com/p, instagram.com/reel)",
-  facebook: "post Facebook e gruppi pubblici (facebook.com)",
-  reddit: "discussioni Reddit (reddit.com/r/...)",
-};
-function socialSources(p: RadarProfile): string {
-  const chosen = p.platforms.filter((x) => SOCIAL[x]).map((x) => SOCIAL[x]);
-  return (chosen.length ? chosen : Object.values(SOCIAL)).join(", ");
-}
-
-/** Solo post su social dove si può commentare o scrivere: niente siti aziendali, articoli o portali di annunci. */
-export function isSocialPost(url: string): boolean {
-  let u: URL;
-  try {
-    u = new URL(url);
-  } catch {
-    return false;
-  }
-  const host = u.hostname.replace(/^(www|it|m|web)\./, "");
-  const path = u.pathname;
-  if (host === "linkedin.com") return /^\/(posts|feed\/update|pulse|jobs\/view)\//.test(path);
-  if (host === "instagram.com") return /^\/(p|reel|reels|tv)\//.test(path);
-  if (host === "facebook.com" || host === "fb.com") return /\/(posts|groups|permalink|story\.php|videos|photo|reel)/.test(path + u.search);
-  if (host === "reddit.com") return /^\/r\/[^/]+\/comments\//.test(path);
-  return false;
-}
-
-export const RADAR_SIGNALS = [
-  {
-    signal: "persona",
-    ask: (p: RadarProfile, topics: string) =>
-      `SOLO post pubblicati su ${socialSources(p)} (NON siti aziendali, NON articoli) scritti da ${p.roles.join(", ") || "founder, titolari e responsabili marketing"} di aziende di ${p.sectors.join(", ")}: post in cui parlano della loro azienda, dei clienti, delle vendite online, del marketing o di: ${topics}. Sono post su cui un commento competente farebbe notare chi lo scrive`,
-  },
-  {
-    signal: "lancio",
-    ask: (p: RadarProfile) =>
-      `SOLO post pubblicati su ${socialSources(p)} (NON siti aziendali, NON articoli di giornale) in cui aziende di ${p.sectors.join(", ")} annunciano novità: nuovo prodotto o linea, nuovo shop online, collaborazioni, eventi, finanziamenti, assunzioni o rebranding`,
-  },
-  {
-    signal: "richiesta",
-    ask: (p: RadarProfile, topics: string) =>
-      `SOLO post e discussioni su ${socialSources(p)} (gruppi, community, thread) in cui persone o aziende del settore ${p.sectors.join(", ")} fanno domande, chiedono consigli o raccontano problemi su: ${topics}`,
-  },
-];
-
-/** Una ricerca Google mirata (breve, così resta veloce). */
-async function searchSignal(
-  ai: GoogleGenAI,
-  what: string,
-  signal: string,
-  p: RadarProfile,
-  offer: string,
-  debug?: (info: Record<string, unknown>) => void,
-): Promise<RadarFinding[]> {
-  const prompt = `Cerca ${what}.
-Chi cerca vende: "${offer}". Il campo why deve spiegare perché QUESTA offerta è utile a loro, in concreto. Paese: ${p.country || "Italia"}. Preferisci i contenuti degli ultimi 30 giorni (al massimo 60).
-Per ogni risultato trovato nella ricerca (massimo 8, i più recenti prima) dai: url (copia il link del risultato di ricerca), platform, author, company,
-date, excerpt (cosa dice, 1-2 frasi fedeli), why (perché è un'occasione commerciale, 1 frase), intent (3 = cerca proprio questo, 2 = bisogno chiaro, 1 = debole).
-Mai inventare. Rispondi SOLO con JSON {"items":[...]} (vuoto se non trovi nulla).`;
-  const t0 = Date.now();
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        temperature: 0.2,
-        tools: [{ googleSearch: {} }],
-        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-        httpOptions: { timeout: 40_000 },
-      },
-    });
-    const raw = response.text ?? "";
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
-    const resolved = (await Promise.all(chunks.map((c) => (c.web?.uri ? resolveSource(c.web.uri) : null)))).filter(
-      (u): u is string => Boolean(u),
-    );
-    const sources = new Set(resolved.map(normalizeUrl));
-    debug?.({ signal, s: (Date.now() - t0) / 1000, chunks: chunks.length, resolved, raw: raw.slice(0, 1500) });
-    const parsed = findingSchema.safeParse(JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1) || "{}"));
-    if (!parsed.success) return [];
-    // solo link verificati: o sono un link di Google che si risolve in un indirizzo reale, o compaiono tra le fonti
-    const checked = await Promise.all(
-      parsed.data.items.map(async (i) => {
-        if (/vertexaisearch|grounding-api-redirect/.test(i.url)) {
-          const real = await resolveSource(i.url);
-          return real && /^https?:\/\//.test(real) ? { ...i, url: real } : null;
-        }
-        return sources.has(normalizeUrl(i.url)) ? i : null;
-      }),
-    );
-    debug?.({ checked: checked.map((i) => i?.url ?? null) });
-    return checked
-      .filter((i): i is NonNullable<typeof i> => i !== null && isSocialPost(i.url))
-      .map((i) => ({ ...i, signal: i.signal || signal, intent: Math.round(i.intent) }));
-  } catch (err) {
-    debug?.({ signal, s: (Date.now() - t0) / 1000, error: String((err as Error).message).slice(0, 200), status: (err as { status?: number }).status });
-    return [];
-  }
-}
-
-export async function scanRadar(
-  input: { profile: RadarProfile; offer: string; exclude: string[] },
-  debug?: (info: Record<string, unknown>) => void,
-): Promise<RadarFinding[]> {
-  if (!process.env.GEMINI_API_KEY) throw new UserError("Ricerca non disponibile: manca la chiave Gemini.");
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  const p = input.profile;
-  const topics = p.topics.join(", ") || input.offer;
-  const wanted = RADAR_SIGNALS.filter((x) => signalEnabled(x.signal, p));
-  const results = (await Promise.all(wanted.map((x) => searchSignal(ai, x.ask(p, topics), x.signal, p, input.offer, debug)))).flat();
-  const excluded = new Set(input.exclude.map(normalizeUrl));
-  const seen = new Set<string>();
-  return results
-    .filter((i) => {
-      const n = normalizeUrl(i.url);
-      if (!n || excluded.has(n) || seen.has(n)) return false;
-      seen.add(n);
-      return true;
-    })
-    .sort((a, b) => b.intent - a.intent);
-}
-
-/** Almeno una piattaforma social scelta (o nessuna = tutte). */
-export function signalEnabled(signal: string, p: RadarProfile): boolean {
-  if (p.platforms.length === 0) return true;
-  return p.platforms.some((x) => SOCIAL[x]);
-}
-
-export type RadarSignal = (typeof RADAR_SIGNALS)[number]["signal"];
-
-/** Una sola ricerca (un tipo di segnale): così ogni chiamata resta sotto il minuto. */
-export async function searchRadarSignal(
-  signal: RadarSignal,
-  profile: RadarProfile,
-  offer: string,
-  debug?: (info: Record<string, unknown>) => void,
-): Promise<RadarFinding[]> {
-  if (!process.env.GEMINI_API_KEY) throw new UserError("Ricerca non disponibile: manca la chiave Gemini.");
-  const def = RADAR_SIGNALS.find((x) => x.signal === signal)!;
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  const topics = profile.topics.join(", ") || offer;
-  return (await searchSignal(ai, def.ask(profile, topics), signal, profile, offer, debug)).sort((a, b) => b.intent - a.intent);
-}
+export const MAX_HASHTAGS = 10;
+export const MAX_BRANDS = 40;
 
 /** Profilo letto dal database, con valori sicuri. */
 export function readProfile(raw: unknown): RadarProfile | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Partial<RadarProfile>;
-  const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "").slice(0, 12) : []);
-  const profile = { sectors: list(r.sectors), topics: list(r.topics), roles: list(r.roles), platforms: list(r.platforms).filter((x) => ["linkedin", "instagram", "facebook", "reddit"].includes(x)), country: typeof r.country === "string" ? r.country : "Italia" };
-  return profile.sectors.length > 0 ? profile : null;
+  const list = (v: unknown, max: number) =>
+    Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim()))].slice(0, max) : [];
+  const profile = {
+    sectors: list(r.sectors, 8),
+    topics: list(r.topics, 12),
+    igBrands: list(r.igBrands, MAX_BRANDS).map((x) => x.replace(/^@/, "").toLowerCase()),
+    igHashtags: list(r.igHashtags, MAX_HASHTAGS).map((x) => x.replace(/^#/, "").toLowerCase()),
+  };
+  return profile.sectors.length > 0 || profile.igBrands.length > 0 || profile.igHashtags.length > 0 ? profile : null;
+}
+
+/** Solo post Instagram (post, reel). */
+export function isInstagramPost(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.hostname.replace(/^www\./, "") === "instagram.com" && /^\/(p|reel|reels|tv)\//.test(u.pathname);
+  } catch {
+    return false;
+  }
 }

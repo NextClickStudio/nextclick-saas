@@ -767,33 +767,35 @@ Se non trovi nessuno: {"people":[]}. Niente telefoni né email.`;
 const radarProfileSchema = z.object({
   sectors: z.array(z.string().trim().min(2).max(80)).min(1).max(6),
   topics: z.array(z.string().trim().min(2).max(80)).min(2).max(10),
-  roles: z.array(z.string().trim().min(2).max(60)).min(1).max(6),
+  igHashtags: z.array(z.string().trim().min(2).max(60)).min(1).max(10),
 });
 
-/** Propone settori, argomenti e ruoli da monitorare partendo da cosa vende l'utente. */
+/** Propone settori, argomenti e hashtag Instagram da monitorare partendo da cosa vende l'utente. */
 export async function suggestRadarProfile(input: { offer: string; sectors: string[] }) {
   const prompt = `Chi vende questo: """${input.offer}"""${input.sectors.length ? `\nSettori su cui ha già lavorato: ${input.sectors.join(", ")}` : ""}
-Vuole trovare online post, richieste e annunci di aziende che hanno bisogno di quello che vende.
+Vuole trovare su Instagram i post delle aziende che potrebbero diventare sue clienti, per commentarli e farsi notare.
 Proponi:
-- sectors: 2-5 tipi di aziende target, specifici (es. "e-commerce skincare", "farmacie online"), non generici
-- topics: 5-8 argomenti/problemi/parole che quelle aziende usano quando hanno il bisogno (es. "clienti indecisi su quale prodotto", "tasso di conversione basso", "quiz prodotto")
-- roles: 2-4 ruoli di chi decide
+- sectors: 2-5 tipi di aziende target, specifici (es. "brand skincare italiani", "e-commerce cosmetica")
+- topics: 5-8 argomenti/problemi legati a quello che vende
+- igHashtags: 6-10 hashtag Instagram (senza #) usati dalle AZIENDE del target quando pubblicano (es. lanci, prodotti, made in Italy),
+  non hashtag generici da consumatori come "love" o "beauty". Preferisci hashtag italiani di nicchia.
 Tutto in italiano, brevi.`;
-  return generateJson({
+  const res = await generateJson({
     prompt,
     schema: {
       type: "object",
       properties: {
         sectors: { type: "array", items: { type: "string" } },
         topics: { type: "array", items: { type: "string" } },
-        roles: { type: "array", items: { type: "string" } },
+        igHashtags: { type: "array", items: { type: "string" } },
       },
-      required: ["sectors", "topics", "roles"],
+      required: ["sectors", "topics", "igHashtags"],
       additionalProperties: false,
     },
     validator: radarProfileSchema,
     temperature: 0.4,
   });
+  return { ...res, igHashtags: res.igHashtags.map((h) => h.replace(/^#/, "").replace(/\s+/g, "").toLowerCase()) };
 }
 
 /** Risposta a un'opportunità del Radar: commento pubblico al post oppure messaggio privato. */
@@ -814,10 +816,10 @@ export async function generateRadarReply(input: {
     input.mode === "commento"
       ? `Scrivi un COMMENTO PUBBLICO da pubblicare sotto questo post (${input.platform}).
 Obiettivo: attirare l'attenzione dell'autore e di chi legge dimostrando competenza, NON vendere.
-- 2-4 frasi, tono umano e diretto, in prima persona.
+- ${/instagram/i.test(input.platform) ? "Commento Instagram: 1-2 frasi, massimo 220 caratteri, naturale come lo scriverebbe una persona" : "2-4 frasi"}, tono umano e diretto, in prima persona.
 - Dai un consiglio concreto o un punto di vista utile e specifico su quello che dice il post (qualcosa che solo chi ci lavora sa).
 - Puoi dire in mezza frase che ci lavori ogni giorno, senza nominare prodotti, prezzi o link.
-- Chiudi con una domanda o un invito leggero a sentirsi in privato (es. "se ti va ti scrivo come l'abbiamo risolto").
+- Puoi chiudere con una domanda sul post (fa rispondere l'autore). Niente "scrivimi in DM", niente autopromozione.
 - Niente hashtag, al massimo 1 emoji.`
       : `Scrivi un MESSAGGIO PRIVATO (DM o email breve) a ${input.author || input.company || "chi ha pubblicato"} partendo da questo contenuto.
 - Prima riga: aggancio a quello che hanno pubblicato (es. "ho visto che cercate..." / "ho letto del vostro lancio di...").
@@ -837,4 +839,66 @@ Italiano, dai del tu, niente frasi fatte ("spero tu stia bene", "mi permetto di"
     temperature: 0.8,
   });
   return res.text.replace(/\s*https?:\/\/\S+/g, "").trim();
+}
+
+const igFilterSchema = z.object({
+  posts: z.array(
+    z.object({
+      i: z.coerce.number().int().min(0),
+      keep: z.boolean(),
+      intent: z.coerce.number().min(1).max(3).optional().default(2),
+      why: z.string().trim().max(400).optional().default(""),
+    }),
+  ),
+});
+
+/** L'AI legge le didascalie dei post Instagram e tiene solo quelli utili a chi vende (con il perché). */
+export async function filterInstagramPosts(input: {
+  offer: string;
+  sectors: string[];
+  topics: string[];
+  posts: { author: string; caption: string; source: string; hashtag?: string }[];
+}): Promise<{ i: number; intent: number; why: string }[]> {
+  if (input.posts.length === 0) return [];
+  const list = input.posts
+    .map((p, i) => `[${i}] ${p.source === "brand" ? `@${p.author}` : `#${p.hashtag} (autore sconosciuto)`}: ${p.caption.replace(/\s+/g, " ").slice(0, 500) || "(senza testo)"}`)
+    .join("\n");
+  const prompt = `Chi vende: """${input.offer}"""
+Target: ${input.sectors.join(", ") || "aziende del settore"}. Argomenti: ${input.topics.join(", ") || "-"}.
+
+Ecco post Instagram recenti. Per ognuno decidi se è un'occasione per farsi notare con un commento intelligente o un messaggio:
+- keep true: post di un'azienda/brand/professionista del target (lanci, novità, prodotti, problemi, domande, dietro le quinte) dove un commento
+  competente di chi vende è pertinente; per gli hashtag, solo se sembra pubblicato da un'azienda o da un professionista del settore.
+- keep false: post di privati/consumatori senza legame con un'azienda, spam, giveaway, contenuti non pertinenti, post senza testo.
+- intent: 3 = parla proprio del problema che chi vende risolve, 2 = occasione buona, 1 = debole.
+- why: 1 frase concreta su come agganciarsi a QUESTO post (es. "Lanciano 3 nuovi sieri: chi arriva sul sito non sa quale scegliere").
+
+POST
+${list}
+
+Rispondi SOLO con JSON {"posts":[{"i":0,"keep":true,"intent":2,"why":"..."}]} con un elemento per ogni post.`;
+  const res = await generateJson({
+    prompt,
+    schema: {
+      type: "object",
+      properties: {
+        posts: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { i: { type: "integer" }, keep: { type: "boolean" }, intent: { type: "integer" }, why: { type: "string" } },
+            required: ["i", "keep", "intent", "why"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["posts"],
+      additionalProperties: false,
+    },
+    validator: igFilterSchema,
+    temperature: 0.2,
+  });
+  return res.posts
+    .filter((p) => p.keep && p.i < input.posts.length)
+    .map((p) => ({ i: p.i, intent: Math.round(p.intent), why: p.why }));
 }
