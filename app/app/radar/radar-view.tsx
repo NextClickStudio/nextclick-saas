@@ -29,7 +29,7 @@ export type RadarItem = {
 const SIGNAL_LABEL: Record<string, string> = {
   richiesta: "💬 Richiesta / discussione",
   discussione: "💬 Discussione",
-  lavoro: "💼 Annuncio di lavoro",
+  lavoro: "💼 Stanno assumendo",
   lancio: "🚀 Lancio / novità",
 };
 
@@ -366,7 +366,7 @@ function ProfileForm({ initial, hasOffer, onDone, onCancel }: { initial: RadarPr
         {onCancel && <button type="button" className={btn.ghost} onClick={onCancel}>Annulla</button>}
       </div>
       <p className="text-xs text-zinc-600">
-        Il Radar cerca contenuti pubblici indicizzati da Google (LinkedIn, gruppi Facebook, Reddit, forum, annunci, news). Ogni link è
+        Il Radar cerca solo post pubblici su LinkedIn, Instagram, Facebook e Reddit indicizzati da Google, dove puoi commentare o scrivere. Ogni link è
         verificato. Non legge profili privati e non pubblica nulla al posto tuo.
       </p>
     </form>

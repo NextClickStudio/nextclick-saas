@@ -19,12 +19,10 @@ export type RadarProfile = {
 };
 
 export const RADAR_PLATFORMS = [
-  { value: "linkedin", label: "LinkedIn", site: "linkedin.com" },
-  { value: "instagram", label: "Instagram", site: "instagram.com" },
-  { value: "facebook", label: "Gruppi Facebook", site: "facebook.com" },
-  { value: "reddit", label: "Reddit e forum", site: "reddit.com" },
-  { value: "lavoro", label: "Annunci di lavoro", site: "indeed / infojobs / linkedin jobs" },
-  { value: "news", label: "News e lanci", site: "giornali e blog di settore" },
+  { value: "linkedin", label: "LinkedIn" },
+  { value: "instagram", label: "Instagram" },
+  { value: "facebook", label: "Facebook" },
+  { value: "reddit", label: "Reddit" },
 ] as const;
 
 export type RadarFinding = {
@@ -79,27 +77,49 @@ async function resolveSource(uri: string): Promise<string | null> {
   }
 }
 
-const SOCIAL: Record<string, string> = { linkedin: "post LinkedIn", instagram: "post Instagram", facebook: "gruppi Facebook", reddit: "Reddit e forum" };
+const SOCIAL: Record<string, string> = {
+  linkedin: "post LinkedIn (linkedin.com/posts)",
+  instagram: "post e reel Instagram (instagram.com/p, instagram.com/reel)",
+  facebook: "post Facebook e gruppi pubblici (facebook.com)",
+  reddit: "discussioni Reddit (reddit.com/r/...)",
+};
 function socialSources(p: RadarProfile): string {
   const chosen = p.platforms.filter((x) => SOCIAL[x]).map((x) => SOCIAL[x]);
   return (chosen.length ? chosen : Object.values(SOCIAL)).join(", ");
+}
+
+/** Solo post su social dove si può commentare o scrivere: niente siti aziendali, articoli o portali di annunci. */
+export function isSocialPost(url: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  const host = u.hostname.replace(/^(www|it|m|web)\./, "");
+  const path = u.pathname;
+  if (host === "linkedin.com") return /^\/(posts|feed\/update|pulse|jobs\/view)\//.test(path);
+  if (host === "instagram.com") return /^\/(p|reel|reels|tv)\//.test(path);
+  if (host === "facebook.com" || host === "fb.com") return /\/(posts|groups|permalink|story\.php|videos|photo|reel)/.test(path + u.search);
+  if (host === "reddit.com") return /^\/r\/[^/]+\/comments\//.test(path);
+  return false;
 }
 
 export const RADAR_SIGNALS = [
   {
     signal: "richiesta",
     ask: (p: RadarProfile, topics: string) =>
-      `post o discussioni pubbliche (${socialSources(p)}) in cui aziende o professionisti di ${p.sectors.join(", ")} chiedono consigli, fornitori, tool o agenzie, o lamentano problemi su: ${topics}`,
+      `SOLO post pubblicati su ${socialSources(p)} (NON siti aziendali, NON articoli, NON blog) in cui aziende, founder o professionisti di ${p.sectors.join(", ")} chiedono consigli, fornitori, tool o agenzie, o raccontano problemi su: ${topics}`,
   },
   {
     signal: "lavoro",
     ask: (p: RadarProfile, topics: string) =>
-      `annunci di lavoro (LinkedIn Jobs, Indeed, InfoJobs, siti aziendali) di aziende di ${p.sectors.join(", ")} che cercano figure che si occuperebbero di: ${topics}`,
+      `SOLO post LinkedIn (linkedin.com/posts o linkedin.com/jobs/view) di aziende di ${p.sectors.join(", ")} che annunciano di cercare persone ("stiamo assumendo", "cerchiamo") per occuparsi di: ${topics}`,
   },
   {
     signal: "lancio",
     ask: (p: RadarProfile) =>
-      `notizie e post su aziende di ${p.sectors.join(", ")} che hanno appena lanciato un brand, uno shop online, una nuova linea, ricevuto un finanziamento o fatto un rebranding`,
+      `SOLO post pubblicati su ${socialSources(p)} (NON siti aziendali, NON articoli di giornale) in cui aziende o founder di ${p.sectors.join(", ")} annunciano un lancio: nuovo brand, nuovo shop online, nuova linea, finanziamento o rebranding`,
   },
 ];
 
@@ -149,7 +169,7 @@ Mai inventare. Rispondi SOLO con JSON {"items":[...]} (vuoto se non trovi nulla)
       }),
     );
     return checked
-      .filter((i): i is NonNullable<typeof i> => i !== null)
+      .filter((i): i is NonNullable<typeof i> => i !== null && isSocialPost(i.url))
       .map((i) => ({ ...i, signal: i.signal || signal, intent: Math.round(i.intent) }));
   } catch (err) {
     debug?.({ signal, s: (Date.now() - t0) / 1000, error: String((err as Error).message).slice(0, 200), status: (err as { status?: number }).status });
@@ -179,11 +199,10 @@ export async function scanRadar(
     .sort((a, b) => b.intent - a.intent);
 }
 
-/** Con piattaforme scelte: annunci solo se "lavoro", lanci solo se "news". Nessuna scelta = tutto. */
+/** Con piattaforme scelte: gli annunci di assunzione sono cercati solo su LinkedIn. Nessuna scelta = tutto. */
 export function signalEnabled(signal: string, p: RadarProfile): boolean {
   if (p.platforms.length === 0) return true;
-  if (signal === "lavoro") return p.platforms.includes("lavoro");
-  if (signal === "lancio") return p.platforms.includes("news");
+  if (signal === "lavoro") return p.platforms.includes("linkedin");
   return p.platforms.some((x) => SOCIAL[x]);
 }
 
@@ -203,6 +222,6 @@ export function readProfile(raw: unknown): RadarProfile | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Partial<RadarProfile>;
   const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "").slice(0, 12) : []);
-  const profile = { sectors: list(r.sectors), topics: list(r.topics), roles: list(r.roles), platforms: list(r.platforms), country: typeof r.country === "string" ? r.country : "Italia" };
+  const profile = { sectors: list(r.sectors), topics: list(r.topics), roles: list(r.roles), platforms: list(r.platforms).filter((x) => ["linkedin", "instagram", "facebook", "reddit"].includes(x)), country: typeof r.country === "string" ? r.country : "Italia" };
   return profile.sectors.length > 0 ? profile : null;
 }

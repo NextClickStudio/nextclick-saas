@@ -9,7 +9,7 @@ const schema = z.object({
   sectors: list(8).min(1, "Indica almeno un settore target."),
   topics: list(12).min(1, "Indica almeno un argomento."),
   roles: list(8),
-  platforms: z.array(z.enum(["linkedin", "instagram", "facebook", "reddit", "lavoro", "news"])).max(6),
+  platforms: z.array(z.enum(["linkedin", "instagram", "facebook", "reddit"])).max(6),
   country: z.string().trim().min(2).max(60),
 });
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { readProfile } from "@/lib/radar";
+import { isSocialPost, readProfile } from "@/lib/radar";
 import { getCurrentUser } from "@/lib/supabase-auth";
 import RadarView, { type RadarItem } from "./radar-view";
 
@@ -33,7 +33,7 @@ export default async function RadarPage() {
         profile={readProfile(account?.radar_profile)}
         lastRun={account?.radar_last_run_at ?? null}
         hasOffer={Boolean(account?.company_offer)}
-        items={(items ?? []) as RadarItem[]}
+        items={((items ?? []) as RadarItem[]).filter((i) => isSocialPost(i.url))}
       />
     </div>
   );
