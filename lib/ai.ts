@@ -17,6 +17,11 @@ import { UserError } from "@/lib/db";
 export const GEMINI_MODELS = process.env.GEMINI_MODEL
   ? [process.env.GEMINI_MODEL]
   : ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-lite-latest", "gemini-3.5-flash-lite"];
+// Modelli economici (circa 10 volte meno) per i compiti leggeri: messaggi, commenti, filtri e classificazioni.
+// Se non rispondono si passa ai modelli normali.
+export const GEMINI_LITE_MODELS = process.env.GEMINI_MODEL
+  ? [process.env.GEMINI_MODEL]
+  : ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", ...GEMINI_MODELS];
 export const GATEWAY_MODEL = process.env.AI_MODEL || "google/gemini-2.5-flash"; // usato con AI Gateway
 // modello con ricerca web, per trovare le aziende (via AI Gateway)
 export const DISCOVERY_MODEL = process.env.DISCOVERY_MODEL || "perplexity/sonar-pro";
@@ -25,9 +30,9 @@ const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
 let gemini: GoogleGenAI | null = null;
 
 /** Una chiamata al modello che restituisce il testo JSON grezzo. */
-async function callModel(prompt: string, schema: object, temperature: number, model = GATEWAY_MODEL): Promise<string> {
+async function callModel(prompt: string, schema: object, temperature: number, model = GATEWAY_MODEL, lite = false): Promise<string> {
   // con GEMINI_API_KEY si usa Gemini diretto per tutto (anche per trovare le aziende)
-  if (process.env.GEMINI_API_KEY) return callGemini(prompt, schema, temperature);
+  if (process.env.GEMINI_API_KEY) return callGemini(prompt, schema, temperature, lite ? GEMINI_LITE_MODELS : GEMINI_MODELS);
 
   let token = process.env.AI_GATEWAY_API_KEY;
   if (!token) {
@@ -63,10 +68,10 @@ async function callModel(prompt: string, schema: object, temperature: number, mo
 }
 
 /** Gemini diretto, provando più modelli se uno è sovraccarico o senza quota. */
-async function callGemini(prompt: string, schema: object, temperature: number): Promise<string> {
+async function callGemini(prompt: string, schema: object, temperature: number, models: string[] = GEMINI_MODELS): Promise<string> {
   gemini ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
   let quotaExceeded = false;
-  for (const model of GEMINI_MODELS) {
+  for (const model of [...new Set(models)]) {
     try {
       const response = await gemini.models.generateContent({
         model,
@@ -103,11 +108,13 @@ async function generateJson<T>(opts: {
   validator: z.ZodType<T>;
   temperature: number;
   model?: string;
+  /** compito leggero: usa i modelli economici (Flash-Lite) */
+  lite?: boolean;
 }): Promise<T> {
   let lastProblem = "";
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const raw = await callModel(opts.prompt, opts.schema, opts.temperature, opts.model);
+      const raw = await callModel(opts.prompt, opts.schema, opts.temperature, opts.model, opts.lite);
       // alcuni modelli aggiungono testo o ``` attorno al JSON: tieni solo l'oggetto
       const text = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
       const parsed = opts.validator.safeParse(JSON.parse(text));
@@ -658,6 +665,7 @@ REGOLE
 ${input.step > 0 ? `- Inserisci il link esattamente così: ${input.reportUrl}` : "- NESSUN link, nessun indirizzo web."}
 - Il campo channel deve essere esattamente uno di: ${input.channels.join(", ")}.`;
 
+  // i messaggi di outreach restano sul modello completo: con Flash-Lite la qualità (e le regole) peggiorano
   const result = await generateJson({ prompt, schema: outreachJsonSchema, validator: outreachSchema, temperature: 0.8 });
   return result.messages
     .filter((m) => input.channels.includes(m.channel))
@@ -794,6 +802,7 @@ Tutto in italiano, brevi.`;
     },
     validator: radarProfileSchema,
     temperature: 0.4,
+    lite: true,
   });
   return { ...res, igHashtags: res.igHashtags.map((h) => h.replace(/^#/, "").replace(/\s+/g, "").toLowerCase()) };
 }
@@ -837,6 +846,7 @@ Italiano, dai del tu, niente frasi fatte ("spero tu stia bene", "mi permetto di"
     schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false },
     validator: z.object({ text: z.string().trim().min(10).max(1500) }),
     temperature: 0.8,
+    lite: true,
   });
   return res.text.replace(/\s*https?:\/\/\S+/g, "").trim();
 }
@@ -899,6 +909,7 @@ Rispondi SOLO con JSON {"posts":[{"i":0,"keep":true,"intent":2,"why":"..."}]} co
     },
     validator: igFilterSchema,
     temperature: 0.2,
+    lite: true,
   });
   return res.posts
     .filter((p) => p.keep && p.i < input.posts.length)
@@ -934,6 +945,7 @@ Rispondi SOLO con JSON {"profiles":[{"username":"...","brand":true}]}`;
     },
     validator: z.object({ profiles: z.array(z.object({ username: z.string(), brand: z.boolean() })) }),
     temperature: 0,
+    lite: true,
   });
   return new Set(res.profiles.filter((p) => p.brand).map((p) => p.username.replace(/^@/, "").toLowerCase()));
 }
