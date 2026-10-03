@@ -79,11 +79,17 @@ async function resolveSource(uri: string): Promise<string | null> {
   }
 }
 
-const SIGNALS = [
+const SOCIAL: Record<string, string> = { linkedin: "post LinkedIn", instagram: "post Instagram", facebook: "gruppi Facebook", reddit: "Reddit e forum" };
+function socialSources(p: RadarProfile): string {
+  const chosen = p.platforms.filter((x) => SOCIAL[x]).map((x) => SOCIAL[x]);
+  return (chosen.length ? chosen : Object.values(SOCIAL)).join(", ");
+}
+
+export const RADAR_SIGNALS = [
   {
     signal: "richiesta",
     ask: (p: RadarProfile, topics: string) =>
-      `post o discussioni pubbliche (LinkedIn, gruppi Facebook, Reddit, forum) in cui aziende o professionisti di ${p.sectors.join(", ")} chiedono consigli, fornitori, tool o agenzie, o lamentano problemi su: ${topics}`,
+      `post o discussioni pubbliche (${socialSources(p)}) in cui aziende o professionisti di ${p.sectors.join(", ")} chiedono consigli, fornitori, tool o agenzie, o lamentano problemi su: ${topics}`,
   },
   {
     signal: "lavoro",
@@ -103,9 +109,11 @@ async function searchSignal(
   what: string,
   signal: string,
   p: RadarProfile,
+  offer: string,
   debug?: (info: Record<string, unknown>) => void,
 ): Promise<RadarFinding[]> {
-  const prompt = `Cerca ${what}. Paese: ${p.country || "Italia"}. Solo contenuti degli ultimi 30 giorni.
+  const prompt = `Cerca ${what}.
+Chi cerca vende: "${offer}". Il campo why deve spiegare perché QUESTA offerta è utile a loro, in concreto. Paese: ${p.country || "Italia"}. Solo contenuti degli ultimi 30 giorni.
 Per ogni risultato trovato nella ricerca (massimo 5, i più recenti prima) dai: url (copia il link del risultato di ricerca), platform, author, company,
 date, excerpt (cosa dice, 1-2 frasi fedeli), why (perché è un'occasione commerciale, 1 frase), intent (3 = cerca proprio questo, 2 = bisogno chiaro, 1 = debole).
 Mai inventare. Rispondi SOLO con JSON {"items":[...]} (vuoto se non trovi nulla).`;
@@ -157,8 +165,8 @@ export async function scanRadar(
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const p = input.profile;
   const topics = p.topics.join(", ") || input.offer;
-  const wanted = SIGNALS.filter((x) => x.signal !== "lavoro" || p.platforms.length === 0 || p.platforms.includes("lavoro"));
-  const results = (await Promise.all(wanted.map((x) => searchSignal(ai, x.ask(p, topics), x.signal, p, debug)))).flat();
+  const wanted = RADAR_SIGNALS.filter((x) => signalEnabled(x.signal, p));
+  const results = (await Promise.all(wanted.map((x) => searchSignal(ai, x.ask(p, topics), x.signal, p, input.offer, debug)))).flat();
   const excluded = new Set(input.exclude.map(normalizeUrl));
   const seen = new Set<string>();
   return results
@@ -169,4 +177,32 @@ export async function scanRadar(
       return true;
     })
     .sort((a, b) => b.intent - a.intent);
+}
+
+/** Con piattaforme scelte: annunci solo se "lavoro", lanci solo se "news". Nessuna scelta = tutto. */
+export function signalEnabled(signal: string, p: RadarProfile): boolean {
+  if (p.platforms.length === 0) return true;
+  if (signal === "lavoro") return p.platforms.includes("lavoro");
+  if (signal === "lancio") return p.platforms.includes("news");
+  return p.platforms.some((x) => SOCIAL[x]);
+}
+
+export type RadarSignal = (typeof RADAR_SIGNALS)[number]["signal"];
+
+/** Una sola ricerca (un tipo di segnale): così ogni chiamata resta sotto il minuto. */
+export async function searchRadarSignal(signal: RadarSignal, profile: RadarProfile, offer: string): Promise<RadarFinding[]> {
+  if (!process.env.GEMINI_API_KEY) throw new UserError("Ricerca non disponibile: manca la chiave Gemini.");
+  const def = RADAR_SIGNALS.find((x) => x.signal === signal)!;
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const topics = profile.topics.join(", ") || offer;
+  return (await searchSignal(ai, def.ask(profile, topics), signal, profile, offer)).sort((a, b) => b.intent - a.intent);
+}
+
+/** Profilo letto dal database, con valori sicuri. */
+export function readProfile(raw: unknown): RadarProfile | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Partial<RadarProfile>;
+  const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "").slice(0, 12) : []);
+  const profile = { sectors: list(r.sectors), topics: list(r.topics), roles: list(r.roles), platforms: list(r.platforms), country: typeof r.country === "string" ? r.country : "Italia" };
+  return profile.sectors.length > 0 ? profile : null;
 }

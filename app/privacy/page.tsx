@@ -38,6 +38,14 @@ export default function PrivacyPage() {
         dell&apos;analisi e non sono conservati. Chiunque può chiedere la cancellazione dei propri dati scrivendo
         all&apos;indirizzo indicato nella sezione 1.
       </p>
+      <h3>Radar (contenuti pubblici)</h3>
+      <p>
+        Su richiesta dell&apos;utente, il Radar cerca tramite Google contenuti pubblici recenti (post, annunci di lavoro, notizie) legati
+        al settore indicato. Per ogni risultato conserviamo il link, la piattaforma, il nome dell&apos;autore o dell&apos;azienda come
+        appare pubblicamente e un breve estratto, solo per mostrarli all&apos;utente che li ha cercati. Non accediamo a contenuti privati
+        e non pubblichiamo nulla per conto dell&apos;utente. Chi desidera la rimozione può scrivere all&apos;indirizzo indicato nella
+        sezione 1.
+      </p>
       <h3>Visitatori dei report</h3>
       <p>
         Quando un report viene aperto registriamo data e ora dell&apos;apertura, senza profilare il visitatore e senza

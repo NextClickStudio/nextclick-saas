@@ -81,7 +81,7 @@ function Art({ kind }: { kind: string }) {
           ))}
         </div>
         <div className="fade-in rounded-xl rounded-tl-sm bg-white/[0.07] p-2.5 text-[11px] leading-relaxed text-zinc-200" style={{ animationDelay: "200ms" }}>
-          Ciao Giulia, sono Carlo. Ho visto che le schede prodotto hanno una sola foto: vi capita che i clienti chiedano com'è indossato?
+          Ciao Giulia, sono Carlo. Ho visto che le schede prodotto hanno una sola foto: vi capita che i clienti chiedano com&apos;è indossato?
         </div>
         <div className="fade-in ml-auto w-fit rounded-lg bg-gradient-to-r from-accent to-cyan px-3 py-1 text-[11px] font-semibold text-ink" style={{ animationDelay: "700ms" }}>
           Invia ↗

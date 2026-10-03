@@ -759,3 +759,82 @@ Se non trovi nessuno: {"people":[]}. Niente telefoni né email.`;
   }
   throw new UserError("Ricerca delle persone sul web non riuscita. Riprova tra poco.");
 }
+
+// ---------------------------------------------------------------------
+// F) Radar: profilo suggerito e risposte ai post
+// ---------------------------------------------------------------------
+
+const radarProfileSchema = z.object({
+  sectors: z.array(z.string().trim().min(2).max(80)).min(1).max(6),
+  topics: z.array(z.string().trim().min(2).max(80)).min(2).max(10),
+  roles: z.array(z.string().trim().min(2).max(60)).min(1).max(6),
+});
+
+/** Propone settori, argomenti e ruoli da monitorare partendo da cosa vende l'utente. */
+export async function suggestRadarProfile(input: { offer: string; sectors: string[] }) {
+  const prompt = `Chi vende questo: """${input.offer}"""${input.sectors.length ? `\nSettori su cui ha già lavorato: ${input.sectors.join(", ")}` : ""}
+Vuole trovare online post, richieste e annunci di aziende che hanno bisogno di quello che vende.
+Proponi:
+- sectors: 2-5 tipi di aziende target, specifici (es. "e-commerce skincare", "farmacie online"), non generici
+- topics: 5-8 argomenti/problemi/parole che quelle aziende usano quando hanno il bisogno (es. "clienti indecisi su quale prodotto", "tasso di conversione basso", "quiz prodotto")
+- roles: 2-4 ruoli di chi decide
+Tutto in italiano, brevi.`;
+  return generateJson({
+    prompt,
+    schema: {
+      type: "object",
+      properties: {
+        sectors: { type: "array", items: { type: "string" } },
+        topics: { type: "array", items: { type: "string" } },
+        roles: { type: "array", items: { type: "string" } },
+      },
+      required: ["sectors", "topics", "roles"],
+      additionalProperties: false,
+    },
+    validator: radarProfileSchema,
+    temperature: 0.4,
+  });
+}
+
+/** Risposta a un'opportunità del Radar: commento pubblico al post oppure messaggio privato. */
+export async function generateRadarReply(input: {
+  mode: "commento" | "messaggio";
+  platform: string;
+  signal: string;
+  author: string;
+  company: string;
+  excerpt: string;
+  offer: string;
+  senderName: string;
+  senderRole: string;
+  senderCompany: string;
+}): Promise<string> {
+  const who = [input.senderName, input.senderRole, input.senderCompany ? `di ${input.senderCompany}` : ""].filter(Boolean).join(", ");
+  const task =
+    input.mode === "commento"
+      ? `Scrivi un COMMENTO PUBBLICO da pubblicare sotto questo post (${input.platform}).
+Obiettivo: attirare l'attenzione dell'autore e di chi legge dimostrando competenza, NON vendere.
+- 2-4 frasi, tono umano e diretto, in prima persona.
+- Dai un consiglio concreto o un punto di vista utile e specifico su quello che dice il post (qualcosa che solo chi ci lavora sa).
+- Puoi dire in mezza frase che ci lavori ogni giorno, senza nominare prodotti, prezzi o link.
+- Chiudi con una domanda o un invito leggero a sentirsi in privato (es. "se ti va ti scrivo come l'abbiamo risolto").
+- Niente hashtag, al massimo 1 emoji.`
+      : `Scrivi un MESSAGGIO PRIVATO (DM o email breve) a ${input.author || input.company || "chi ha pubblicato"} partendo da questo contenuto.
+- Prima riga: aggancio a quello che hanno pubblicato (es. "ho visto che cercate..." / "ho letto del vostro lancio di...").
+- Poi 1-2 frasi: perché te ne sei accorto e come potresti aiutarli in modo concreto, senza tono da pubblicità.
+- Chiudi con una domanda semplice. Niente link. Massimo 450 caratteri.`;
+  const prompt = `${task}
+
+Contenuto (${input.signal}) di ${input.author || "?"}${input.company ? ` (${input.company})` : ""}:
+"""${input.excerpt}"""
+
+Chi scrive: ${who || "il mittente"}. Cosa offre (per essere coerente, non per fare pubblicità): ${input.offer}
+Italiano, dai del tu, niente frasi fatte ("spero tu stia bene", "mi permetto di"). Non inventare dati.`;
+  const res = await generateJson({
+    prompt,
+    schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false },
+    validator: z.object({ text: z.string().trim().min(10).max(1500) }),
+    temperature: 0.8,
+  });
+  return res.text.replace(/\s*https?:\/\/\S+/g, "").trim();
+}
