@@ -66,7 +66,7 @@ const FAQ = [
   },
   {
     q: "Quanto costa?",
-    a: `Ti registri e hai una sessione di prova gratuita fino a ${COMPANIES_PER_FREE_SESSION} aziende. Poi acquisti pacchetti di sessioni, senza abbonamento.`,
+    a: `Ti registri e hai una sessione di prova gratuita fino a ${COMPANIES_PER_FREE_SESSION} aziende. Poi scegli un piano mensile (Basic, Pro o Agency) e lo disdici quando vuoi, senza vincoli.`,
   },
   {
     q: "È legale analizzare i siti delle aziende?",
@@ -310,9 +310,9 @@ export default function Home() {
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <Reveal className="mx-auto mb-14 max-w-2xl text-center">
               <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-accent">Prezzi</p>
-              <h2 className="font-display text-3xl font-semibold tracking-tight text-white sm:text-5xl">Paghi le sessioni che usi.</h2>
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-white sm:text-5xl">Un commerciale AI, al prezzo di un caffè al giorno.</h2>
               <p className="mt-5 text-lg text-zinc-400">
-                Nessun abbonamento. La prima sessione è gratis (fino a {COMPANIES_PER_FREE_SESSION} aziende).
+                Abbonamento mensile, disdici quando vuoi. Prova gratis: 1 sessione (fino a {COMPANIES_PER_FREE_SESSION} aziende) e 3 ricerche Radar.
               </p>
             </Reveal>
             <div className="grid gap-5 md:grid-cols-3">
@@ -327,9 +327,9 @@ export default function Home() {
                     <p className="font-display text-xl font-semibold text-white">{p.name}</p>
                     <p className="mt-4 font-display text-4xl font-semibold text-white">
                       {formatEuro(p.priceCents)}
-                      <span className="ml-1 text-sm font-normal text-zinc-500">+ IVA</span>
+                      <span className="ml-1 text-sm font-normal text-zinc-500">/mese + IVA</span>
                     </p>
-                    <p className="mt-1 text-sm text-zinc-500">{p.perSession}</p>
+                    <p className="mt-1 text-sm text-zinc-500">{formatEuro(Math.round(p.priceCents / p.sessions))} a sessione</p>
                     <ul className="mt-7 flex-1 space-y-2.5 text-sm text-zinc-300">
                       {p.features.map((f) => (
                         <li key={f} className="flex gap-2.5">

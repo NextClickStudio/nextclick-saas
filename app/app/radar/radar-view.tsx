@@ -40,6 +40,7 @@ export default function RadarView({
   lastRun,
   runsLeft,
   runsPerDay,
+  trial,
   hasOffer,
   instagram,
   metaReady,
@@ -50,6 +51,7 @@ export default function RadarView({
   lastRun: string | null;
   runsLeft: number;
   runsPerDay: number;
+  trial: boolean;
   hasOffer: boolean;
   instagram: { username: string; expiringSoon: boolean } | null;
   metaReady: boolean;
@@ -94,7 +96,7 @@ export default function RadarView({
         added += mon.added;
         if (mon.read > 0) parts.push(`${mon.read} post letti dai brand seguiti`);
       }
-      parts.push(`ricerche rimaste oggi: ${res.left}/${runsPerDay}`);
+      parts.push(trial ? `ricerche di prova rimaste: ${res.left}/${runsPerDay}` : `ricerche rimaste oggi: ${res.left}/${runsPerDay}`);
       setScanMsg(`${added > 0 ? `Trovati ${added} nuovi post di brand da commentare.` : "Nessun post nuovo da commentare."} ${parts.join(" · ")}`);
       setView("nuovo");
       router.refresh();
@@ -162,7 +164,7 @@ export default function RadarView({
             )}
           </p>
           <p className="mt-1 text-xs text-zinc-500">
-            {lastRun ? `Ultima ricerca ${formatDate(lastRun)}` : "Mai cercato"} · ricerche oggi {runsPerDay - Math.max(0, runsLeft)}/{runsPerDay} · promemoria ogni mattina
+            {lastRun ? `Ultima ricerca ${formatDate(lastRun)}` : "Mai cercato"} · {trial ? `prova gratuita: ${Math.max(0, runsLeft)}/${runsPerDay} ricerche rimaste` : `ricerche oggi ${runsPerDay - Math.max(0, runsLeft)}/${runsPerDay}`} · promemoria ogni mattina
             {instagram.expiringSoon && " · ⚠️ collegamento in scadenza: ricollega Instagram"}
           </p>
           <div className="mt-1 flex gap-3 text-xs">
@@ -173,7 +175,7 @@ export default function RadarView({
         </div>
         <div className="flex flex-col items-end gap-2">
           <button className={btn.accent} onClick={scan} disabled={scanning || runsLeft <= 0}>
-            {scanning ? "Cerco brand e post… (fino a 50 s)" : runsLeft <= 0 ? "Ricerche di oggi finite" : `🔎 Cerca brand e post (${runsLeft} rimaste)`}
+            {scanning ? "Cerco brand e post… (fino a 50 s)" : runsLeft <= 0 ? (trial ? "Prova finita: scegli un piano" : "Ricerche di oggi finite") : `🔎 Cerca brand e post (${runsLeft} rimaste)`}
           </button>
           <PushButton />
         </div>

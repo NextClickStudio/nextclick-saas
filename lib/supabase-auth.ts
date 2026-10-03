@@ -4,6 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/config";
 import { db, UserError } from "@/lib/db";
+import { planActive } from "@/lib/plans";
 
 /** Client Supabase legato ai cookie della richiesta corrente (solo per l'autenticazione). */
 export async function authClient() {
@@ -56,6 +57,13 @@ export type Account = {
   company_website: string | null;
   company_offer: string | null;
   onboarded_at: string | null;
+  plan: string;
+  plan_status: string | null;
+  plan_sessions_left: number;
+  plan_period_end: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  radar_free_runs_left: number;
 };
 
 /** Il profilo è completo quando l'AI ha tutto per firmare i messaggi e presentarti nel report. */
@@ -77,7 +85,9 @@ export async function getAccount(userId: string): Promise<Account> {
   return created as Account;
 }
 
-/** Sessioni ancora disponibili (gratuite + acquistate). */
+/** Sessioni ancora disponibili (prova + piano del mese + extra acquistate). */
 export function availableSessions(a: Account): number {
-  return a.unlimited ? Infinity : a.free_sessions + a.credits;
+  if (a.unlimited) return Infinity;
+  const fromPlan = planActive(a.plan_status) ? a.plan_sessions_left : 0;
+  return a.free_sessions + fromPlan + a.credits;
 }

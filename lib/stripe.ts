@@ -36,11 +36,65 @@ async function stripe<T>(path: string, method: "GET" | "POST", body?: Record<str
   return json as T;
 }
 
-export type CheckoutSession = { id: string; url: string; payment_status: string; metadata?: Record<string, string> };
+export type CheckoutSession = {
+  id: string;
+  url: string;
+  mode?: "payment" | "subscription";
+  status?: string;
+  payment_status: string;
+  customer?: string | null;
+  subscription?: string | null;
+  client_reference_id?: string | null;
+  metadata?: Record<string, string>;
+};
 
+const common = (opts: { userId: string; email: string; customerId?: string | null; successUrl: string; cancelUrl: string }) => ({
+  ...(opts.customerId ? { customer: opts.customerId } : { customer_email: opts.email }),
+  client_reference_id: opts.userId,
+  success_url: opts.successUrl,
+  cancel_url: opts.cancelUrl,
+  automatic_tax: { enabled: process.env.STRIPE_AUTOMATIC_TAX === "1" ? "true" : "false" },
+  tax_id_collection: { enabled: "true" },
+  billing_address_collection: "required",
+  allow_promotion_codes: "true",
+  locale: "it",
+});
+
+/** Abbonamento mensile a un piano. */
+export async function createSubscriptionCheckout(opts: {
+  userId: string;
+  email: string;
+  customerId?: string | null;
+  planId: string;
+  planName: string;
+  amountCents: number;
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<CheckoutSession> {
+  return stripe<CheckoutSession>("/checkout/sessions", "POST", {
+    mode: "subscription",
+    ...common(opts),
+    line_items: {
+      0: {
+        quantity: 1,
+        price_data: {
+          currency: "eur",
+          unit_amount: opts.amountCents,
+          recurring: { interval: "month" },
+          product_data: { name: `Yeppo ${opts.planName}` },
+        },
+      },
+    },
+    subscription_data: { metadata: { user_id: opts.userId, plan: opts.planId } },
+    metadata: { user_id: opts.userId, plan: opts.planId, kind: "subscription" },
+  });
+}
+
+/** Acquisto singolo (sessioni extra). */
 export async function createCheckout(opts: {
   userId: string;
   email: string;
+  customerId?: string | null;
   planId: string;
   planName: string;
   amountCents: number;
@@ -50,30 +104,45 @@ export async function createCheckout(opts: {
 }): Promise<CheckoutSession> {
   return stripe<CheckoutSession>("/checkout/sessions", "POST", {
     mode: "payment",
-    customer_email: opts.email,
-    client_reference_id: opts.userId,
-    success_url: opts.successUrl,
-    cancel_url: opts.cancelUrl,
-    automatic_tax: { enabled: process.env.STRIPE_AUTOMATIC_TAX === "1" ? "true" : "false" },
-    tax_id_collection: { enabled: "true" },
-    billing_address_collection: "required",
+    ...common(opts),
     invoice_creation: { enabled: "true" },
     line_items: {
       0: {
         quantity: 1,
-        price_data: {
-          currency: "eur",
-          unit_amount: opts.amountCents,
-          product_data: { name: `Yeppo ${opts.planName} – ${opts.credits} sessioni` },
-        },
+        price_data: { currency: "eur", unit_amount: opts.amountCents, product_data: { name: opts.planName } },
       },
     },
-    metadata: { user_id: opts.userId, plan: opts.planId, credits: opts.credits },
+    metadata: { user_id: opts.userId, plan: opts.planId, credits: opts.credits, kind: "payment" },
   });
 }
 
 export async function getCheckout(id: string): Promise<CheckoutSession> {
   return stripe<CheckoutSession>(`/checkout/sessions/${encodeURIComponent(id)}`, "GET");
+}
+
+export type Subscription = {
+  id: string;
+  status: string;
+  customer: string;
+  cancel_at_period_end?: boolean;
+  current_period_end?: number;
+  metadata?: Record<string, string>;
+  items?: { data: { current_period_end?: number }[] };
+};
+
+export async function getSubscription(id: string): Promise<Subscription> {
+  return stripe<Subscription>(`/subscriptions/${encodeURIComponent(id)}`, "GET");
+}
+
+/** Fine del periodo pagato (Stripe la espone sull'abbonamento o sulle sue voci, a seconda della versione). */
+export function periodEnd(sub: Subscription): string | null {
+  const t = sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end;
+  return t ? new Date(t * 1000).toISOString() : null;
+}
+
+/** Portale clienti di Stripe: cambio carta, fatture, disdetta. */
+export async function createPortal(customerId: string, returnUrl: string): Promise<{ url: string }> {
+  return stripe<{ url: string }>("/billing_portal/sessions", "POST", { customer: customerId, return_url: returnUrl });
 }
 
 /** Verifica la firma "Stripe-Signature" del webhook (tolleranza 5 minuti). */

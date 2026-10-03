@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { getConnection, metaConfigured } from "@/lib/instagram";
-import { isInstagramPost, RADAR_RUNS_PER_DAY, readProfile } from "@/lib/radar";
+import { FREE_RADAR_RUNS, radarAllowance } from "@/lib/plans";
+import { isInstagramPost, readProfile } from "@/lib/radar";
 import { getCurrentUser } from "@/lib/supabase-auth";
 import RadarView, { type RadarItem } from "./radar-view";
 
@@ -23,7 +24,7 @@ export default async function RadarPage({ searchParams }: Props) {
   const { ig, ig_error } = await searchParams;
   const user = (await getCurrentUser())!;
   const [{ data: account }, { data: items }, conn] = await Promise.all([
-    db().from("accounts").select("radar_profile, radar_last_run_at, company_offer, radar_runs_day, radar_runs_count").eq("user_id", user.id).single(),
+    db().from("accounts").select("radar_profile, radar_last_run_at, company_offer, radar_runs_day, radar_runs_count, radar_free_runs_left, unlimited, plan, plan_status").eq("user_id", user.id).single(),
     db()
       .from("radar_items")
       .select("id, url, platform, signal, author, company, posted, excerpt, why, intent, status, reply, likes, comments, created_at")
@@ -33,6 +34,13 @@ export default async function RadarPage({ searchParams }: Props) {
       .limit(150),
     getConnection(user.id),
   ]);
+
+  const allowance = radarAllowance({ unlimited: Boolean(account?.unlimited), plan: String(account?.plan ?? "free"), plan_status: account?.plan_status ?? null });
+  const trial = !("daily" in allowance);
+  const runsPerDay = "daily" in allowance ? allowance.daily : FREE_RADAR_RUNS;
+  const runsLeft = trial
+    ? Number(account?.radar_free_runs_left ?? 0)
+    : runsPerDay - (account?.radar_runs_day === todayRome() ? Number(account?.radar_runs_count ?? 0) : 0);
 
   return (
     <div className="space-y-8">
@@ -48,8 +56,9 @@ export default async function RadarPage({ searchParams }: Props) {
       <RadarView
         profile={readProfile(account?.radar_profile)}
         lastRun={account?.radar_last_run_at ?? null}
-        runsLeft={RADAR_RUNS_PER_DAY - (account?.radar_runs_day === todayRome() ? Number(account?.radar_runs_count ?? 0) : 0)}
-        runsPerDay={RADAR_RUNS_PER_DAY}
+        runsLeft={runsLeft}
+        runsPerDay={runsPerDay}
+        trial={trial}
         hasOffer={Boolean(account?.company_offer)}
         instagram={conn ? { username: conn.ig_username, expiringSoon: expiringSoon(conn.token_expires_at) } : null}
         metaReady={metaConfigured()}
