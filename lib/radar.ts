@@ -107,19 +107,19 @@ export function isSocialPost(url: string): boolean {
 
 export const RADAR_SIGNALS = [
   {
-    signal: "richiesta",
+    signal: "persona",
     ask: (p: RadarProfile, topics: string) =>
-      `SOLO post pubblicati su ${socialSources(p)} (NON siti aziendali, NON articoli, NON blog) in cui aziende, founder o professionisti di ${p.sectors.join(", ")} chiedono consigli, fornitori, tool o agenzie, o raccontano problemi su: ${topics}`,
-  },
-  {
-    signal: "lavoro",
-    ask: (p: RadarProfile, topics: string) =>
-      `SOLO post LinkedIn (linkedin.com/posts o linkedin.com/jobs/view) di aziende di ${p.sectors.join(", ")} che annunciano di cercare persone ("stiamo assumendo", "cerchiamo") per occuparsi di: ${topics}`,
+      `SOLO post pubblicati su ${socialSources(p)} (NON siti aziendali, NON articoli) scritti da ${p.roles.join(", ") || "founder, titolari e responsabili marketing"} di aziende di ${p.sectors.join(", ")}: post in cui parlano della loro azienda, dei clienti, delle vendite online, del marketing o di: ${topics}. Sono post su cui un commento competente farebbe notare chi lo scrive`,
   },
   {
     signal: "lancio",
     ask: (p: RadarProfile) =>
-      `SOLO post pubblicati su ${socialSources(p)} (NON siti aziendali, NON articoli di giornale) in cui aziende o founder di ${p.sectors.join(", ")} annunciano un lancio: nuovo brand, nuovo shop online, nuova linea, finanziamento o rebranding`,
+      `SOLO post pubblicati su ${socialSources(p)} (NON siti aziendali, NON articoli di giornale) in cui aziende di ${p.sectors.join(", ")} annunciano novità: nuovo prodotto o linea, nuovo shop online, collaborazioni, eventi, finanziamenti, assunzioni o rebranding`,
+  },
+  {
+    signal: "richiesta",
+    ask: (p: RadarProfile, topics: string) =>
+      `SOLO post e discussioni su ${socialSources(p)} (gruppi, community, thread) in cui persone o aziende del settore ${p.sectors.join(", ")} fanno domande, chiedono consigli o raccontano problemi su: ${topics}`,
   },
 ];
 
@@ -133,8 +133,8 @@ async function searchSignal(
   debug?: (info: Record<string, unknown>) => void,
 ): Promise<RadarFinding[]> {
   const prompt = `Cerca ${what}.
-Chi cerca vende: "${offer}". Il campo why deve spiegare perché QUESTA offerta è utile a loro, in concreto. Paese: ${p.country || "Italia"}. Solo contenuti degli ultimi 30 giorni.
-Per ogni risultato trovato nella ricerca (massimo 5, i più recenti prima) dai: url (copia il link del risultato di ricerca), platform, author, company,
+Chi cerca vende: "${offer}". Il campo why deve spiegare perché QUESTA offerta è utile a loro, in concreto. Paese: ${p.country || "Italia"}. Preferisci i contenuti degli ultimi 30 giorni (al massimo 60).
+Per ogni risultato trovato nella ricerca (massimo 8, i più recenti prima) dai: url (copia il link del risultato di ricerca), platform, author, company,
 date, excerpt (cosa dice, 1-2 frasi fedeli), why (perché è un'occasione commerciale, 1 frase), intent (3 = cerca proprio questo, 2 = bisogno chiaro, 1 = debole).
 Mai inventare. Rispondi SOLO con JSON {"items":[...]} (vuoto se non trovi nulla).`;
   const t0 = Date.now();
@@ -200,10 +200,9 @@ export async function scanRadar(
     .sort((a, b) => b.intent - a.intent);
 }
 
-/** Con piattaforme scelte: gli annunci di assunzione sono cercati solo su LinkedIn. Nessuna scelta = tutto. */
+/** Almeno una piattaforma social scelta (o nessuna = tutte). */
 export function signalEnabled(signal: string, p: RadarProfile): boolean {
   if (p.platforms.length === 0) return true;
-  if (signal === "lavoro") return p.platforms.includes("linkedin");
   return p.platforms.some((x) => SOCIAL[x]);
 }
 

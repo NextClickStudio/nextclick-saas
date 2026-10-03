@@ -10,7 +10,7 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   return handle(async () => {
     const user = await requireUser();
-    const { signal } = await readBody(request, z.object({ signal: z.enum(["richiesta", "lavoro", "lancio"]) }));
+    const { signal } = await readBody(request, z.object({ signal: z.enum(["persona", "lancio", "richiesta"]) }));
     const added = await runRadarSignal(user.id, signal);
     await db().from("accounts").update({ radar_last_run_at: new Date().toISOString() }).eq("user_id", user.id);
     return { added };

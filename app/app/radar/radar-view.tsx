@@ -29,11 +29,12 @@ export type RadarItem = {
 const SIGNAL_LABEL: Record<string, string> = {
   richiesta: "💬 Richiesta / discussione",
   discussione: "💬 Discussione",
+  persona: "👤 Post di chi decide",
   lavoro: "💼 Stanno assumendo",
-  lancio: "🚀 Lancio / novità",
+  lancio: "🚀 Novità del brand",
 };
 
-const SCANS = ["richiesta", "lavoro", "lancio"] as const;
+const SCANS = ["persona", "lancio", "richiesta"] as const;
 
 export default function RadarView({
   profile,
@@ -155,7 +156,7 @@ export default function RadarView({
 function RadarCard({ item }: { item: RadarItem }) {
   const router = useRouter();
   const [reply, setReply] = useState(item.reply ?? "");
-  const [mode, setMode] = useState<"commento" | "messaggio">(item.signal === "lavoro" || item.signal === "lancio" ? "messaggio" : "commento");
+  const [mode, setMode] = useState<"commento" | "messaggio">("commento");
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
