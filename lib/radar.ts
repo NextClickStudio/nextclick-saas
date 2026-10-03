@@ -79,6 +79,62 @@ async function resolveSource(uri: string): Promise<string | null> {
   }
 }
 
+const SIGNALS = [
+  {
+    signal: "richiesta",
+    ask: (p: RadarProfile, topics: string) =>
+      `post o discussioni pubbliche (LinkedIn, gruppi Facebook, Reddit, forum) in cui aziende o professionisti di ${p.sectors.join(", ")} chiedono consigli, fornitori, tool o agenzie, o lamentano problemi su: ${topics}`,
+  },
+  {
+    signal: "lavoro",
+    ask: (p: RadarProfile, topics: string) =>
+      `annunci di lavoro (LinkedIn Jobs, Indeed, InfoJobs, siti aziendali) di aziende di ${p.sectors.join(", ")} che cercano figure che si occuperebbero di: ${topics}`,
+  },
+  {
+    signal: "lancio",
+    ask: (p: RadarProfile) =>
+      `notizie e post su aziende di ${p.sectors.join(", ")} che hanno appena lanciato un brand, uno shop online, una nuova linea, ricevuto un finanziamento o fatto un rebranding`,
+  },
+];
+
+/** Una ricerca Google mirata (breve, così resta veloce). */
+async function searchSignal(
+  ai: GoogleGenAI,
+  what: string,
+  signal: string,
+  p: RadarProfile,
+  debug?: (info: Record<string, unknown>) => void,
+): Promise<RadarFinding[]> {
+  const prompt = `Cerca ${what}. Paese: ${p.country || "Italia"}. Solo contenuti degli ultimi 30 giorni.
+Per ogni risultato trovato nella ricerca (massimo 5, i più recenti prima) dai: url (indirizzo esatto della pagina), platform, author, company,
+date, excerpt (cosa dice, 1-2 frasi fedeli), why (perché è un'occasione commerciale, 1 frase), intent (3 = cerca proprio questo, 2 = bisogno chiaro, 1 = debole).
+Mai inventare. Rispondi SOLO con JSON {"items":[...]} (vuoto se non trovi nulla).`;
+  const t0 = Date.now();
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: { temperature: 0.2, tools: [{ googleSearch: {} }], httpOptions: { timeout: 42_000 } },
+    });
+    const raw = response.text ?? "";
+    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+    const resolved = (await Promise.all(chunks.map((c) => (c.web?.uri ? resolveSource(c.web.uri) : null)))).filter(
+      (u): u is string => Boolean(u),
+    );
+    const sources = new Set(resolved.map(normalizeUrl));
+    debug?.({ signal, s: (Date.now() - t0) / 1000, chunks: chunks.length, resolved, raw: raw.slice(0, 1500) });
+    const parsed = findingSchema.safeParse(JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1) || "{}"));
+    if (!parsed.success) return [];
+    // solo link che compaiono davvero tra le fonti di Google
+    return parsed.data.items
+      .filter((i) => sources.has(normalizeUrl(i.url)))
+      .map((i) => ({ ...i, signal: i.signal || signal, intent: Math.round(i.intent) }));
+  } catch (err) {
+    debug?.({ signal, s: (Date.now() - t0) / 1000, error: String((err as Error).message).slice(0, 200), status: (err as { status?: number }).status });
+    return [];
+  }
+}
+
 export async function scanRadar(
   input: { profile: RadarProfile; offer: string; exclude: string[] },
   debug?: (info: Record<string, unknown>) => void,
@@ -86,64 +142,17 @@ export async function scanRadar(
   if (!process.env.GEMINI_API_KEY) throw new UserError("Ricerca non disponibile: manca la chiave Gemini.");
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const p = input.profile;
-  const platforms = RADAR_PLATFORMS.filter((x) => p.platforms.length === 0 || p.platforms.includes(x.value));
-  const prompt = `Sei il commerciale di chi vende: "${input.offer}".
-Cerca sul web contenuti PUBBLICATI NEGLI ULTIMI 30 GIORNI (${p.country || "Italia"}) in cui aziende o persone di questi settori:
-${p.sectors.join(", ") || "il target di chi vende"}
-mostrano un bisogno legato a: ${p.topics.join(", ") || input.offer}.
-Ruoli che ci interessano: ${p.roles.join(", ") || "founder, titolari, marketing, e-commerce"}.
-
-Cerca questi segnali, su queste fonti: ${platforms.map((x) => `${x.label} (${x.site})`).join("; ")}.
-- richiesta: chiedono consigli, fornitori, tool o agenzie ("cerchiamo", "consigliatemi", "qualcuno conosce")
-- lavoro: annunci di lavoro per ruoli che risolverebbero quel problema (hanno budget e un buco da coprire)
-- lancio: nuovo brand, nuovo shop online, nuova collezione, finanziamento, rebranding
-- discussione: post in cui lamentano il problema o ne parlano
-
-Per ogni risultato TROVATO NELLA RICERCA (massimo 10, i più recenti e caldi prima):
-url (indirizzo esatto del post/annuncio/articolo, copiato dal risultato), platform, signal (richiesta|lavoro|lancio|discussione),
-author (chi ha scritto, se visibile), company (azienda), date (data o "x giorni fa"), excerpt (cosa dice, 1-3 frasi fedeli),
-why (perché è un'occasione per chi vende, 1 frase), intent (3 = cerca proprio questo, 2 = bisogno chiaro, 1 = segnale debole).
-Mai inventare post o link. Se non trovi nulla: {"items":[]}.
-Rispondi SOLO con JSON: {"items":[{...}]}`;
-
-  let response;
-  try {
-    response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: { temperature: 0.2, tools: [{ googleSearch: {} }], httpOptions: { timeout: 50_000 } },
-    });
-  } catch (err) {
-    const status = (err as { status?: number }).status;
-    debug?.({ error: String((err as Error).message).slice(0, 300), status });
-    if (status === 429) throw new UserError("Limite di ricerche raggiunto: riprova tra qualche minuto.");
-    throw new UserError("Il Radar non è riuscito a cercare ora. Riprova tra poco.");
-  }
-
-  const raw = response.text ?? "";
-  const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
-  const resolved = (await Promise.all(chunks.map((c) => (c.web?.uri ? resolveSource(c.web.uri) : null)))).filter(
-    (u): u is string => Boolean(u),
-  );
-  const sources = new Set(resolved.map(normalizeUrl));
-  debug?.({ chunks: chunks.length, resolved, raw: raw.slice(0, 2500) });
-
-  let parsed;
-  try {
-    parsed = findingSchema.safeParse(JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1) || "{}"));
-  } catch {
-    return [];
-  }
-  if (!parsed.success) return [];
+  const topics = p.topics.join(", ") || input.offer;
+  const wanted = SIGNALS.filter((x) => x.signal !== "lavoro" || p.platforms.length === 0 || p.platforms.includes("lavoro"));
+  const results = (await Promise.all(wanted.map((x) => searchSignal(ai, x.ask(p, topics), x.signal, p, debug)))).flat();
   const excluded = new Set(input.exclude.map(normalizeUrl));
   const seen = new Set<string>();
-  return parsed.data.items
+  return results
     .filter((i) => {
       const n = normalizeUrl(i.url);
-      // solo link che compaiono davvero tra le fonti di Google
-      if (!n || !sources.has(n) || excluded.has(n) || seen.has(n)) return false;
+      if (!n || excluded.has(n) || seen.has(n)) return false;
       seen.add(n);
       return true;
     })
-    .map((i) => ({ ...i, intent: Math.round(i.intent) }));
+    .sort((a, b) => b.intent - a.intent);
 }
