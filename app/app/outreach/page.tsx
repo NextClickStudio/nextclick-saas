@@ -18,8 +18,8 @@ export default async function OutreachPage() {
       return { project: p, total: items.length, groups: groupOutreach(items) };
     }),
   );
-  // prima le sessioni con più cose da fare oggi
-  sessions.sort((a, b) => b.groups.today.length - a.groups.today.length);
+  // prima le sessioni con più risposte e follow-up da seguire
+  sessions.sort((a, b) => b.groups.replied.length + b.groups.followup.length - (a.groups.replied.length + a.groups.followup.length));
 
   return (
     <div className="space-y-8">
@@ -48,14 +48,14 @@ export default async function OutreachPage() {
                   <h2 className="truncate font-semibold text-white group-hover:text-[#c4b8ff]">{project.name}</h2>
                   <p className="text-xs text-zinc-500">{project.target_sector} · {total} aziende pronte</p>
                 </div>
-                {groups.today.length > 0 ? <Badge tone="accent">{groups.today.length} da fare oggi</Badge> : <Badge>In pari</Badge>}
+                {groups.fresh.length + groups.followup.length > 0 ? <Badge tone="accent">{groups.fresh.length + groups.followup.length} da seguire</Badge> : <Badge>In pari</Badge>}
               </div>
               <div className="mt-4 grid grid-cols-4 gap-2 text-center">
                 {[
                   { label: "Agganci", value: groups.fresh.length },
                   { label: "Risposte", value: groups.replied.length },
                   { label: "Follow-up", value: groups.followup.length },
-                  { label: "🔥 Caldi", value: groups.hot.length },
+                  { label: "👀 Aperta", value: groups.hot.length },
                 ].map((s) => (
                   <div key={s.label} className="rounded-xl bg-white/[0.03] px-1 py-2">
                     <p className="font-display text-xl font-semibold text-white">{s.value}</p>

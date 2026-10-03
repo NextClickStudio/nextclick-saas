@@ -115,7 +115,7 @@ export default async function DashboardPage() {
               <div>
                 <p className="font-display text-lg font-semibold text-white">Oggi in Outreach</p>
                 <p className="text-sm text-zinc-400">
-                  {stats.hot > 0 && `🔥 ${stats.hot} hanno aperto il report`}
+                  {stats.hot > 0 && `👀 ${stats.hot} hanno aperto la proposta`}
                   {stats.hot > 0 && stats.due > 0 && " · "}
                   {stats.due > 0 && `${stats.due} follow-up da inviare`}
                 </p>

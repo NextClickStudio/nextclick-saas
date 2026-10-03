@@ -11,20 +11,19 @@ import { formatDate } from "@/lib/types";
 
 const STEP_NAMES = ["Aggancio", "Follow-up con soluzione", "Ultimo messaggio"];
 
-type View = "oggi" | "nuovi" | "followup" | "caldi" | "tutti";
+type View = "nuovi" | "followup" | "aperta" | "tutti";
 
 export default function OutreachBoard({ items }: { items: OutreachItem[] }) {
   const groups = useMemo(() => groupOutreach(items), [items]);
 
-  const [view, setView] = useState<View>("oggi");
+  const [view, setView] = useState<View>("nuovi");
   const list =
-    view === "oggi" ? groups.today : view === "caldi" ? groups.hot : view === "nuovi" ? groups.fresh : view === "followup" ? groups.followup : items;
+    view === "aperta" ? groups.hot : view === "nuovi" ? groups.fresh : view === "followup" ? groups.followup : items;
 
   const tabs: { id: View; label: string; count: number }[] = [
-    { id: "oggi", label: "Oggi", count: groups.today.length },
     { id: "nuovi", label: "1 · Aggancio", count: groups.fresh.length },
     { id: "followup", label: "2 · Follow-up", count: groups.followup.length },
-    { id: "caldi", label: "🔥 Caldi", count: groups.hot.length },
+    { id: "aperta", label: "👀 Hanno aperto la proposta", count: groups.hot.length },
     { id: "tutti", label: "Tutte", count: items.length },
   ];
 
@@ -35,7 +34,7 @@ export default function OutreachBoard({ items }: { items: OutreachItem[] }) {
           { label: "Agganci da inviare", value: groups.fresh.length },
           { label: "Hanno risposto", value: groups.replied.length },
           { label: "Follow-up in scadenza", value: groups.due.length },
-          { label: "Hanno aperto la soluzione", value: groups.hot.length },
+          { label: "Hanno aperto la proposta", value: groups.hot.length },
         ].map((s) => (
           <div key={s.label} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
             <p className="text-xs text-zinc-500">{s.label}</p>
@@ -63,11 +62,13 @@ export default function OutreachBoard({ items }: { items: OutreachItem[] }) {
           ? "Primo messaggio: solo chi sei e una domanda sul loro problema. Niente link, niente vendita: l'obiettivo è che ti rispondano."
           : view === "followup"
             ? "Aggancio già inviato. Se ti hanno risposto incolla la risposta: l'AI scrive il messaggio con il link alla soluzione personalizzata."
-            : "Prima chi ti ha risposto, poi chi ha aperto la soluzione, i follow-up in scadenza e i nuovi agganci."}
+            : view === "aperta"
+              ? "Hanno aperto la pagina con la tua proposta: è il momento migliore per scrivergli di nuovo."
+              : "Tutte le aziende della sessione."}
       </p>
 
       {list.length === 0 ? (
-        <EmptyState>{view === "oggi" ? "Per oggi hai finito. Torna domani per i follow-up 👌" : "Nessuna azienda in questa vista."}</EmptyState>
+        <EmptyState>{view === "aperta" ? "Ancora nessuno ha aperto la proposta: arriva dopo il follow-up con il link." : "Nessuna azienda in questa vista."}</EmptyState>
       ) : (
         <div className="space-y-4">
           {list.map((item) => (
@@ -161,7 +162,7 @@ function OutreachCard({ item }: { item: OutreachItem }) {
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-semibold text-white">{item.name}</p>
             {item.status === "ha_risposto" && !finished && <Badge tone="green">💬 Ha risposto</Badge>}
-            {item.views > 0 && <Badge tone="amber">🔥 soluzione aperta {item.views}×</Badge>}
+            {item.views > 0 && <Badge tone="amber">👀 proposta aperta {item.views}×</Badge>}
             {due && !finished && <Badge tone="accent">Follow-up oggi</Badge>}
             {item.status === "da_contattare" && <Badge>Nuovo</Badge>}
             {CLOSED_STATUSES.includes(item.status) && <Badge tone="green">{item.status.replace("_", " ")}</Badge>}
