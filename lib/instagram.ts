@@ -173,3 +173,40 @@ export async function hashtagPosts(conn: IgConnection, name: string, limit = 25)
       hashtag: name.replace(/^#/, ""),
     }));
 }
+
+/**
+ * Autore di un post (nome profilo) tramite oEmbed ufficiale di Meta, con il token dell'app.
+ * Restituisce null se Meta non lo fornisce: in quel caso decide solo l'AI sul testo.
+ */
+export async function postAuthor(url: string): Promise<string | null> {
+  try {
+    const { id, secret } = appCreds();
+    const data = await graph<{ author_name?: string }>("/instagram_oembed", {
+      url,
+      access_token: `${id}|${secret}`,
+      omitscript: "true",
+      fields: "author_name",
+    });
+    const name = data.author_name?.replace(/^@/, "").trim().toLowerCase();
+    return name && /^[a-z0-9._]{1,30}$/.test(name) ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+export type IgProfile = { username: string; name: string; biography: string; website: string; followers: number | null };
+
+/** Profilo pubblico di un account Business/Creator; null se è un profilo personale (Instagram non lo espone). */
+export async function profileInfo(conn: IgConnection, username: string): Promise<IgProfile | null> {
+  try {
+    const data = await graph<{ business_discovery?: { username: string; name?: string; biography?: string; website?: string; followers_count?: number } }>(
+      `/${conn.ig_user_id}`,
+      { access_token: conn.access_token, fields: `business_discovery.username(${username}){username,name,biography,website,followers_count}` },
+    );
+    const b = data.business_discovery;
+    return b ? { username: b.username, name: b.name ?? "", biography: b.biography ?? "", website: b.website ?? "", followers: b.followers_count ?? null } : null;
+  } catch (err) {
+    if (err instanceof UserError) throw err; // collegamento scaduto
+    return null;
+  }
+}

@@ -867,9 +867,11 @@ export async function filterInstagramPosts(input: {
 Target: ${input.sectors.join(", ") || "aziende del settore"}. Argomenti: ${input.topics.join(", ") || "-"}.
 
 Ecco post Instagram recenti. Per ognuno decidi se è un'occasione per farsi notare con un commento intelligente o un messaggio:
-- keep true: post di un'azienda/brand/professionista del target (lanci, novità, prodotti, problemi, domande, dietro le quinte) dove un commento
-  competente di chi vende è pertinente; per gli hashtag, solo se sembra pubblicato da un'azienda o da un professionista del settore.
-- keep false: post di privati/consumatori senza legame con un'azienda, spam, giveaway, contenuti non pertinenti, post senza testo.
+- keep true: SOLO post pubblicati da un BRAND o un'AZIENDA del target (lanci, novità, prodotti, promozioni, problemi, dietro le quinte)
+  dove un commento competente di chi vende è pertinente. Per gli hashtag l'autore non è noto: tieni il post solo se il testo fa capire
+  chiaramente che lo pubblica un'azienda (parla dei "nostri prodotti", del negozio/shop, di spedizioni, prezzi, collezioni, link al sito...).
+- keep false: post di persone (privati, consumatori, influencer, creator che parlano di sé o recensiscono), spam, giveaway, contenuti
+  non pertinenti, post senza testo. In dubbio: false.
 - intent: 3 = parla proprio del problema che chi vende risolve, 2 = occasione buona, 1 = debole.
 - why: 1 frase concreta su come agganciarsi a QUESTO post (es. "Lanciano 3 nuovi sieri: chi arriva sul sito non sa quale scegliere").
 
@@ -901,4 +903,37 @@ Rispondi SOLO con JSON {"posts":[{"i":0,"keep":true,"intent":2,"why":"..."}]} co
   return res.posts
     .filter((p) => p.keep && p.i < input.posts.length)
     .map((p) => ({ i: p.i, intent: Math.round(p.intent), why: p.why }));
+}
+
+/** Brand/azienda o persona? Decide l'AI leggendo nome, bio e sito del profilo Instagram. */
+export async function classifyBrandProfiles(
+  profiles: { username: string; name: string; biography: string; website: string; followers: number | null }[],
+): Promise<Set<string>> {
+  if (profiles.length === 0) return new Set();
+  const list = profiles
+    .map((p) => `@${p.username} | nome: ${p.name || "-"} | bio: ${p.biography.replace(/\s+/g, " ").slice(0, 220) || "-"} | sito: ${p.website || "-"} | follower: ${p.followers ?? "?"}`)
+    .join("\n");
+  const prompt = `Per ogni profilo Instagram decidi se è un BRAND o un'AZIENDA (marchio, negozio, e-commerce, laboratorio, farmacia, centro, agenzia, catena)
+oppure una PERSONA (privato, influencer, creator, blogger, professionista che parla di sé, fan page). In dubbio: persona.
+
+${list}
+
+Rispondi SOLO con JSON {"profiles":[{"username":"...","brand":true}]}`;
+  const res = await generateJson({
+    prompt,
+    schema: {
+      type: "object",
+      properties: {
+        profiles: {
+          type: "array",
+          items: { type: "object", properties: { username: { type: "string" }, brand: { type: "boolean" } }, required: ["username", "brand"], additionalProperties: false },
+        },
+      },
+      required: ["profiles"],
+      additionalProperties: false,
+    },
+    validator: z.object({ profiles: z.array(z.object({ username: z.string(), brand: z.boolean() })) }),
+    temperature: 0,
+  });
+  return new Set(res.profiles.filter((p) => p.brand).map((p) => p.username.replace(/^@/, "").toLowerCase()));
 }

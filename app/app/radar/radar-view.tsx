@@ -188,7 +188,7 @@ export default function RadarView({
       ) : (
         <div className="space-y-4">
           {groups[view].map((item) => (
-            <RadarCard key={item.id} item={item} />
+            <RadarCard key={item.id} item={item} followed={profile.igBrands.includes(item.author)} />
           ))}
         </div>
       )}
@@ -227,7 +227,7 @@ function ConnectCard({ metaReady }: { metaReady: boolean }) {
   );
 }
 
-function RadarCard({ item }: { item: RadarItem }) {
+function RadarCard({ item, followed }: { item: RadarItem; followed: boolean }) {
   const router = useRouter();
   const [reply, setReply] = useState(item.reply ?? "");
   const [mode, setMode] = useState<"commento" | "messaggio">("commento");
@@ -266,6 +266,20 @@ function RadarCard({ item }: { item: RadarItem }) {
     }
   }
 
+  const [following, setFollowing] = useState(followed);
+  async function follow() {
+    setLoading("follow");
+    setError("");
+    try {
+      await api("/api/app/radar/follow", { body: { username: item.author } });
+      setFollowing(true);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading("");
+    }
+  }
+
   async function copyAndOpen() {
     setCopied(await copyText(reply));
     setTimeout(() => setCopied(false), 5000);
@@ -284,6 +298,15 @@ function RadarCard({ item }: { item: RadarItem }) {
           <a href={`https://instagram.com/${item.author}`} target="_blank" rel="noopener noreferrer" className="hover:text-[#c4b8ff]">@{item.author}</a>
         ) : (
           item.company || host
+        )}
+        {item.author && item.signal === "hashtag" && (
+          following ? (
+            <span className="ml-2 text-xs font-normal text-emerald-300">✓ segui già</span>
+          ) : (
+            <button className="ml-2 rounded-full border border-accent/40 px-2 py-0.5 text-xs font-normal text-[#c4b8ff] hover:bg-accent-soft" onClick={follow} disabled={loading !== ""}>
+              {loading === "follow" ? "…" : "+ Segui questo brand"}
+            </button>
+          )
         )}
         {(item.likes != null || item.comments != null) && (
           <span className="ml-2 text-xs font-normal text-zinc-500">

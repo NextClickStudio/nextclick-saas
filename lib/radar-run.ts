@@ -1,8 +1,8 @@
 // Esegue il Radar di un utente: legge Instagram, filtra con l'AI, salva le novità e manda la notifica.
 import "server-only";
-import { filterInstagramPosts } from "@/lib/ai";
+import { classifyBrandProfiles, filterInstagramPosts } from "@/lib/ai";
 import { db, UserError } from "@/lib/db";
-import { brandPosts, getConnection, hashtagPosts, type IgPost } from "@/lib/instagram";
+import { brandPosts, getConnection, hashtagPosts, postAuthor, profileInfo, type IgPost, type IgProfile } from "@/lib/instagram";
 import { sendPush } from "@/lib/push";
 import { readProfile } from "@/lib/radar";
 
@@ -49,7 +49,27 @@ export async function runRadarForUser(userId: string, opts: { notify?: boolean }
   // 3) l'AI tiene solo le occasioni vere
   const offer = account.company_offer || profile.topics.join(", ");
   const kept = await filterInstagramPosts({ offer, sectors: profile.sectors, topics: profile.topics, posts });
-  const rows = kept.map((k) => {
+  // 4) post da hashtag: scopro l'autore e tengo solo i profili di brand/aziende (niente persone)
+  const fromHashtag = kept.filter((k) => posts[k.i].source === "hashtag").slice(0, 25);
+  const authors = new Map<number, string>();
+  await Promise.all(
+    fromHashtag.map(async (k) => {
+      const a = await postAuthor(posts[k.i].url);
+      if (a) authors.set(k.i, a);
+    }),
+  );
+  const usernames = [...new Set(authors.values())];
+  const profiles = (await Promise.all(usernames.map((u) => profileInfo(conn, u)))).filter((p): p is IgProfile => p !== null);
+  const brands = await classifyBrandProfiles(profiles).catch(() => new Set<string>());
+  const final = kept.filter((k) => {
+    if (posts[k.i].source !== "hashtag") return true;
+    const a = authors.get(k.i);
+    if (!a) return k.intent >= 2; // autore non disponibile: resta solo se l'AI è sicura dal testo
+    return brands.has(a); // profilo personale (nessun profilo pubblico) o persona: scartato
+  });
+  for (const [i, a] of authors) posts[i].author = a;
+
+  const rows = final.map((k) => {
     const p = posts[k.i];
     return {
       user_id: userId,
