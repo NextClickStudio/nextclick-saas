@@ -563,8 +563,8 @@ const CHANNEL_RULES: Record<string, string> = {
   whatsapp: "whatsapp: massimo 300 caratteri, tono da messaggio tra professionisti che si danno del tu.",
   facebook: "facebook (Messenger della pagina): massimo 350 caratteri, tono cordiale.",
   linkedin: "linkedin (nota di collegamento o messaggio): massimo 280 caratteri.",
-  sito: "sito (modulo contatti o chat): massimo 450 caratteri, chiedi di girarlo al titolare o a chi segue marketing/e-commerce.",
-  email: "email: oggetto breve, specifico e in minuscolo, che sembri una domanda tra persone (massimo 50 caratteri, niente clickbait); corpo di massimo 80 parole; firma con nome, ruolo e azienda.",
+  sito: "sito (modulo contatti o chat): massimo 450 caratteri.",
+  email: "email: oggetto breve, specifico e in minuscolo, che sembri una domanda tra persone (massimo 50 caratteri, niente clickbait); corpo di massimo 80 parole; nel primo messaggio firma solo con il nome, dal secondo con nome, ruolo e azienda.",
 };
 
 export async function generateOutreach(input: {
@@ -596,7 +596,9 @@ export async function generateOutreach(input: {
       const r = input.recipients?.[c];
       return r
         ? `- ${c}: arriva a ${r.name} (${r.role}). Salutalo per nome di battesimo ("Ciao ${r.name.split(" ")[0]},") e parlagli come a chi decide.`
-        : `- ${c}: arriva all'account dell'azienda (lo legge chi gestisce i messaggi). Nessun nome; chiedi in modo naturale di girarlo a chi segue il sito/marketing.`;
+        : input.step === 0
+          ? `- ${c}: arriva all'account dell'azienda. Nessun nome e NON chiedere di girarlo a nessuno (farebbe capire che vuoi vendere).`
+          : `- ${c}: arriva all'account dell'azienda (lo legge chi gestisce i messaggi). Nessun nome; chiedi in modo naturale di girarlo a chi segue il sito/marketing.`;
     })
     .join("\n");
 
@@ -605,21 +607,25 @@ export async function generateOutreach(input: {
 
   const stepText =
     input.step === 0
-      ? `AGGANCIO (primo messaggio). Obiettivo: ottenere una risposta, NON vendere e NON mandare nulla.
-- hook (prima riga): saluto + chi sei in mezza frase, in modo naturale (es. "Ciao Giulia, sono Carlo, lavoro con brand e-commerce del beauty.").
-  Se il messaggio va a una persona, salutala per nome di battesimo.
-- body: UNA domanda personalizzata su ${input.companyName} che fa emergere il problema più forte trovato nel loro sito,
-  in modo che se lo chiedano davvero (curiosità o un filo di preoccupazione). Deve essere coerente con la soluzione che verrà proposta dopo
-  (${input.senderOffer || input.productDescription}), ma NON nominarla, NON dire cosa vendi, NON offrire nulla.
-  Puoi aggiungere prima della domanda UNA osservazione concreta e specifica sul loro sito (cosa hai notato), mai generica.
-  Esempi di TONO (non copiarli): "Ho visto che sulle schede prodotto non c'è modo di capire quale crema fa per la propria pelle: vi capita
-  che i clienti vi scrivano per chiederlo?" / "Curiosità: quanti carrelli vi si fermano sulla pagina di checkout?"
-- VIETATO in questo messaggio: link, report, analisi, classifiche, punteggi, "ho preparato", "posso mostrarti", call, prezzi, offerte.
-  Chiudi con la domanda. Deve sembrare un messaggio di una persona curiosa del settore, non di un venditore.`
+      ? `AGGANCIO (primo messaggio). Obiettivo: farli rispondere. Deve sembrare il messaggio di una persona qualunque che ha notato
+un problema usando il loro sito, NON di qualcuno che vende.
+- hook (prima riga): solo saluto e nome, niente ruolo, niente azienda, niente "mi occupo di" (es. "Ciao Giulia, sono ${input.senderName.split(" ")[0] || "Carlo"}.").
+  Se il messaggio va a una persona, salutala per nome di battesimo; altrimenti "Ciao, sono ...".
+- body: racconta in 1-2 frasi, dal punto di vista di un cliente, cosa succede sul loro sito a causa del problema più forte trovato:
+  "ho fatto un giro sul vostro sito come farebbe una cliente / mi sono messo nei panni di chi compra" + il momento concreto in cui ci si blocca
+  (basato SOLO sui problemi trovati qui sotto, con dettagli specifici del loro sito). Poi UNA domanda che li fa preoccupare o incuriosire
+  sul problema (es. se succede spesso, se lo sapevano, quanti clienti perdono lì).
+- NON fingere di essere un cliente reale e non inventare acquisti, ordini o esigenze personali (es. "ho la pelle mista"): racconti un'esperienza
+  di navigazione, non una storia falsa.
+- VIETATO: chi sei professionalmente, cosa fai o vendi, soluzioni, consigli, link, report, analisi, classifiche, punteggi, "ho preparato",
+  "posso mostrarti", call, prezzi. Chiudi con la domanda.
+  Esempio di TONO (non copiarlo): "Ciao Giulia, sono Carlo. Ieri ho fatto un giro su BellaDerma come farebbe una cliente: ho aperto quattro creme
+  viso e dopo un po' non avevo capito quale fosse quella giusta per me, così ho chiuso. Vi capita di vedere tanti carrelli lasciati a metà?"`
       : input.step === 1
         ? `FOLLOW-UP CON LA SOLUZIONE (secondo messaggio). hook = stringa vuota.
 ${reply ? `L'azienda ha risposto così al primo messaggio: """${reply.slice(0, 1200)}""". Rispondi in modo naturale a quello che hanno scritto (prima riga), poi collega la loro risposta al problema.` : "L'azienda non ha ancora risposto al primo messaggio: riprendi la domanda fatta senza ripeterla parola per parola (es. \"Ti riscrivo per la domanda sul...\")."}
 - Collega al problema sollevato nel primo messaggio (vedi "Messaggi già inviati") e mantieni la stessa linea.
+- Ora, e solo ora, di' chi sei in mezza frase e perché te ne sei accorto (es. "Ti dico perché te lo chiedevo: lavoro proprio su questo con ..."): ${who || "il mittente"}.
 - Spiega in 1 frase che hai preparato per loro una pagina con come risolverlo, personalizzata sul loro sito, e metti il link.
 - Puoi accennare in mezza frase cosa fai tu (${input.senderOffer || input.productDescription}), senza tono da pubblicità.
 - Chiudi proponendo con leggerezza di sentirvi 15 minuti${input.bookingUrl ? ` (link per prenotare: ${input.bookingUrl})` : ""} o di usare il pulsante nella pagina.`
@@ -629,7 +635,7 @@ ${reply ? `L'azienda ha risposto così al primo messaggio: """${reply.slice(0, 1
 Devono sembrare scritti a mano da una persona vera, dal telefono: frasi corte, parole semplici, zero gergo da agenzia.
 
 Chi scrive: ${who || "il mittente"}.
-Cosa offre chi scrive (solo per essere coerente; nel primo messaggio NON va mai nominato): ${input.senderOffer || input.productDescription}
+Cosa offre chi scrive (solo per essere coerente; nel primo messaggio NON va mai nominato né fatto intuire): ${input.senderOffer || input.productDescription}
 ${input.senderWebsite ? `Sito di chi scrive (solo nella firma dell'email, e solo dal secondo messaggio): ${input.senderWebsite}` : ""}
 
 Cosa abbiamo visto sul loro sito (usalo per essere specifico, senza citare punteggi o classifiche nel primo messaggio):
