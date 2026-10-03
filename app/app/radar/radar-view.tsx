@@ -74,8 +74,18 @@ export default function RadarView({
     setScanMsg("");
     setScanning(true);
     try {
-      const res = await api<{ added: number }>("/api/app/radar/scan", { body: {} });
-      setScanMsg(res.added > 0 ? `Trovati ${res.added} nuovi post da commentare.` : "Nessun post nuovo per ora: i brand non hanno pubblicato o non c'era nulla di pertinente.");
+      const res = await api<{ added: number; read: number; hashtagChecked: number; authorsFound: number; droppedPeople: number; droppedUnknown: number }>(
+        "/api/app/radar/scan",
+        { body: {} },
+      );
+      const details = [
+        `${res.read} post nuovi letti`,
+        res.hashtagChecked > 0 && `${res.droppedPeople} di persone scartati`,
+        res.droppedUnknown > 0 && `${res.droppedUnknown} scartati perché l'autore non è verificabile`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      setScanMsg(`${res.added > 0 ? `Trovati ${res.added} nuovi post di brand da commentare.` : "Nessun post nuovo di brand per ora."} (${details})`);
       setView("nuovo");
       router.refresh();
     } catch (err) {

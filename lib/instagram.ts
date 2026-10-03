@@ -181,15 +181,23 @@ export async function hashtagPosts(conn: IgConnection, name: string, limit = 25)
 export async function postAuthor(url: string): Promise<string | null> {
   try {
     const { id, secret } = appCreds();
-    const data = await graph<{ author_name?: string }>("/instagram_oembed", {
+    const data = await graph<{ author_name?: string; html?: string }>("/instagram_oembed", {
       url,
       access_token: `${id}|${secret}`,
       omitscript: "true",
-      fields: "author_name",
     });
-    const name = data.author_name?.replace(/^@/, "").trim().toLowerCase();
-    return name && /^[a-z0-9._]{1,30}$/.test(name) ? name : null;
-  } catch {
+    const clean = (v?: string | null) => {
+      const n = v?.replace(/^@/, "").trim().toLowerCase();
+      return n && /^[a-z0-9._]{1,30}$/.test(n) ? n : null;
+    };
+    // a volte Meta non dà author_name: lo ricavo dall'HTML dell'anteprima ("(@nomeprofilo)" o link al profilo)
+    const html = data.html ?? "";
+    const fromHtml =
+      html.match(/\(@([A-Za-z0-9._]{1,30})\)/)?.[1] ??
+      html.match(/instagram\.com\/(?!p\/|reel\/|tv\/|explore\/)([A-Za-z0-9._]{1,30})\/?["?]/)?.[1];
+    return clean(data.author_name) ?? clean(fromHtml);
+  } catch (err) {
+    console.error("oEmbed Instagram", err instanceof Error ? err.message.slice(0, 200) : err);
     return null;
   }
 }

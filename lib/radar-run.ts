@@ -8,7 +8,14 @@ import { readProfile } from "@/lib/radar";
 
 const MAX_AGE_DAYS = 7;
 
+export type RadarStats = { added: number; read: number; hashtagChecked: number; authorsFound: number; droppedPeople: number; droppedUnknown: number };
+
 export async function runRadarForUser(userId: string, opts: { notify?: boolean } = {}): Promise<number> {
+  return (await runRadar(userId, opts)).added;
+}
+
+export async function runRadar(userId: string, opts: { notify?: boolean } = {}): Promise<RadarStats> {
+  const stats: RadarStats = { added: 0, read: 0, hashtagChecked: 0, authorsFound: 0, droppedPeople: 0, droppedUnknown: 0 };
   const [{ data: account, error }, conn] = await Promise.all([
     db().from("accounts").select("radar_profile, company_offer").eq("user_id", userId).single(),
     getConnection(userId),
@@ -34,6 +41,7 @@ export async function runRadarForUser(userId: string, opts: { notify?: boolean }
     .filter((p) => !p.timestamp || new Date(p.timestamp).getTime() >= since)
     .filter((p) => !seen.has(p.url) && seen.add(p.url));
   if (posts.length === 0 && authError?.status === "rejected") throw authError.reason;
+  stats.read = posts.length;
 
   // 2) niente doppioni: tolgo i post già nel Radar
   if (posts.length > 0) {
@@ -43,7 +51,7 @@ export async function runRadarForUser(userId: string, opts: { notify?: boolean }
   }
   if (posts.length === 0) {
     await db().from("accounts").update({ radar_last_run_at: new Date().toISOString() }).eq("user_id", userId);
-    return 0;
+    return stats;
   }
 
   // 3) l'AI tiene solo le occasioni vere
@@ -61,11 +69,22 @@ export async function runRadarForUser(userId: string, opts: { notify?: boolean }
   const usernames = [...new Set(authors.values())];
   const profiles = (await Promise.all(usernames.map((u) => profileInfo(conn, u)))).filter((p): p is IgProfile => p !== null);
   const brands = await classifyBrandProfiles(profiles).catch(() => new Set<string>());
+  stats.hashtagChecked = fromHashtag.length;
+  stats.authorsFound = authors.size;
   const final = kept.filter((k) => {
     if (posts[k.i].source !== "hashtag") return true;
     const a = authors.get(k.i);
-    if (!a) return k.intent >= 2; // autore non disponibile: resta solo se l'AI è sicura dal testo
-    return brands.has(a); // profilo personale (nessun profilo pubblico) o persona: scartato
+    // autore non verificabile: scartato (vogliamo solo brand certi)
+    if (!a) {
+      stats.droppedUnknown++;
+      return false;
+    }
+    // profilo personale (Instagram non lo espone) o persona/creator: scartato
+    if (!brands.has(a)) {
+      stats.droppedPeople++;
+      return false;
+    }
+    return true;
   });
   for (const [i, a] of authors) posts[i].author = a;
 
@@ -99,5 +118,6 @@ export async function runRadarForUser(userId: string, opts: { notify?: boolean }
       body: "Brand del tuo target hanno appena pubblicato. Commenta per primo e fatti notare.",
     });
   }
-  return added;
+  stats.added = added;
+  return stats;
 }
