@@ -7,6 +7,7 @@ export async function GET(request: Request) {
   const q = new URL(request.url).searchParams;
   if (q.get("t") !== "5154c4a27ab882c58d5179eda179aeb6") return new Response("Not found", { status: 404 });
   const t0 = Date.now();
+  const steps: Record<string, unknown>[] = [];
   const signal = (q.get("s") || "richiesta") as "richiesta" | "lavoro" | "lancio";
   try {
     const items = await searchRadarSignal(
@@ -19,8 +20,9 @@ export async function GET(request: Request) {
         country: "Italia",
       },
       "Sistema AI che crea una skincare routine personalizzata e consiglia i prodotti giusti dell'e-commerce",
+      (i) => steps.push(i),
     );
-    return Response.json({ s: (Date.now() - t0) / 1000, items });
+    return Response.json({ s: (Date.now() - t0) / 1000, items, steps });
   } catch (e) {
     return Response.json({ s: (Date.now() - t0) / 1000, error: (e as Error).message });
   }

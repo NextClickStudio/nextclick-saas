@@ -168,6 +168,7 @@ Mai inventare. Rispondi SOLO con JSON {"items":[...]} (vuoto se non trovi nulla)
         return sources.has(normalizeUrl(i.url)) ? i : null;
       }),
     );
+    debug?.({ checked: checked.map((i) => i?.url ?? null) });
     return checked
       .filter((i): i is NonNullable<typeof i> => i !== null && isSocialPost(i.url))
       .map((i) => ({ ...i, signal: i.signal || signal, intent: Math.round(i.intent) }));
@@ -209,12 +210,17 @@ export function signalEnabled(signal: string, p: RadarProfile): boolean {
 export type RadarSignal = (typeof RADAR_SIGNALS)[number]["signal"];
 
 /** Una sola ricerca (un tipo di segnale): così ogni chiamata resta sotto il minuto. */
-export async function searchRadarSignal(signal: RadarSignal, profile: RadarProfile, offer: string): Promise<RadarFinding[]> {
+export async function searchRadarSignal(
+  signal: RadarSignal,
+  profile: RadarProfile,
+  offer: string,
+  debug?: (info: Record<string, unknown>) => void,
+): Promise<RadarFinding[]> {
   if (!process.env.GEMINI_API_KEY) throw new UserError("Ricerca non disponibile: manca la chiave Gemini.");
   const def = RADAR_SIGNALS.find((x) => x.signal === signal)!;
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   const topics = profile.topics.join(", ") || offer;
-  return (await searchSignal(ai, def.ask(profile, topics), signal, profile, offer)).sort((a, b) => b.intent - a.intent);
+  return (await searchSignal(ai, def.ask(profile, topics), signal, profile, offer, debug)).sort((a, b) => b.intent - a.intent);
 }
 
 /** Profilo letto dal database, con valori sicuri. */
