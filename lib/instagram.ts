@@ -178,6 +178,8 @@ export async function hashtagPosts(conn: IgConnection, name: string, limit = 25)
  * Autore di un post (nome profilo) tramite oEmbed ufficiale di Meta, con il token dell'app.
  * Restituisce null se Meta non lo fornisce: in quel caso decide solo l'AI sul testo.
  */
+export const lastOembedErrors: string[] = [];
+
 export async function postAuthor(url: string): Promise<string | null> {
   try {
     const { id, secret } = appCreds();
@@ -197,7 +199,9 @@ export async function postAuthor(url: string): Promise<string | null> {
       html.match(/instagram\.com\/(?!p\/|reel\/|tv\/|explore\/)([A-Za-z0-9._]{1,30})\/?["?]/)?.[1];
     return clean(data.author_name) ?? clean(fromHtml);
   } catch (err) {
-    console.error("oEmbed Instagram", err instanceof Error ? err.message.slice(0, 200) : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("oEmbed Instagram", msg.slice(0, 200));
+    if (lastOembedErrors.length < 3) lastOembedErrors.push(msg.slice(0, 160));
     return null;
   }
 }
@@ -220,6 +224,9 @@ export async function profileInfo(conn: IgConnection, username: string): Promise
 }
 
 /** Profilo + ultimi post di un account Business/Creator in una sola chiamata; null se non esiste o è personale. */
+/** Ultimo motivo per cui una verifica di profilo non è riuscita (per il riepilogo della ricerca). */
+export const lastProfileErrors: string[] = [];
+
 export async function brandWithPosts(conn: IgConnection, username: string, limit = 4): Promise<{ profile: IgProfile; posts: IgPost[] } | null> {
   const handle = username.replace(/^@/, "").trim().toLowerCase();
   if (!/^[a-z0-9._]{1,30}$/.test(handle)) return null;
@@ -248,6 +255,9 @@ export async function brandWithPosts(conn: IgConnection, username: string, limit
     };
   } catch (err) {
     if (err instanceof UserError) throw err;
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`Business Discovery @${handle}`, msg.slice(0, 200));
+    if (lastProfileErrors.length < 6) lastProfileErrors.push(`@${handle}: ${msg.slice(0, 140)}`);
     return null;
   }
 }

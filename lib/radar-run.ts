@@ -2,13 +2,13 @@
 import "server-only";
 import { classifyBrandProfiles, discoverInstagramBrands, filterInstagramPosts } from "@/lib/ai";
 import { db, UserError } from "@/lib/db";
-import { brandPosts, brandWithPosts, getConnection, hashtagPosts, postAuthor, profileInfo, type IgPost, type IgProfile } from "@/lib/instagram";
+import { brandPosts, brandWithPosts, getConnection, hashtagPosts, lastOembedErrors, lastProfileErrors, postAuthor, profileInfo, type IgPost, type IgProfile } from "@/lib/instagram";
 import { sendPush } from "@/lib/push";
 import { MAX_DISCOVERED, readProfile, type RadarProfile } from "@/lib/radar";
 
 const MAX_AGE_DAYS = 7;
 
-export type RadarStats = { added: number; read: number; hashtagChecked: number; authorsFound: number; droppedPeople: number; droppedUnknown: number };
+export type RadarStats = { added: number; read: number; hashtagChecked: number; authorsFound: number; droppedPeople: number; droppedUnknown: number; errors: string[] };
 
 /** Job giornaliero: monitoraggio + scoperta di brand nuovi in parallelo, poi una sola notifica. */
 export async function runRadarForUser(userId: string): Promise<number> {
@@ -25,7 +25,8 @@ export async function runRadarForUser(userId: string): Promise<number> {
 }
 
 export async function runRadar(userId: string): Promise<RadarStats> {
-  const stats: RadarStats = { added: 0, read: 0, hashtagChecked: 0, authorsFound: 0, droppedPeople: 0, droppedUnknown: 0 };
+  const stats: RadarStats = { added: 0, read: 0, hashtagChecked: 0, authorsFound: 0, droppedPeople: 0, droppedUnknown: 0, errors: [] };
+  lastOembedErrors.length = 0;
   const [{ data: account, error }, conn] = await Promise.all([
     db().from("accounts").select("radar_profile, company_offer").eq("user_id", userId).single(),
     getConnection(userId),
@@ -124,17 +125,19 @@ export async function runRadar(userId: string): Promise<RadarStats> {
   }
   await db().from("accounts").update({ radar_last_run_at: new Date().toISOString() }).eq("user_id", userId);
   stats.added = added;
+  stats.errors = [...lastOembedErrors];
   return stats;
 }
 
-export type DiscoveryStats = { added: number; proposed: number; verified: number; brands: number };
+export type DiscoveryStats = { added: number; proposed: number; verified: number; brands: number; sample: string[]; errors: string[] };
 
 /**
  * Scoperta di brand nuovi: l'AI propone profili Instagram del settore, l'API di Instagram verifica che esistano
  * e siano professionali, l'AI tiene solo brand/aziende. I nuovi brand vengono monitorati da qui in avanti.
  */
 export async function runDiscovery(userId: string): Promise<DiscoveryStats> {
-  const stats: DiscoveryStats = { added: 0, proposed: 0, verified: 0, brands: 0 };
+  const stats: DiscoveryStats = { added: 0, proposed: 0, verified: 0, brands: 0, sample: [], errors: [] };
+  lastProfileErrors.length = 0;
   const [{ data: account, error }, conn] = await Promise.all([
     db().from("accounts").select("radar_profile, company_offer").eq("user_id", userId).single(),
     getConnection(userId),
@@ -151,12 +154,14 @@ export async function runDiscovery(userId: string): Promise<DiscoveryStats> {
     (h) => !known.has(h),
   );
   stats.proposed = proposed.length;
+  stats.sample = proposed.slice(0, 8);
 
   // verifica con Instagram: esiste ed è un profilo professionale?
   const checked = (await Promise.all(proposed.slice(0, 25).map((h) => brandWithPosts(conn, h, 4)))).filter(
     (x): x is NonNullable<typeof x> => x !== null,
   );
   stats.verified = checked.length;
+  stats.errors = [...lastProfileErrors];
   // solo brand/aziende (niente persone o creator)
   const brands = await classifyBrandProfiles(checked.map((c) => c.profile)).catch(() => new Set<string>());
   const newBrands = checked.filter((c) => brands.has(c.profile.username.toLowerCase()));

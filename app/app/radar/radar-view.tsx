@@ -71,8 +71,8 @@ export default function RadarView({
   async function scan() {
     setScanMsg("");
     setScanning(true);
-    type Mon = { added: number; read: number; droppedPeople: number; droppedUnknown: number };
-    type Disc = { added: number; proposed: number; verified: number; brands: number };
+    type Mon = { added: number; read: number; hashtagChecked: number; authorsFound: number; droppedPeople: number; droppedUnknown: number; errors: string[] };
+    type Disc = { added: number; proposed: number; verified: number; brands: number; sample: string[]; errors: string[] };
     const [mon, disc] = await Promise.allSettled([
       api<Mon>("/api/app/radar/scan", { body: {} }),
       api<Disc>("/api/app/radar/discover", { body: {} }),
@@ -84,13 +84,17 @@ export default function RadarView({
       parts.push(
         disc.value.brands > 0
           ? `🆕 ${disc.value.brands} brand nuovi scoperti (su ${disc.value.proposed} controllati)`
-          : `nessun brand nuovo verificato (${disc.value.proposed} controllati)`,
+          : `nessun brand nuovo verificato (${disc.value.proposed} proposti, ${disc.value.verified} trovati su Instagram)`,
       );
+      if (disc.value.verified === 0 && disc.value.sample.length) parts.push(`proposti: ${disc.value.sample.map((h) => "@" + h).join(", ")}`);
+      if (disc.value.errors.length) parts.push(`errori Instagram: ${disc.value.errors.join(" | ")}`);
     } else parts.push(`scoperta brand: ${(disc.reason as Error).message}`);
     if (mon.status === "fulfilled") {
       added += mon.value.added;
       if (mon.value.read > 0) parts.push(`${mon.value.read} post letti da brand seguiti e hashtag`);
+      if (mon.value.hashtagChecked > 0) parts.push(`autori trovati ${mon.value.authorsFound}/${mon.value.hashtagChecked} post da hashtag`);
       if (mon.value.droppedPeople + mon.value.droppedUnknown > 0) parts.push(`${mon.value.droppedPeople + mon.value.droppedUnknown} post di persone o autori non verificabili scartati`);
+      if (mon.value.errors.length) parts.push(`errori anteprima: ${mon.value.errors.join(" | ")}`);
     } else parts.push((mon.reason as Error).message);
     setScanMsg(`${added > 0 ? `Trovati ${added} nuovi post di brand da commentare.` : "Nessun post nuovo da commentare per ora."} ${parts.join(" · ")}`);
     setView("nuovo");
