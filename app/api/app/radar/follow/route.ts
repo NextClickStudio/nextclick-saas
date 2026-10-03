@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     const { username } = await readBody(request, z.object({ username: z.string().trim().regex(/^@?[A-Za-z0-9._]{1,30}$/) }));
     const handle = username.replace(/^@/, "").toLowerCase();
     const { data } = await db().from("accounts").select("radar_profile").eq("user_id", user.id).single();
-    const profile = readProfile(data?.radar_profile) ?? { sectors: [], topics: [], igBrands: [], igHashtags: [] };
+    const profile = readProfile(data?.radar_profile) ?? { sectors: [] as string[], topics: [] as string[], igBrands: [] as string[], igHashtags: [] as string[], igDiscovered: [] as string[], igIgnored: [] as string[] };
     if (profile.igBrands.includes(handle)) return { ok: true };
     if (profile.igBrands.length >= MAX_BRANDS) throw new UserError(`Puoi seguire al massimo ${MAX_BRANDS} brand: togline qualcuno dal profilo del Radar.`);
     const { error } = await db().from("accounts").update({ radar_profile: { ...profile, igBrands: [...profile.igBrands, handle] } }).eq("user_id", user.id);

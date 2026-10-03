@@ -1,20 +1,30 @@
 // Esegue il Radar di un utente: legge Instagram, filtra con l'AI, salva le novità e manda la notifica.
 import "server-only";
-import { classifyBrandProfiles, filterInstagramPosts } from "@/lib/ai";
+import { classifyBrandProfiles, discoverInstagramBrands, filterInstagramPosts } from "@/lib/ai";
 import { db, UserError } from "@/lib/db";
-import { brandPosts, getConnection, hashtagPosts, postAuthor, profileInfo, type IgPost, type IgProfile } from "@/lib/instagram";
+import { brandPosts, brandWithPosts, getConnection, hashtagPosts, postAuthor, profileInfo, type IgPost, type IgProfile } from "@/lib/instagram";
 import { sendPush } from "@/lib/push";
-import { readProfile } from "@/lib/radar";
+import { MAX_DISCOVERED, readProfile, type RadarProfile } from "@/lib/radar";
 
 const MAX_AGE_DAYS = 7;
 
 export type RadarStats = { added: number; read: number; hashtagChecked: number; authorsFound: number; droppedPeople: number; droppedUnknown: number };
 
-export async function runRadarForUser(userId: string, opts: { notify?: boolean } = {}): Promise<number> {
-  return (await runRadar(userId, opts)).added;
+/** Job giornaliero: monitoraggio + scoperta di brand nuovi in parallelo, poi una sola notifica. */
+export async function runRadarForUser(userId: string): Promise<number> {
+  const [a, b] = await Promise.allSettled([runRadar(userId), runDiscovery(userId)]);
+  const added = (a.status === "fulfilled" ? a.value.added : 0) + (b.status === "fulfilled" ? b.value.added : 0);
+  const discovered = b.status === "fulfilled" ? b.value.brands : 0;
+  if (added > 0) {
+    await sendPush(userId, {
+      title: `Radar: ${added} ${added === 1 ? "nuovo post" : "nuovi post"} da commentare`,
+      body: discovered > 0 ? `Ho scoperto ${discovered} brand nuovi nel tuo settore. Commenta per primo e fatti notare.` : "Brand del tuo target hanno appena pubblicato. Commenta per primo.",
+    });
+  }
+  return added;
 }
 
-export async function runRadar(userId: string, opts: { notify?: boolean } = {}): Promise<RadarStats> {
+export async function runRadar(userId: string): Promise<RadarStats> {
   const stats: RadarStats = { added: 0, read: 0, hashtagChecked: 0, authorsFound: 0, droppedPeople: 0, droppedUnknown: 0 };
   const [{ data: account, error }, conn] = await Promise.all([
     db().from("accounts").select("radar_profile, company_offer").eq("user_id", userId).single(),
@@ -23,13 +33,14 @@ export async function runRadar(userId: string, opts: { notify?: boolean } = {}):
   if (error) throw error;
   if (!conn) throw new UserError("Collega prima il tuo profilo Instagram.");
   const profile = readProfile(account.radar_profile);
-  if (!profile || (profile.igBrands.length === 0 && profile.igHashtags.length === 0)) {
-    throw new UserError("Aggiungi almeno un brand da seguire o un hashtag nel profilo del Radar.");
-  }
+  if (!profile) throw new UserError("Imposta prima il profilo del Radar.");
+  const ignored = new Set(profile.igIgnored);
+  const followed = profile.igBrands.filter((b) => !ignored.has(b));
+  const discovered = new Set(profile.igDiscovered.filter((b) => !ignored.has(b) && !followed.includes(b)));
 
   // 1) lettura da Instagram (in parallelo; un brand o hashtag che non risponde non blocca gli altri)
   const results = await Promise.allSettled([
-    ...profile.igBrands.map((b) => brandPosts(conn, b)),
+    ...[...followed, ...discovered].map((b) => brandPosts(conn, b, 4)),
     ...profile.igHashtags.map((h) => hashtagPosts(conn, h)),
   ]);
   for (const r of results) if (r.status === "rejected") console.error("Radar Instagram", String(r.reason).slice(0, 200));
@@ -94,7 +105,7 @@ export async function runRadar(userId: string, opts: { notify?: boolean } = {}):
       user_id: userId,
       url: p.url,
       platform: "Instagram",
-      signal: p.source === "brand" ? "brand" : "hashtag",
+      signal: p.source === "hashtag" ? "hashtag" : discovered.has(p.author.toLowerCase()) ? "scoperto" : "brand",
       author: p.author,
       company: p.source === "hashtag" ? `#${p.hashtag}` : "",
       posted: p.timestamp,
@@ -112,12 +123,90 @@ export async function runRadar(userId: string, opts: { notify?: boolean } = {}):
     added = data?.length ?? 0;
   }
   await db().from("accounts").update({ radar_last_run_at: new Date().toISOString() }).eq("user_id", userId);
-  if (added > 0 && opts.notify) {
-    await sendPush(userId, {
-      title: `Radar: ${added} ${added === 1 ? "nuovo post" : "nuovi post"} da commentare`,
-      body: "Brand del tuo target hanno appena pubblicato. Commenta per primo e fatti notare.",
-    });
-  }
   stats.added = added;
+  return stats;
+}
+
+export type DiscoveryStats = { added: number; proposed: number; verified: number; brands: number };
+
+/**
+ * Scoperta di brand nuovi: l'AI propone profili Instagram del settore, l'API di Instagram verifica che esistano
+ * e siano professionali, l'AI tiene solo brand/aziende. I nuovi brand vengono monitorati da qui in avanti.
+ */
+export async function runDiscovery(userId: string): Promise<DiscoveryStats> {
+  const stats: DiscoveryStats = { added: 0, proposed: 0, verified: 0, brands: 0 };
+  const [{ data: account, error }, conn] = await Promise.all([
+    db().from("accounts").select("radar_profile, company_offer").eq("user_id", userId).single(),
+    getConnection(userId),
+  ]);
+  if (error) throw error;
+  if (!conn) throw new UserError("Collega prima il tuo profilo Instagram.");
+  const profile = readProfile(account.radar_profile);
+  if (!profile) throw new UserError("Imposta prima il profilo del Radar.");
+  const offer = account.company_offer || profile.topics.join(", ");
+  if (!offer && profile.sectors.length === 0) throw new UserError("Indica settori e argomenti nel profilo del Radar.");
+
+  const known = new Set([...profile.igBrands, ...profile.igDiscovered, ...profile.igIgnored, conn.ig_username.toLowerCase()]);
+  const proposed = (await discoverInstagramBrands({ offer, sectors: profile.sectors, topics: profile.topics, exclude: [...known], count: 25 })).filter(
+    (h) => !known.has(h),
+  );
+  stats.proposed = proposed.length;
+
+  // verifica con Instagram: esiste ed è un profilo professionale?
+  const checked = (await Promise.all(proposed.slice(0, 25).map((h) => brandWithPosts(conn, h, 4)))).filter(
+    (x): x is NonNullable<typeof x> => x !== null,
+  );
+  stats.verified = checked.length;
+  // solo brand/aziende (niente persone o creator)
+  const brands = await classifyBrandProfiles(checked.map((c) => c.profile)).catch(() => new Set<string>());
+  const newBrands = checked.filter((c) => brands.has(c.profile.username.toLowerCase()));
+  stats.brands = newBrands.length;
+  if (newBrands.length === 0) return stats;
+
+  // i nuovi brand restano nel Radar (i più vecchi escono se si supera il limite)
+  const names = newBrands.map((c) => c.profile.username.toLowerCase());
+  const updated: RadarProfile = { ...profile, igDiscovered: [...profile.igDiscovered, ...names].slice(-MAX_DISCOVERED) };
+  await db().from("accounts").update({ radar_profile: updated }).eq("user_id", userId);
+
+  // i loro post recenti (ultimi 30 giorni), filtrati dall'AI
+  const since = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const posts = newBrands
+    .flatMap((c) => c.posts.slice(0, 2))
+    .filter((p) => !p.timestamp || new Date(p.timestamp).getTime() >= since);
+  if (posts.length === 0) return stats;
+  const { data: existing } = await db().from("radar_items").select("url").eq("user_id", userId).in("url", posts.map((p) => p.url));
+  const seen = new Set((existing ?? []).map((e) => e.url as string));
+  const fresh = posts.filter((p) => !seen.has(p.url));
+  const kept = await filterInstagramPosts({ offer, sectors: profile.sectors, topics: profile.topics, posts: fresh });
+  // almeno un post per ogni brand nuovo: anche se l'AI è severa, il brand scoperto va mostrato
+  const keptIdx = new Map(kept.map((k) => [k.i, k]));
+  const byBrand = new Set<string>();
+  const rows = fresh
+    .map((p, i) => ({ p, k: keptIdx.get(i) }))
+    .filter(({ p, k }) => {
+      if (k) return byBrand.add(p.author) || true;
+      if (byBrand.has(p.author)) return false;
+      byBrand.add(p.author);
+      return true;
+    })
+    .map(({ p, k }) => ({
+      user_id: userId,
+      url: p.url,
+      platform: "Instagram",
+      signal: "scoperto",
+      author: p.author,
+      company: "",
+      posted: p.timestamp,
+      excerpt: p.caption.slice(0, 1200),
+      why: k?.why || "Brand nuovo del tuo settore: commenta i suoi post per farti notare prima di scrivergli.",
+      intent: k?.intent ?? 2,
+      likes: p.likes,
+      comments: p.comments,
+    }));
+  if (rows.length > 0) {
+    const { data, error: insError } = await db().from("radar_items").upsert(rows, { onConflict: "user_id,url", ignoreDuplicates: true }).select("id");
+    if (insError) throw insError;
+    stats.added = data?.length ?? 0;
+  }
   return stats;
 }

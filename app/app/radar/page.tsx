@@ -32,11 +32,11 @@ export default async function RadarPage({ searchParams }: Props) {
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-sm text-zinc-500">Instagram · chi pubblica oggi nel tuo target</p>
+        <p className="text-sm text-zinc-500">Instagram · brand nuovi del tuo settore, ogni giorno</p>
         <h1 className="font-display text-3xl font-semibold tracking-tight text-white">Radar</h1>
         <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-          Ogni mattina Yeppo legge su Instagram i nuovi post dei brand che segui e degli hashtag del tuo settore. L&apos;AI tiene
-          solo quelli dove ha senso farsi notare e ti scrive il commento: tu lo pubblichi e diventi un nome conosciuto prima ancora del DM.
+          Ogni mattina Yeppo scopre su Instagram brand nuovi del tuo settore (verificati: niente persone) e legge i loro ultimi post.
+          L&apos;AI ti scrive il commento: tu lo pubblichi e diventi un nome conosciuto prima ancora del DM.
         </p>
       </div>
       <RadarView

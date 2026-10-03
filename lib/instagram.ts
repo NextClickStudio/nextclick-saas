@@ -218,3 +218,36 @@ export async function profileInfo(conn: IgConnection, username: string): Promise
     return null;
   }
 }
+
+/** Profilo + ultimi post di un account Business/Creator in una sola chiamata; null se non esiste o è personale. */
+export async function brandWithPosts(conn: IgConnection, username: string, limit = 4): Promise<{ profile: IgProfile; posts: IgPost[] } | null> {
+  const handle = username.replace(/^@/, "").trim().toLowerCase();
+  if (!/^[a-z0-9._]{1,30}$/.test(handle)) return null;
+  try {
+    const data = await graph<{
+      business_discovery?: { username: string; name?: string; biography?: string; website?: string; followers_count?: number; media?: { data: Media[] } };
+    }>(`/${conn.ig_user_id}`, {
+      access_token: conn.access_token,
+      fields: `business_discovery.username(${handle}){username,name,biography,website,followers_count,media.limit(${limit}){id,caption,permalink,timestamp,like_count,comments_count}}`,
+    });
+    const b = data.business_discovery;
+    if (!b) return null;
+    return {
+      profile: { username: b.username, name: b.name ?? "", biography: b.biography ?? "", website: b.website ?? "", followers: b.followers_count ?? null },
+      posts: (b.media?.data ?? [])
+        .filter((m) => m.permalink)
+        .map((m) => ({
+          url: m.permalink!,
+          author: b.username,
+          caption: m.caption ?? "",
+          timestamp: m.timestamp ?? "",
+          likes: m.like_count ?? null,
+          comments: m.comments_count ?? null,
+          source: "brand" as const,
+        })),
+    };
+  } catch (err) {
+    if (err instanceof UserError) throw err;
+    return null;
+  }
+}

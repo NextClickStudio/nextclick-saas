@@ -937,3 +937,53 @@ Rispondi SOLO con JSON {"profiles":[{"username":"...","brand":true}]}`;
   });
   return new Set(res.profiles.filter((p) => p.brand).map((p) => p.username.replace(/^@/, "").toLowerCase()));
 }
+
+/**
+ * Propone profili Instagram di brand del target che l'utente non conosce ancora (con ricerca Google se disponibile).
+ * I nomi vengono poi verificati uno per uno con l'API di Instagram: quelli inventati o personali vengono scartati.
+ */
+export async function discoverInstagramBrands(input: { offer: string; sectors: string[]; topics: string[]; exclude: string[]; count: number }): Promise<string[]> {
+  const prompt = `Trova profili Instagram di BRAND e AZIENDE (non persone, non influencer) che potrebbero diventare clienti di chi vende:
+"""${input.offer}"""
+Settori target: ${input.sectors.join(", ") || "il target di chi vende"}. Argomenti: ${input.topics.join(", ") || "-"}. Paese: Italia.
+Preferisci brand piccoli e medi, emergenti o di nicchia (più facili da contattare), con e-commerce o negozio.
+${input.exclude.length ? `ESCLUDI questi profili (già noti): ${input.exclude.slice(0, 150).join(", ")}` : ""}
+Dai ${input.count} nomi profilo Instagram esatti (senza @), uno diverso dall'altro.
+Rispondi SOLO con JSON {"handles":["nomeprofilo1","nomeprofilo2"]}`;
+  const parse = (raw: string) => {
+    try {
+      const data = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)) as { handles?: unknown };
+      return Array.isArray(data.handles)
+        ? data.handles
+            .filter((h): h is string => typeof h === "string")
+            .map((h) => h.replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/.*$/, "").trim().toLowerCase())
+            .filter((h) => /^[a-z0-9._]{2,30}$/.test(h))
+        : [];
+    } catch {
+      return [];
+    }
+  };
+  // 1) con ricerca Google (nomi più aggiornati)
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      gemini ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const res = await gemini.models.generateContent({
+        model: GEMINI_MODELS[0],
+        contents: prompt,
+        config: { temperature: 0.7, tools: [{ googleSearch: {} }], thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }, httpOptions: { timeout: 30_000 } },
+      });
+      const handles = parse(res.text ?? "");
+      if (handles.length >= 5) return [...new Set(handles)];
+    } catch (err) {
+      console.error("Scoperta brand con ricerca", String(err).slice(0, 200));
+    }
+  }
+  // 2) senza ricerca
+  const res = await generateJson({
+    prompt,
+    schema: { type: "object", properties: { handles: { type: "array", items: { type: "string" } } }, required: ["handles"], additionalProperties: false },
+    validator: z.object({ handles: z.array(z.string()) }),
+    temperature: 0.8,
+  });
+  return [...new Set(parse(JSON.stringify(res)))];
+}

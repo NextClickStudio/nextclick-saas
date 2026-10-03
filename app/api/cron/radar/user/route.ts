@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   // segna subito l'esecuzione, così un secondo avvio del job non la ripete
   await db().from("accounts").update({ radar_last_run_at: new Date().toISOString() }).eq("user_id", parsed.data.userId);
   try {
-    return Response.json({ added: await runRadarForUser(parsed.data.userId, { notify: true }) });
+    return Response.json({ added: await runRadarForUser(parsed.data.userId) });
   } catch (err) {
     console.error("Radar utente", err instanceof Error ? err.message : err);
     return Response.json({ error: "failed" }, { status: 500 });

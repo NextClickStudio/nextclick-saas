@@ -29,11 +29,9 @@ export type RadarItem = {
 };
 
 const SIGNAL_LABEL: Record<string, string> = {
-  richiesta: "💬 Richiesta / discussione",
-  discussione: "💬 Discussione",
-  persona: "👤 Post di chi decide",
-  lavoro: "💼 Stanno assumendo",
-  lancio: "🚀 Novità del brand",
+  scoperto: "🆕 Brand scoperto",
+  brand: "⭐ Brand che segui",
+  hashtag: "# Da hashtag",
 };
 
 
@@ -73,26 +71,31 @@ export default function RadarView({
   async function scan() {
     setScanMsg("");
     setScanning(true);
-    try {
-      const res = await api<{ added: number; read: number; hashtagChecked: number; authorsFound: number; droppedPeople: number; droppedUnknown: number }>(
-        "/api/app/radar/scan",
-        { body: {} },
+    type Mon = { added: number; read: number; droppedPeople: number; droppedUnknown: number };
+    type Disc = { added: number; proposed: number; verified: number; brands: number };
+    const [mon, disc] = await Promise.allSettled([
+      api<Mon>("/api/app/radar/scan", { body: {} }),
+      api<Disc>("/api/app/radar/discover", { body: {} }),
+    ]);
+    const parts: string[] = [];
+    let added = 0;
+    if (disc.status === "fulfilled") {
+      added += disc.value.added;
+      parts.push(
+        disc.value.brands > 0
+          ? `🆕 ${disc.value.brands} brand nuovi scoperti (su ${disc.value.proposed} controllati)`
+          : `nessun brand nuovo verificato (${disc.value.proposed} controllati)`,
       );
-      const details = [
-        `${res.read} post nuovi letti`,
-        res.hashtagChecked > 0 && `${res.droppedPeople} di persone scartati`,
-        res.droppedUnknown > 0 && `${res.droppedUnknown} scartati perché l'autore non è verificabile`,
-      ]
-        .filter(Boolean)
-        .join(" · ");
-      setScanMsg(`${res.added > 0 ? `Trovati ${res.added} nuovi post di brand da commentare.` : "Nessun post nuovo di brand per ora."} (${details})`);
-      setView("nuovo");
-      router.refresh();
-    } catch (err) {
-      setScanMsg((err as Error).message);
-    } finally {
-      setScanning(false);
-    }
+    } else parts.push(`scoperta brand: ${(disc.reason as Error).message}`);
+    if (mon.status === "fulfilled") {
+      added += mon.value.added;
+      if (mon.value.read > 0) parts.push(`${mon.value.read} post letti da brand seguiti e hashtag`);
+      if (mon.value.droppedPeople + mon.value.droppedUnknown > 0) parts.push(`${mon.value.droppedPeople + mon.value.droppedUnknown} post di persone o autori non verificabili scartati`);
+    } else parts.push((mon.reason as Error).message);
+    setScanMsg(`${added > 0 ? `Trovati ${added} nuovi post di brand da commentare.` : "Nessun post nuovo da commentare per ora."} ${parts.join(" · ")}`);
+    setView("nuovo");
+    setScanning(false);
+    router.refresh();
   }
 
   async function disconnect() {
@@ -130,7 +133,7 @@ export default function RadarView({
       <div className="space-y-4">
         {banner}
         <EmptyState>
-          <p className="mb-4">Instagram collegato (@{instagram.username}). Ora scegli brand e hashtag da seguire.</p>
+          <p className="mb-4">Instagram collegato (@{instagram.username}). Ora indica il tuo settore: il Radar scoprirà i brand per te.</p>
           <button className={btn.accent} onClick={() => setEditing(true)}>Imposta il Radar</button>
         </EmptyState>
       </div>
@@ -145,6 +148,11 @@ export default function RadarView({
             Collegato come <span className="text-white">@{instagram.username}</span> · segui{" "}
             <span className="text-white">{profile.igBrands.length} brand</span> e{" "}
             <span className="text-white">{profile.igHashtags.length} hashtag</span>
+            {(profile.igDiscovered?.length ?? 0) > 0 && (
+              <>
+                {" "}· <span className="text-white">{profile.igDiscovered!.length} brand scoperti</span>
+              </>
+            )}
           </p>
           <p className="mt-1 text-xs text-zinc-500">
             {lastRun ? `Ultima ricerca ${formatDate(lastRun)}` : "Mai cercato"} · ricerca automatica ogni mattina
@@ -158,7 +166,7 @@ export default function RadarView({
         </div>
         <div className="flex flex-col items-end gap-2">
           <button className={btn.accent} onClick={scan} disabled={scanning}>
-            {scanning ? "Leggo Instagram… (fino a 40 s)" : "🔎 Cerca ora"}
+            {scanning ? "Cerco brand e post… (fino a 50 s)" : "🔎 Cerca brand e post"}
           </button>
           <PushButton />
         </div>
@@ -277,6 +285,17 @@ function RadarCard({ item, followed }: { item: RadarItem; followed: boolean }) {
   }
 
   const [following, setFollowing] = useState(followed);
+  async function ignoreBrand() {
+    if (!confirm(`Non vedere più @${item.author}?`)) return;
+    setLoading("ignore");
+    try {
+      await api("/api/app/radar/ignore", { body: { username: item.author } });
+      router.refresh();
+    } catch (err) {
+      setError((err as Error).message);
+      setLoading("");
+    }
+  }
   async function follow() {
     setLoading("follow");
     setError("");
@@ -309,7 +328,7 @@ function RadarCard({ item, followed }: { item: RadarItem; followed: boolean }) {
         ) : (
           item.company || host
         )}
-        {item.author && item.signal === "hashtag" && (
+        {item.author && (item.signal === "hashtag" || item.signal === "scoperto") && (
           following ? (
             <span className="ml-2 text-xs font-normal text-emerald-300">✓ segui già</span>
           ) : (
@@ -356,7 +375,12 @@ function RadarCard({ item, followed }: { item: RadarItem; followed: boolean }) {
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3 text-sm">
         {item.status !== "risposto" && <button className={btn.ghost} onClick={() => status("risposto")} disabled={loading !== ""}>✓ Ho commentato</button>}
         {item.status === "nuovo" && <button className={btn.ghost} onClick={() => status("salvato")} disabled={loading !== ""}>Salva</button>}
-        <button className={`${btn.ghost} ml-auto text-zinc-500`} onClick={() => status("scartato")} disabled={loading !== ""}>Scarta</button>
+        {item.author && (
+          <button className={`${btn.ghost} ml-auto text-zinc-500`} onClick={ignoreBrand} disabled={loading !== ""}>
+            Non mi interessa questo brand
+          </button>
+        )}
+        <button className={`${btn.ghost} ${item.author ? "" : "ml-auto"} text-zinc-500`} onClick={() => status("scartato")} disabled={loading !== ""}>Scarta post</button>
       </div>
     </div>
   );
@@ -446,8 +470,10 @@ function ProfileForm({ initial, hasOffer, onDone, onCancel }: { initial: RadarPr
     <form onSubmit={save} className="glow-border space-y-5 rounded-3xl bg-panel p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-display text-xl font-semibold text-white">Cosa deve guardare il Radar su Instagram?</h2>
-          <p className="mt-1 text-sm text-zinc-400">Premi Invio dopo ogni voce.</p>
+          <h2 className="font-display text-xl font-semibold text-white">Chi deve scoprire il Radar su Instagram?</h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            Il Radar scopre da solo brand nuovi del tuo settore. Brand e hashtag qui sotto sono facoltativi: servono se ne conosci già qualcuno. Premi Invio dopo ogni voce.
+          </p>
         </div>
         <button type="button" className={btn.secondary} onClick={suggest} disabled={loading !== ""}>
           {loading === "suggest" ? "Ci penso…" : "✨ Compila con l'AI"}
@@ -460,7 +486,7 @@ function ProfileForm({ initial, hasOffer, onDone, onCancel }: { initial: RadarPr
       )}
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <label className={label} htmlFor="r-brands">Brand da seguire <span className="text-zinc-600">(profili Instagram, max {MAX_BRANDS})</span></label>
+          <label className={label} htmlFor="r-brands">Brand che conosci già <span className="text-zinc-600">(facoltativo, max {MAX_BRANDS})</span></label>
           <button type="button" className="mb-1.5 text-xs text-[#c4b8ff] hover:underline" onClick={importBrands} disabled={loading !== ""}>
             {loading === "brands" ? "Importo…" : "+ Importa dalle mie sessioni"}
           </button>
@@ -475,7 +501,7 @@ function ProfileForm({ initial, hasOffer, onDone, onCancel }: { initial: RadarPr
         <p className="mt-1 text-xs text-zinc-600">Usa hashtag di nicchia usati dai brand, non quelli generici dei consumatori. Instagram permette 30 hashtag diversi a settimana.</p>
       </div>
       <div>
-        <label className={label} htmlFor="r-sectors">Settori target <span className="text-zinc-600">(aiutano l&apos;AI a scartare i post inutili)</span></label>
+        <label className={label} htmlFor="r-sectors">Settori target <span className="text-zinc-600">(da qui il Radar scopre i brand nuovi)</span></label>
         <TagInput id="r-sectors" value={p.sectors} onChange={(v) => setP({ ...p, sectors: v })} placeholder="Es. brand skincare italiani" />
       </div>
       <div>
