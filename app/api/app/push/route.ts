@@ -12,8 +12,22 @@ export async function GET() {
   });
 }
 
+// solo i servizi di notifica dei browser (niente indirizzi arbitrari a cui il server farebbe richieste)
+const PUSH_HOSTS = /(^|\.)(fcm\.googleapis\.com|android\.googleapis\.com|push\.services\.mozilla\.com|push\.apple\.com|notify\.windows\.com)$/;
+
 const schema = z.object({
-  endpoint: z.string().url().max(1000),
+  endpoint: z
+    .string()
+    .url()
+    .max(1000)
+    .refine((u) => {
+      try {
+        const x = new URL(u);
+        return x.protocol === "https:" && PUSH_HOSTS.test(x.hostname);
+      } catch {
+        return false;
+      }
+    }, "Servizio di notifiche non supportato."),
   keys: z.object({ p256dh: z.string().min(10).max(300), auth: z.string().min(5).max(100) }),
 });
 

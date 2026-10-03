@@ -7,7 +7,8 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next") ?? "/app";
-  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/app";
+  // solo percorsi interni dell'area utenti (niente "//sito" o "/\\sito" che i browser trattano come altri domini)
+  const safeNext = /^\/app(\/[\w\-/?=&%.]*)?$/.test(next) ? next : "/app";
   if (code) {
     const supabase = await authClient();
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);

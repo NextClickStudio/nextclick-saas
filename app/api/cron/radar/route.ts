@@ -12,10 +12,13 @@ export async function GET() {
   if (ids.length === 0) return Response.json({ reminded: 0 });
   const { data: accounts } = await db()
     .from("accounts")
-    .select("user_id, radar_runs_day")
+    .select("user_id, radar_runs_day, radar_reminded_day")
     .in("user_id", ids)
     .not("radar_profile", "is", null);
-  const toRemind = (accounts ?? []).filter((a) => a.radar_runs_day !== today);
+  const toRemind = (accounts ?? []).filter((a) => a.radar_runs_day !== today && a.radar_reminded_day !== today);
+  if (toRemind.length > 0) {
+    await db().from("accounts").update({ radar_reminded_day: today }).in("user_id", toRemind.map((a) => a.user_id as string));
+  }
   let reminded = 0;
   await Promise.all(
     toRemind.map(async (a) => {

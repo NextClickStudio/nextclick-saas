@@ -6,6 +6,7 @@ import { getUserProject } from "@/lib/data";
 import { db, UserError } from "@/lib/db";
 import { requireUser } from "@/lib/supabase-auth";
 import { isBlockedHostname, normalizeUrl } from "@/lib/url";
+import { consumeAiQuota } from "@/lib/quota";
 
 export const maxDuration = 120;
 
@@ -15,6 +16,7 @@ const NOT_COMPANY = /(amazon|ebay|etsy|zalando|facebook|instagram|linkedin|tikto
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   return handle(async () => {
     const user = await requireUser();
+    await consumeAiQuota(user.id, "discover");
     const id = await ownedProjectId(uuid.parse((await params).id), user.id);
     const project = (await getUserProject(id, user.id))!;
     if (!project.credit_used_at) throw new UserError("Avvia prima la sessione.");

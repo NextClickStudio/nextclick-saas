@@ -6,6 +6,7 @@ import { db, UserError } from "@/lib/db";
 import { mergeWebPeople, webPeopleAsHints } from "@/lib/people";
 import { requireUser } from "@/lib/supabase-auth";
 import type { ContactChannel } from "@/lib/crawler";
+import { consumeAiQuota } from "@/lib/quota";
 
 export const maxDuration = 60;
 
@@ -17,6 +18,7 @@ export async function POST(_request: Request, { params }: Params) {
     const company = await ownedCompany(uuid.parse((await params).id), user.id);
     const project = await getUserProject(company.project_id, user.id);
     if (!project?.credit_used_at) throw new UserError("Avvia prima la sessione.");
+    await consumeAiQuota(user.id, "people");
 
     const found = await findPeopleOnWeb({ companyName: company.name, website: company.website_url, sector: project.target_sector });
     // Instagram verificato (il nome deve comparire nel profilo), poi si uniscono ai contatti esistenti

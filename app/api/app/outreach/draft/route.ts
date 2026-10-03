@@ -7,6 +7,7 @@ import { getCompanyRows, getUserProject } from "@/lib/data";
 import { db, UserError } from "@/lib/db";
 import { MAX_STEP, sendChannelsFor } from "@/lib/outreach";
 import { getAccount, requireUser } from "@/lib/supabase-auth";
+import { consumeAiQuota } from "@/lib/quota";
 
 export const maxDuration = 60;
 
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
       z.object({ companyId: uuid, step: z.number().int().min(0).max(MAX_STEP), reply: z.string().max(2000).optional() }),
     );
     const company = await ownedCompany(companyId, user.id);
+    await consumeAiQuota(user.id, "draft");
     const project = (await getUserProject(company.project_id, user.id))!;
     const rows = await getCompanyRows(project.id);
     const row = rows.find((r) => r.id === companyId);

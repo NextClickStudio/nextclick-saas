@@ -3,6 +3,7 @@ import { z } from "zod";
 import { generateSymptomAndCriteria } from "@/lib/ai";
 import { handle, readBody } from "@/lib/api";
 import { requireUser } from "@/lib/supabase-auth";
+import { consumeAiQuota } from "@/lib/quota";
 
 export const maxDuration = 60;
 
@@ -14,7 +15,8 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   return handle(async () => {
-    await requireUser();
+    const user = await requireUser();
+    await consumeAiQuota(user.id, "criteria");
     const input = await readBody(request, schema);
     return generateSymptomAndCriteria({
       productDescription: input.product_description,

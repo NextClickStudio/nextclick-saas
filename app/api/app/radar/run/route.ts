@@ -14,6 +14,12 @@ export async function POST() {
     if (error) throw error;
     if ((left as number) < 0) throw new UserError(`Hai già fatto le ${RADAR_RUNS_PER_DAY} ricerche di oggi: torna domani.`);
     const [mon, disc] = await Promise.allSettled([runRadar(user.id), runDiscovery(user.id)]);
+    if (mon.status === "rejected" && disc.status === "rejected") {
+      // niente è andato a buon fine: restituisco la ricerca all'utente
+      const { data: acc } = await db().from("accounts").select("radar_runs_count").eq("user_id", user.id).single();
+      await db().from("accounts").update({ radar_runs_count: Math.max(0, Number(acc?.radar_runs_count ?? 1) - 1) }).eq("user_id", user.id);
+      throw mon.reason instanceof UserError ? mon.reason : new UserError("Ricerca non riuscita: non è stata conteggiata. Riprova tra poco.");
+    }
     return {
       left,
       monitor: mon.status === "fulfilled" ? mon.value : { error: (mon.reason as Error).message },

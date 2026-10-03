@@ -10,6 +10,7 @@ import { db, friendlyError, UserError } from "@/lib/db";
 import { getCriteria, getUserProject } from "@/lib/data";
 import { requireUser } from "@/lib/supabase-auth";
 import { computeTotalScore } from "@/lib/scoring";
+import { consumeAiQuota } from "@/lib/quota";
 
 export const maxDuration = 90;
 
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
     const { companyId } = await readBody(request, z.object({ companyId: uuid }));
     const supabase = db();
     const company = await ownedCompany(companyId, user.id);
+    await consumeAiQuota(user.id, "analyze");
 
     const project = await getUserProject(company.project_id, user.id);
     if (!project) throw new UserError("Sessione non trovata.");

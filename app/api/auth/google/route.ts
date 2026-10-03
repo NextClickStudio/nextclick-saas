@@ -6,7 +6,7 @@ import { authClient } from "@/lib/supabase-auth";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const next = url.searchParams.get("next");
-  const safeNext = next && next.startsWith("/app") ? next : "/app";
+  const safeNext = next && /^\/app(\/[\w\-/?=&%.]*)?$/.test(next) ? next : "/app";
   const supabase = await authClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
