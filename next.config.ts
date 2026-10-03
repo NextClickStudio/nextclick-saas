@@ -12,6 +12,7 @@ const SERVER_ENV = [
   "SUPABASE_URL",
   "META_APP_ID",
   "META_APP_SECRET",
+  "META_CONFIG_ID",
 ];
 
 const nextConfig: NextConfig = {

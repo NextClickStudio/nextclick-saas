@@ -20,6 +20,7 @@ Il Radar legge Instagram con l'API ufficiale di Meta. Serve un'app Meta di propr
 Vercel → progetto yeppo → Settings → Environment Variables (Production):
 - `META_APP_ID` = ID app
 - `META_APP_SECRET` = chiave segreta
+- `META_CONFIG_ID` = ID della configurazione di Facebook Login for Business
 
 Poi chiedi la ripubblicazione (le chiavi vengono lette durante la build).
 

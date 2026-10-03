@@ -23,7 +23,15 @@ function appCreds() {
 
 export function loginUrl(state: string): string {
   const { id } = appCreds();
-  const q = new URLSearchParams({ client_id: id, redirect_uri: IG_REDIRECT, state, response_type: "code", scope: IG_SCOPES.join(",") });
+  // Facebook Login for Business usa una "configurazione" (config_id) creata nella dashboard Meta al posto dello scope
+  const config = process.env.META_CONFIG_ID;
+  const q = new URLSearchParams({
+    client_id: id,
+    redirect_uri: IG_REDIRECT,
+    state,
+    response_type: "code",
+    ...(config ? { config_id: config, override_default_response_type: "true" } : { scope: IG_SCOPES.join(",") }),
+  });
   return `https://www.facebook.com/v23.0/dialog/oauth?${q}`;
 }
 
