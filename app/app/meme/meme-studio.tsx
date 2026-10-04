@@ -5,6 +5,7 @@ import { api, copyText } from "@/components/client-utils";
 import { btn, Card, input, label } from "@/components/ui";
 import { buildTimeline, formatCue, parseScript, scriptToText, typedCount, type MemeScript, type Timeline } from "@/lib/meme-script";
 import { drawFrame, H, W } from "./draw";
+import { canEncodeVideo, encodeMeme, playPop, playTick } from "./encode";
 
 const STORAGE_KEY = "yeppo-memes-v1";
 
@@ -26,7 +27,7 @@ function slug(s: string): string {
     s
       .toLowerCase()
       .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
+      .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "")
       .slice(0, 50) || "meme"
@@ -37,23 +38,6 @@ function slug(s: string): string {
 function pickMime(): string {
   const options = ["video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm"];
   return options.find((m) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(m)) ?? "";
-}
-
-/** "Pop" sintetico all'arrivo di ogni messaggio (nessun audio esterno, nessun diritto). */
-function pop(ac: AudioContext, outs: AudioNode[], mine: boolean) {
-  const t = ac.currentTime;
-  const osc = ac.createOscillator();
-  const gain = ac.createGain();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(mine ? 900 : 650, t);
-  osc.frequency.exponentialRampToValueAtTime(mine ? 1500 : 1100, t + 0.06);
-  gain.gain.setValueAtTime(0.0001, t);
-  gain.gain.exponentialRampToValueAtTime(0.35, t + 0.01);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
-  osc.connect(gain);
-  for (const o of outs) gain.connect(o);
-  osc.start(t);
-  osc.stop(t + 0.14);
 }
 
 function loadSaved(): Item[] {
@@ -67,22 +51,6 @@ function loadSaved(): Item[] {
 const noop = () => () => {};
 
 /** Lo studio usa canvas e copioni salvati nel browser: lo mostro solo lato client. */
-/** Clic leggero dei tasti mentre scrivo nella barra. */
-function tick(ac: AudioContext, outs: AudioNode[]) {
-  const t = ac.currentTime;
-  const len = Math.floor(ac.sampleRate * 0.012);
-  const buf = ac.createBuffer(1, len, ac.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
-  const src = ac.createBufferSource();
-  const gain = ac.createGain();
-  src.buffer = buf;
-  gain.gain.value = 0.18;
-  src.connect(gain);
-  for (const o of outs) gain.connect(o);
-  src.start(t);
-}
-
 export default function MemeStudio() {
   const isClient = useSyncExternalStore(noop, () => true, () => false);
   return isClient ? <Studio /> : <p className="text-sm text-zinc-500">Carico lo studio…</p>;
@@ -184,18 +152,18 @@ function Studio() {
         tl.lines.forEach((line, i) => {
           if (!line.compose || !ac) return;
           const n = typedCount(line, t);
-          if (n > typed[i]) tick(ac, outs);
+          if (n > typed[i]) playTick(ac, outs, ac.currentTime);
           typed[i] = n;
         });
         while (played < tl.lines.length && t >= tl.lines[played].at) {
-          if (ac) pop(ac, outs, tl.lines[played].from === "io");
+          if (ac) playPop(ac, outs, ac.currentTime, tl.lines[played].from === "io");
           played++;
         }
         drawFrame(ctx, script, tl, Math.min(t, tl.duration), { botName });
         if (t >= tl.duration) return finish();
         raf = requestAnimationFrame(frame);
       };
-      recorder?.start(250);
+      recorder?.start(); // senza timeslice: con i frammenti Safari scrive tempi sbagliati
       raf = requestAnimationFrame(frame);
     });
   }
@@ -209,17 +177,39 @@ function Studio() {
 
   /** Registra i video; il salvataggio parte da un tuo tocco (i browser bloccano i download automatici). */
   async function download(list: Item[]) {
-    if (typeof MediaRecorder === "undefined") {
-      setError("Questo browser non può registrare video: usa Chrome o Safari aggiornati.");
+    const encoder = canEncodeVideo();
+    if (!encoder && typeof MediaRecorder === "undefined") {
+      setError("Questo browser non può creare video: usa Chrome o Safari aggiornati.");
       return;
     }
     setError("");
     for (const [i, item] of list.entries()) {
       setBusy(item.id);
-      setStatus(`Creo il video ${i + 1}/${list.length}… tieni questa scheda aperta e in primo piano`);
-      const blob = await play(item, true);
+      const label = list.length > 1 ? `Creo il video ${i + 1}/${list.length}` : "Creo il video";
+      let blob: Blob | null = null;
+      let failed = false;
+      try {
+        if (encoder) {
+          // fotogramma per fotogramma: tempi esatti e più veloce del tempo reale
+          const script = parseScript(item.text);
+          blob = await encodeMeme({
+            script,
+            tl: buildTimeline(script, speed),
+            botName,
+            withSound: withPop,
+            onProgress: (p) => setStatus(`${label}… ${Math.round(p * 100)}%`),
+          });
+        } else {
+          setStatus(`${label}… tieni questa scheda aperta e in primo piano`);
+          blob = await play(item, true);
+        }
+      } catch (err) {
+        console.error(err);
+        failed = true;
+        setError(`Creazione del video non riuscita: ${(err as Error).message}`);
+      }
       if (!blob || blob.size === 0) {
-        setError("Il browser non ha registrato nulla: riprova tenendo la scheda in primo piano (meglio Chrome da computer).");
+        if (!failed) setError("Il video è venuto vuoto: riprova (meglio Chrome da computer).");
         continue;
       }
       const ext = blob.type.includes("mp4") ? "mp4" : "webm";
@@ -233,7 +223,7 @@ function Studio() {
     setBusy(null);
     setStatus(
       `${list.length > 1 ? "Video pronti" : "Video pronto"}: tocca 💾 Salva video (o 📲 Salva in Galleria dal telefono).` +
-        (pickMime().includes("mp4") ? "" : " Formato .webm: CapCut lo apre lo stesso."),
+        (encoder || pickMime().includes("mp4") ? "" : " Formato .webm: CapCut lo apre lo stesso."),
     );
   }
 
@@ -347,8 +337,7 @@ function Studio() {
       <div className="lg:sticky lg:top-24 lg:self-start">
         <canvas ref={canvasRef} width={W} height={H} className="mx-auto w-full max-w-[340px] rounded-2xl border border-white/10" />
         <p className="mt-3 text-xs text-zinc-500">
-          Formato testo: <code>io:</code>, <code>bro:</code> o <code>yeppo:</code> a inizio riga, il suono tra [parentesi quadre] in fondo. La registrazione va in
-          tempo reale: lascia la scheda aperta finché scarica.
+          Formato testo: <code>io:</code>, <code>bro:</code> o <code>yeppo:</code> a inizio riga, il suono tra [parentesi quadre] in fondo. 
         </p>
       </div>
     </div>

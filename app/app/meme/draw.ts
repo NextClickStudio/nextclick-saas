@@ -540,7 +540,7 @@ function drawKeyboard(ctx: CanvasRenderingContext2D, top: number, pressed: strin
 function keyFor(ch: string | undefined): string | null {
   if (!ch) return null;
   if (/\s/.test(ch)) return " ";
-  const base = ch.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const base = ch.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   return /^[a-z]$/.test(base) ? base : null;
 }
 
