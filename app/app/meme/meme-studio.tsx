@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { api, copyText } from "@/components/client-utils";
 import { btn, Card, input, label } from "@/components/ui";
-import { buildTimeline, formatCue, parseScript, scriptToText, type MemeScript, type Timeline } from "@/lib/meme-script";
+import { buildTimeline, formatCue, parseScript, scriptToText, typedCount, type MemeScript, type Timeline } from "@/lib/meme-script";
 import { drawFrame, H, W } from "./draw";
 
 const STORAGE_KEY = "yeppo-memes-v1";
@@ -66,6 +66,22 @@ function loadSaved(): Item[] {
 const noop = () => () => {};
 
 /** Lo studio usa canvas e copioni salvati nel browser: lo mostro solo lato client. */
+/** Clic leggero dei tasti mentre scrivo nella barra. */
+function tick(ac: AudioContext, outs: AudioNode[]) {
+  const t = ac.currentTime;
+  const len = Math.floor(ac.sampleRate * 0.012);
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+  const src = ac.createBufferSource();
+  const gain = ac.createGain();
+  src.buffer = buf;
+  gain.gain.value = 0.18;
+  src.connect(gain);
+  for (const o of outs) gain.connect(o);
+  src.start(t);
+}
+
 export default function MemeStudio() {
   const isClient = useSyncExternalStore(noop, () => true, () => false);
   return isClient ? <Studio /> : <p className="text-sm text-zinc-500">Carico lo studio…</p>;
@@ -137,6 +153,7 @@ function Studio() {
     return new Promise((resolve) => {
       let raf = 0;
       let played = 0;
+      const typed = tl.lines.map(() => 0);
       let stopped = false;
       const start = performance.now();
       const finish = () => {
@@ -155,8 +172,15 @@ function Studio() {
       stopRef.current = finish;
       const frame = () => {
         const t = (performance.now() - start) / 1000;
+        const outs = ac ? (record && dest ? [ac.destination, dest] : [ac.destination]) : [];
+        tl.lines.forEach((line, i) => {
+          if (!line.compose || !ac) return;
+          const n = typedCount(line, t);
+          if (n > typed[i]) tick(ac, outs);
+          typed[i] = n;
+        });
         while (played < tl.lines.length && t >= tl.lines[played].at) {
-          if (ac) pop(ac, record && dest ? [ac.destination, dest] : [ac.destination], tl.lines[played].from === "io");
+          if (ac) pop(ac, outs, tl.lines[played].from === "io");
           played++;
         }
         drawFrame(ctx, script, tl, Math.min(t, tl.duration), { botName });
@@ -231,7 +255,7 @@ function Studio() {
               </select>
             </div>
             <label className="flex items-end gap-2 pb-3 text-sm text-zinc-300">
-              <input type="checkbox" checked={withPop} onChange={(e) => setWithPop(e.target.checked)} /> &quot;pop&quot; dei messaggi
+              <input type="checkbox" checked={withPop} onChange={(e) => setWithPop(e.target.checked)} /> suoni chat (pop e tasti)
             </label>
           </div>
           <div className="flex flex-wrap gap-2">

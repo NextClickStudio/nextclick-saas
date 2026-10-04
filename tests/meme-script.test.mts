@@ -1,7 +1,7 @@
 // Test di lib/meme-script.ts — esegui con: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildTimeline, formatCue, parseScript, scriptToText } from "../lib/meme-script.ts";
+import { buildTimeline, formatCue, parseScript, scriptToText, typedCount } from "../lib/meme-script.ts";
 
 const TEXT = `POV: chiedi al bro come trovare lead
 io: fra come trovo dei lead
@@ -28,6 +28,11 @@ test("i messaggi compaiono in ordine e i suoni hanno il loro secondo", () => {
   const t = buildTimeline(parseScript(TEXT));
   for (let i = 1; i < t.lines.length; i++) assert.ok(t.lines[i].at > t.lines[i - 1].at);
   assert.equal(t.lines[0].typingFrom, null); // "io" non scrive con l'indicatore
+  const c = t.lines[0].compose!;
+  assert.ok(c.from < c.typeStart && c.typeStart < c.typeEnd && c.typeEnd < c.sendAt && c.sendAt < t.lines[0].at);
+  assert.equal(typedCount(t.lines[0], c.from), 0);
+  assert.ok(typedCount(t.lines[0], (c.typeStart + c.typeEnd) / 2) > 0);
+  assert.equal(typedCount(t.lines[0], c.typeEnd), [...t.lines[0].text].length);
   assert.ok(t.lines[1].typingFrom !== null && t.lines[1].typingFrom < t.lines[1].at);
   assert.deepEqual(t.cues.map((c) => c.sfx), ["vine boom", "metal pipe"]);
   assert.ok(t.duration > t.chatEnd);

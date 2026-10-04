@@ -49,37 +49,60 @@ export function scriptToText(s: MemeScript): string {
   return [`POV: ${s.pov}`, ...s.lines.map((l) => `${l.from}: ${l.text}${l.sfx ? ` [${l.sfx}]` : ""}`)].join("\n");
 }
 
-export type TimedLine = MemeLine & { at: number; typingFrom: number | null };
+/** Per i messaggi di "io": tocco sulla barra, scrittura lettera per lettera, tocco su invio. */
+export type Compose = { from: number; typeStart: number; typeEnd: number; sendAt: number };
+export type TimedLine = MemeLine & { at: number; typingFrom: number | null; compose: Compose | null };
 export type Timeline = { lines: TimedLine[]; chatEnd: number; duration: number; cues: { at: number; sfx: string; text: string }[] };
 
 export const END_CARD_SECONDS = 1.8;
 
+const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
+
 /**
  * Quando compare ogni messaggio. speed > 1 = più veloce.
- * Il bro "sta scrivendo…" prima di ogni sua risposta; dopo una battuta con suono c'è una pausa in più.
+ * I miei messaggi si vedono scrivere nella barra; il bro "sta scrivendo…" prima di rispondere;
+ * dopo una battuta con suono c'è una pausa in più.
  */
 export function buildTimeline(s: MemeScript, speed = 1): Timeline {
-  const k = 1 / Math.max(0.5, Math.min(2, speed));
-  let t = 1.0 * k; // tempo per leggere il POV
+  const k = 1 / clamp(speed, 0.5, 2);
+  let t = 1.5 * k; // tempo per leggere il POV
   const lines: TimedLine[] = [];
   s.lines.forEach((line, i) => {
     const prev = s.lines[i - 1];
-    const typing = line.from !== "io" ? 0.55 * k : 0;
-    // risposte a raffica dello stesso mittente: meno attesa
-    const gap = prev && prev.from === line.from ? 0.15 * k : 0.25 * k;
-    const typingFrom = typing ? t + gap : null;
-    const at = t + gap + typing;
-    lines.push({ ...line, at, typingFrom });
-    const read = Math.min(2.6, Math.max(0.8, 0.55 + line.text.length * 0.04)) * k;
-    t = at + read + (line.sfx ? 0.55 * k : 0);
+    const gap = (prev && prev.from === line.from ? 0.35 : 0.6) * k;
+    const len = line.text.length;
+    if (line.from === "io") {
+      const from = t + gap;
+      const typeStart = from + 0.45 * k;
+      const typeEnd = typeStart + clamp(len * 0.07, 0.6, 3.4) * k;
+      const sendAt = typeEnd + 0.35 * k;
+      const at = sendAt + 0.12 * k;
+      lines.push({ ...line, at, typingFrom: null, compose: { from, typeStart, typeEnd, sendAt } });
+      // il messaggio l'abbiamo già letto mentre veniva scritto
+      t = at + 0.7 * k + (line.sfx ? 0.9 * k : 0);
+    } else {
+      const typingFrom = t + gap;
+      const at = typingFrom + clamp(0.9 + len * 0.02, 1.0, 2.0) * k;
+      lines.push({ ...line, at, typingFrom, compose: null });
+      t = at + clamp(1.0 + len * 0.045, 1.4, 3.4) * k + (line.sfx ? 0.9 * k : 0);
+    }
   });
-  const chatEnd = t + 0.4 * k;
+  const chatEnd = t + 0.6 * k;
   return {
     lines,
     chatEnd,
     duration: chatEnd + END_CARD_SECONDS,
     cues: lines.filter((l) => l.sfx).map((l) => ({ at: l.at, sfx: l.sfx, text: l.text })),
   };
+}
+
+/** Quanti caratteri (emoji comprese) del messaggio sono già scritti nella barra al secondo t. */
+export function typedCount(line: TimedLine, t: number): number {
+  const c = line.compose;
+  const total = [...line.text].length;
+  if (!c || t < c.typeStart) return 0;
+  if (t >= c.typeEnd) return total;
+  return Math.floor(((t - c.typeStart) / (c.typeEnd - c.typeStart)) * total);
 }
 
 /** 3.4 → "0:03.4" */

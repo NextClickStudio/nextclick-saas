@@ -1,6 +1,6 @@
 // Disegna un fotogramma del meme-chat (1080x1920, verticale) al secondo t.
 import { BRAND } from "@/lib/brand";
-import type { MemeScript, Timeline } from "@/lib/meme-script";
+import { typedCount, type MemeScript, type Timeline, type TimedLine } from "@/lib/meme-script";
 
 export const W = 1080;
 export const H = 1920;
@@ -17,7 +17,6 @@ const C = {
 
 const TITLE_TOP = 70;
 const HEADER_H = 150;
-const INPUT_H = 150;
 const BUBBLE_FONT = 50;
 const LINE_H = 64;
 const PAD_X = 34;
@@ -110,25 +109,127 @@ function drawHeader(ctx: CanvasRenderingContext2D, top: number, name: string, ty
   ctx.fillText(typing ? "sta scrivendo…" : "online", 236, top + 106);
 }
 
-function drawInput(ctx: CanvasRenderingContext2D) {
-  ctx.fillStyle = C.bg;
-  ctx.fillRect(0, H - INPUT_H, W, INPUT_H);
-  ctx.fillStyle = C.theirs;
-  roundRect(ctx, 30, H - INPUT_H + 28, W - 190, 96, 48);
+const KB_H = 600;
+const INPUT_FONT = 42;
+const INPUT_LINE = 54;
+
+type InputState = { text: string; caret: boolean; tapBar: number | null; tapSend: number | null; key: string | null };
+
+function inputLayout(ctx: CanvasRenderingContext2D, text: string) {
+  ctx.font = `${INPUT_FONT}px ${FONT}`;
+  const lines = text ? wrap(ctx, text, W - 330).slice(-3) : [];
+  const boxH = Math.max(96, lines.length * INPUT_LINE + 42);
+  return { lines, boxH, barH: boxH + 54 };
+}
+
+function drawTap(ctx: CanvasRenderingContext2D, x: number, y: number, p: number) {
+  if (p < 0 || p > 1) return;
+  ctx.save();
+  ctx.fillStyle = `rgba(255,255,255,${0.45 * (1 - p)})`;
+  ctx.beginPath();
+  ctx.arc(x, y, 34 + 46 * ease(p), 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = C.muted;
-  ctx.font = `40px ${FONT}`;
+  ctx.restore();
+}
+
+/** Barra "Messaggio" in basso (sopra la tastiera se è aperta). */
+function drawInput(ctx: CanvasRenderingContext2D, bottom: number, st: InputState) {
+  const { lines, boxH, barH } = inputLayout(ctx, st.text);
+  const top = bottom - barH;
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, top, W, barH);
+  const boxY = top + 28;
+  ctx.fillStyle = C.theirs;
+  roundRect(ctx, 30, boxY, W - 190, boxH, 48);
+  ctx.fill();
   ctx.textBaseline = "middle";
-  ctx.fillText("Messaggio", 80, H - INPUT_H + 77);
+  ctx.font = `${INPUT_FONT}px ${FONT}`;
+  if (lines.length) {
+    ctx.fillStyle = C.text;
+    lines.forEach((l, i) => ctx.fillText(l, 80, boxY + 21 + INPUT_LINE / 2 + i * INPUT_LINE));
+  } else if (!st.caret) {
+    ctx.fillStyle = C.muted;
+    ctx.fillText("Messaggio", 80, boxY + boxH / 2);
+  }
+  if (st.caret) {
+    const last = lines[lines.length - 1] ?? "";
+    const cx = 80 + ctx.measureText(last).width + 4;
+    const cy = lines.length ? boxY + 21 + INPUT_LINE / 2 + (lines.length - 1) * INPUT_LINE : boxY + boxH / 2;
+    ctx.fillStyle = "#25d366";
+    ctx.fillRect(cx, cy - 26, 4, 52);
+  }
+  // invio: microfono se la barra è vuota, freccia se c'è testo
+  const sx = W - 88;
+  const sy = boxY + boxH - 48;
   ctx.fillStyle = C.mine;
   ctx.beginPath();
-  ctx.arc(W - 88, H - INPUT_H + 76, 50, 0, Math.PI * 2);
+  ctx.arc(sx, sy, 50, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#fff";
-  ctx.font = `44px ${FONT}`;
-  ctx.textAlign = "center";
-  ctx.fillText("🎤", W - 88, H - INPUT_H + 78);
-  ctx.textAlign = "left";
+  if (st.text) {
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.moveTo(sx - 20, sy - 24);
+    ctx.lineTo(sx + 26, sy);
+    ctx.lineTo(sx - 20, sy + 24);
+    ctx.lineTo(sx - 12, sy);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    ctx.font = `44px ${FONT}`;
+    ctx.textAlign = "center";
+    ctx.fillText("🎤", sx, sy + 2);
+    ctx.textAlign = "left";
+  }
+  if (st.tapBar !== null) drawTap(ctx, 300, boxY + boxH / 2, st.tapBar);
+  if (st.tapSend !== null) drawTap(ctx, sx, sy, st.tapSend);
+  return barH;
+}
+
+const KEY_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
+
+/** Tastiera del telefono; il tasto appena premuto si illumina. */
+function drawKeyboard(ctx: CanvasRenderingContext2D, top: number, pressed: string | null) {
+  ctx.fillStyle = "#1b1f23";
+  ctx.fillRect(0, top, W, KB_H);
+  const gap = 14;
+  const kw = (W - 24 - gap * 9) / 10;
+  const kh = 116;
+  const key = (x: number, y: number, w: number, label: string, on: boolean, dim = false) => {
+    ctx.fillStyle = on ? "#8a8f96" : dim ? "#2c3035" : "#3d4146";
+    roundRect(ctx, x, y, w, kh, 14);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.font = `${label.length > 1 ? 34 : 50}px ${FONT}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, x + w / 2, y + kh / 2 + 2);
+    ctx.textAlign = "left";
+  };
+  KEY_ROWS.forEach((row, r) => {
+    const y = top + 22 + r * (kh + 18);
+    const rowW = row.length * kw + (row.length - 1) * gap;
+    let x = (W - rowW) / 2;
+    if (r === 2) {
+      key(12, y, kw * 1.35, "⇧", false, true);
+      key(W - 12 - kw * 1.35, y, kw * 1.35, "⌫", false, true);
+    }
+    for (const ch of row) {
+      key(x, y, kw, ch, pressed === ch);
+      x += kw + gap;
+    }
+  });
+  const y = top + 22 + 3 * (kh + 18);
+  key(12, y, kw * 2.2, "123", false, true);
+  key(24 + kw * 2.2, y, W - 48 - kw * 4.6, "spazio", pressed === " ");
+  key(W - 12 - kw * 2.2, y, kw * 2.2, "invio", false, true);
+}
+
+/** Tasto della tastiera per un carattere (accenti → lettera base). */
+function keyFor(ch: string | undefined): string | null {
+  if (!ch) return null;
+  if (/\s/.test(ch)) return " ";
+  const base = ch.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return /^[a-z]$/.test(base) ? base : null;
 }
 
 type Bubble = { mine: boolean; yeppo: boolean; lines: string[]; w: number; h: number; progress: number };
@@ -235,7 +336,30 @@ export function drawFrame(ctx: CanvasRenderingContext2D, script: MemeScript, tl:
   const title = titleLayout(ctx, script.pov);
   const headerTop = TITLE_TOP + title.height + 50;
   const chatTop = headerTop + HEADER_H + 30;
-  const chatBottom = H - INPUT_H - 20;
+
+  // tastiera: si apre al primo tocco sulla barra e resta aperta
+  const firstCompose = tl.lines.find((l) => l.compose)?.compose?.from ?? Infinity;
+  const kbP = ease((t - firstCompose) / 0.3);
+  const kbTop = H - KB_H * kbP;
+
+  // cosa sto scrivendo adesso nella barra
+  const composing: TimedLine | undefined = tl.lines.find((l) => l.compose && t >= l.compose.from && t < l.at);
+  const input: InputState = { text: "", caret: false, tapBar: null, tapSend: null, key: null };
+  if (composing?.compose) {
+    const c = composing.compose;
+    const chars = [...composing.text];
+    const n = typedCount(composing, t);
+    input.text = chars.slice(0, n).join("");
+    input.caret = t < c.sendAt && (t < c.typeEnd || Math.floor(t * 2.5) % 2 === 0);
+    input.tapBar = (t - c.from) / 0.35;
+    input.tapSend = t >= c.sendAt ? (t - c.sendAt) / 0.35 : null;
+    if (t < c.typeEnd && n > 0) input.key = keyFor(chars[n - 1]);
+  }
+  // il tocco su invio sfuma anche dopo che il messaggio è partito
+  const justSent = tl.lines.find((l) => l.compose && t >= l.at && t < l.compose.sendAt + 0.35);
+  if (justSent?.compose) input.tapSend = (t - justSent.compose.sendAt) / 0.35;
+  const barH = inputLayout(ctx, input.text).barH;
+  const chatBottom = kbTop - barH - 20;
 
   // messaggi visibili + eventuale "sta scrivendo"
   const bubbles: Bubble[] = [];
@@ -243,7 +367,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, script: MemeScript, tl:
   for (const line of tl.lines) {
     if (t >= line.at) {
       const m = measureBubble(ctx, line.text, line.from === "yeppo");
-      bubbles.push({ mine: line.from === "io", yeppo: line.from === "yeppo", ...m, progress: Math.min(1, (t - line.at) / 0.25) });
+      bubbles.push({ mine: line.from === "io", yeppo: line.from === "yeppo", ...m, progress: Math.min(1, (t - line.at) / 0.3) });
     } else if (line.typingFrom !== null && t >= line.typingFrom) {
       typing = { alpha: Math.min(1, (t - line.typingFrom) / 0.15) };
       break;
@@ -269,7 +393,8 @@ export function drawFrame(ctx: CanvasRenderingContext2D, script: MemeScript, tl:
   ctx.restore();
 
   drawHeader(ctx, headerTop, opts.botName, Boolean(typing));
-  drawInput(ctx);
+  if (kbP > 0) drawKeyboard(ctx, kbTop, input.key);
+  drawInput(ctx, kbTop, input);
   // titolo sopra a tutto, con un fondo che copre i messaggi che scorrono
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, headerTop);
