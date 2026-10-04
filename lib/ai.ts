@@ -10,6 +10,7 @@ import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { z } from "zod";
 import { UserError } from "@/lib/db";
+import type { MemeScript } from "@/lib/meme-script";
 
 // Nome del modello in un punto solo: per cambiarlo modifica solo queste righe.
 // Modelli Gemini provati in ordine (con GEMINI_API_KEY): se uno è sovraccarico o ha finito
@@ -998,4 +999,86 @@ Rispondi SOLO con JSON {"handles":["nomeprofilo1","nomeprofilo2"]}`;
     temperature: 0.8,
   });
   return [...new Set(parse(JSON.stringify(res)))];
+}
+
+// ---------------------------------------------------------------------
+// Meme "typical chat with bro" per i social di Yeppo (uso interno)
+// ---------------------------------------------------------------------
+
+const memeSchema = z.object({
+  memes: z
+    .array(
+      z.object({
+        pov: z.string().trim().min(3).max(120),
+        lines: z
+          .array(
+            z.object({
+              from: z.enum(["io", "bro", "yeppo"]),
+              text: z.string().trim().min(1).max(160),
+              sfx: z.string().trim().max(40),
+            }),
+          )
+          .min(4)
+          .max(14),
+      }),
+    )
+    .min(1)
+    .max(10),
+});
+
+/** Copioni di meme-chat assurdi: il bro prende alla lettera ogni parola del mondo vendite/freelance. */
+export async function generateBroMemes(input: { count: number; topic: string; avoid: string[] }): Promise<MemeScript[]> {
+  const prompt = `Scrivi ${input.count} copioni di meme video "typical chat with bro" in italiano, per i social (TikTok/Reels) di Yeppo, un'app che trova clienti alle agenzie e ai freelance e scrive i messaggi per contattarli.
+
+FORMAT: una chat tra "io" (freelance/agenzia che cerca clienti) e "bro" (l'amico che NON CAPISCE NULLA). Sopra c'è un titolo "POV: ...".
+Lo humor è STUPIDO, ASSURDO, NO SENSE, brainrot gen z: il bro prende tutto alla lettera, capisce le parole del business al contrario (lead = piombo, cold email = pc nel freezer, follow-up = pedinare il cliente, funnel = imbuto, B2B = "bibi"...), risponde con sicurezza totale e peggiora sempre.
+
+ESEMPIO PERFETTO (copia questo livello e questo ritmo):
+POV: chiedi al bro come trovare lead
+io: fra come trovo dei lead
+bro: in ferramenta
+io: no i LEAD
+bro: il piombo fra. 3€ al chilo   [sfx: vine boom]
+io: i clienti bro
+bro: ah. no quelli non li vendono   [sfx: metal pipe]
+
+REGOLE:
+- 5-9 messaggi per copione, frasi CORTISSIME (max ~60 caratteri), tutto minuscolo, scritto come in chat (fra, bro, raga, no vabbè, 💀 a volte).
+- Ogni copione su una parola o situazione diversa del mondo vendite/clienti/agenzie/freelance (preventivo, CRM, KPI, call, networking, linkedin, partita iva, cliente che non paga, "ci sentiamo", portfolio, pitch, target, ecc.).
+- Il finale è la battuta più assurda e chiude sempre col bro.
+- sfx: suono meme brainrot da mettere su quel messaggio (es. "vine boom", "metal pipe", "bruh", "violino triste", "errore windows", "tralalero tralala", "bombardiro crocodilo", "rizz", "risata finta", "a few moments later", "suono horror"), SOLO sulle battute (2-3 per copione), stringa vuota sugli altri.
+- "yeppo" come personaggio: al massimo in 1 copione su ${input.count}, una riga sola verso la fine, tipo "yeppo: ti ho trovato 30 clienti e scritto il messaggio 💜", e poi il bro chiude con una battuta.
+- Niente volgarità pesanti, niente insulti a categorie di persone, niente marchi reali presi in giro.
+${input.topic ? `- Tema richiesto: ${input.topic}` : ""}
+${input.avoid.length ? `- NON ripetere questi POV già fatti:\n${input.avoid.map((a) => `  • ${a}`).join("\n")}` : ""}`;
+  const res = await generateJson({
+    prompt,
+    schema: {
+      type: "object",
+      properties: {
+        memes: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              pov: { type: "string" },
+              lines: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: { from: { type: "string", enum: ["io", "bro", "yeppo"] }, text: { type: "string" }, sfx: { type: "string" } },
+                  required: ["from", "text", "sfx"],
+                },
+              },
+            },
+            required: ["pov", "lines"],
+          },
+        },
+      },
+      required: ["memes"],
+    },
+    validator: memeSchema,
+    temperature: 1,
+  });
+  return res.memes.map((m) => ({ pov: m.pov.replace(/^pov:\s*/i, ""), lines: m.lines }));
 }

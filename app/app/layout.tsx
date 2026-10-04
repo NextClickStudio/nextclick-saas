@@ -49,6 +49,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                   </span>
                 )}
               </NavLink>
+              {account.unlimited && <NavLink href="/app/meme">Meme</NavLink>}
               <NavLink href="/app/piani">Piani</NavLink>
               <NavLink href="/app/account">Account</NavLink>
             </nav>
@@ -75,6 +76,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <NavLink href="/app/richieste" compact>
             Richieste{(newRequests ?? 0) > 0 ? ` (${newRequests})` : ""}
           </NavLink>
+          {account.unlimited && <NavLink href="/app/meme" compact>Meme</NavLink>}
           <NavLink href="/app/piani" compact>Piani</NavLink>
           <NavLink href="/app/account" compact>Account</NavLink>
         </nav>
