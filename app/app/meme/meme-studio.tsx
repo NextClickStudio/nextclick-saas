@@ -17,6 +17,7 @@ io: i clienti bro
 bro: ah. no quelli non li vendono [metal pipe]`;
 
 type Item = { id: string; text: string };
+type Video = { url: string; name: string; file: File };
 
 const newId = () => Math.random().toString(36).slice(2, 10);
 
@@ -99,6 +100,13 @@ function Studio() {
   const [generating, setGenerating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null); // id in riproduzione/registrazione
   const [status, setStatus] = useState("");
+  const [videos, setVideos] = useState<Record<string, Video>>({});
+  const videosRef = useRef(videos);
+  useEffect(() => {
+    videosRef.current = videos;
+  }, [videos]);
+  // libera la memoria dei video quando si lascia la pagina
+  useEffect(() => () => Object.values(videosRef.current).forEach((v) => URL.revokeObjectURL(v.url)), []);
   const [error, setError] = useState("");
 
   // copioni salvati nel browser (comodità: non li perdi se ricarichi)
@@ -199,6 +207,7 @@ function Studio() {
     setBusy(null);
   }
 
+  /** Registra i video; il salvataggio parte da un tuo tocco (i browser bloccano i download automatici). */
   async function download(list: Item[]) {
     if (typeof MediaRecorder === "undefined") {
       setError("Questo browser non può registrare video: usa Chrome o Safari aggiornati.");
@@ -207,18 +216,36 @@ function Studio() {
     setError("");
     for (const [i, item] of list.entries()) {
       setBusy(item.id);
-      setStatus(`Registro ${i + 1}/${list.length}… tieni questa scheda aperta e in primo piano`);
+      setStatus(`Creo il video ${i + 1}/${list.length}… tieni questa scheda aperta e in primo piano`);
       const blob = await play(item, true);
-      if (!blob) continue;
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `yeppo-${slug(parseScript(item.text).pov)}.${blob.type.includes("mp4") ? "mp4" : "webm"}`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+      if (!blob || blob.size === 0) {
+        setError("Il browser non ha registrato nulla: riprova tenendo la scheda in primo piano (meglio Chrome da computer).");
+        continue;
+      }
+      const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+      const name = `yeppo-${slug(parseScript(item.text).pov)}.${ext}`;
+      const video: Video = { url: URL.createObjectURL(blob), name, file: new File([blob], name, { type: blob.type }) };
+      setVideos((prev) => {
+        if (prev[item.id]) URL.revokeObjectURL(prev[item.id].url);
+        return { ...prev, [item.id]: video };
+      });
     }
     setBusy(null);
-    setStatus(pickMime().includes("mp4") ? "" : "Video salvati in .webm: CapCut li apre, oppure convertili in mp4 prima di caricarli.");
+    setStatus(
+      `${list.length > 1 ? "Video pronti" : "Video pronto"}: tocca 💾 Salva video (o 📲 Salva in Galleria dal telefono).` +
+        (pickMime().includes("mp4") ? "" : " Formato .webm: CapCut lo apre lo stesso."),
+    );
   }
+
+  async function shareVideo(v: Video) {
+    try {
+      await navigator.share({ files: [v.file], title: v.name });
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") setError("Condivisione non riuscita: usa 💾 Salva video.");
+    }
+  }
+
+  const canShareFiles = (v: Video) => typeof navigator !== "undefined" && Boolean(navigator.canShare?.({ files: [v.file] }));
 
   const update = (id: string, text: string) => setItems((prev) => prev.map((i) => (i.id === id ? { ...i, text } : i)));
   const remove = (id: string) => setItems((prev) => prev.filter((i) => i.id !== id));
@@ -263,7 +290,7 @@ function Studio() {
               {generating ? "L'AI scrive i copioni…" : `✨ Genera ${count} copioni`}
             </button>
             <button className={btn.secondary} onClick={() => download(items)} disabled={Boolean(busy) || items.length === 0}>
-              ⬇ Scarica tutti ({items.length})
+              🎬 Crea tutti ({items.length})
             </button>
             <button className={btn.ghost} onClick={() => setItems((p) => [{ id: newId(), text: "POV: \nio: \nbro: " }, ...p])} disabled={Boolean(busy)}>
               + Copione vuoto
@@ -286,11 +313,23 @@ function Studio() {
               />
               <div className="flex flex-wrap items-center gap-2">
                 <button className={btn.secondary} onClick={() => preview(item)} disabled={Boolean(busy)}>▶ Anteprima</button>
-                <button className={btn.primary} onClick={() => download([item])} disabled={Boolean(busy)}>⬇ Scarica video</button>
+                <button className={btn.primary} onClick={() => download([item])} disabled={Boolean(busy)}>🎬 Crea video</button>
                 {busy === item.id && <button className={btn.ghost} onClick={() => stopRef.current()}>■ Stop</button>}
                 <span className="text-xs text-zinc-500">{tl.duration.toFixed(1)} s</span>
                 <button className={`${btn.ghost} ml-auto`} onClick={() => remove(item.id)} disabled={busy === item.id}>Elimina</button>
               </div>
+              {videos[item.id] && (
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-accent/30 bg-accent/[0.06] p-3">
+                  <video src={videos[item.id].url} controls playsInline className="h-40 rounded-lg bg-black" />
+                  <div className="flex flex-col gap-2">
+                    <a href={videos[item.id].url} download={videos[item.id].name} className={btn.accent}>💾 Salva video</a>
+                    {canShareFiles(videos[item.id]) && (
+                      <button className={btn.secondary} onClick={() => shareVideo(videos[item.id])}>📲 Salva in Galleria / condividi</button>
+                    )}
+                    <span className="text-xs text-zinc-500">{videos[item.id].name}</span>
+                  </div>
+                </div>
+              )}
               {cues && (
                 <div className="rounded-xl border border-white/[0.06] bg-black/20 p-3">
                   <div className="mb-1 flex items-center justify-between text-xs text-zinc-500">
