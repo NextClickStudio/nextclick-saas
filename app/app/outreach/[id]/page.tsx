@@ -46,7 +46,7 @@ export default async function SessionOutreachPage({ params }: Props) {
           <Link href={`/app/sessioni/${project.id}?tab=analisi`} className={btn.secondary}>Vai all&apos;analisi</Link>
         </EmptyState>
       ) : (
-        <OutreachBoard items={items} />
+        <OutreachBoard items={items} unlimited={account.unlimited} />
       )}
     </div>
   );

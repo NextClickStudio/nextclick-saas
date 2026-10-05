@@ -6,14 +6,14 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, copyText } from "@/components/client-utils";
 import { Badge, EmptyState, ErrorBox, btn, input } from "@/components/ui";
-import { MAX_STEP, SEND_CHANNEL_LABELS, CLOSED_STATUSES, groupOutreach, sendChannelsFor, sendLink, type OutreachItem, type SendChannel } from "@/lib/outreach";
+import { MAX_REGENERATIONS, MAX_STEP, SEND_CHANNEL_LABELS, CLOSED_STATUSES, groupOutreach, sendChannelsFor, sendLink, type OutreachItem, type SendChannel } from "@/lib/outreach";
 import { formatDate } from "@/lib/types";
 
 const STEP_NAMES = ["Aggancio", "Follow-up con soluzione", "Ultimo messaggio"];
 
 type View = "nuovi" | "followup" | "aperta" | "tutti";
 
-export default function OutreachBoard({ items }: { items: OutreachItem[] }) {
+export default function OutreachBoard({ items, unlimited = false }: { items: OutreachItem[]; unlimited?: boolean }) {
   const groups = useMemo(() => groupOutreach(items), [items]);
 
   const [view, setView] = useState<View>("nuovi");
@@ -72,7 +72,7 @@ export default function OutreachBoard({ items }: { items: OutreachItem[] }) {
       ) : (
         <div className="space-y-4">
           {list.map((item) => (
-            <OutreachCard key={item.id} item={item} />
+            <OutreachCard key={item.id} item={item} unlimited={unlimited} />
           ))}
         </div>
       )}
@@ -80,12 +80,13 @@ export default function OutreachBoard({ items }: { items: OutreachItem[] }) {
   );
 }
 
-function OutreachCard({ item }: { item: OutreachItem }) {
+function OutreachCard({ item, unlimited }: { item: OutreachItem; unlimited: boolean }) {
   const router = useRouter();
   const step = Math.min(item.step, MAX_STEP);
   const finished = item.step > MAX_STEP || CLOSED_STATUSES.includes(item.status);
   const channels = sendChannelsFor(item.channels, item.plan?.channel_type);
-  const saved = item.drafts?.[String(step)]?.messages ?? [];
+  const savedDraft = item.drafts?.[String(step)];
+  const saved = savedDraft?.messages ?? [];
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState(saved);
@@ -94,6 +95,12 @@ function OutreachCard({ item }: { item: OutreachItem }) {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [reply, setReply] = useState("");
+  // riscritture rimaste per questo messaggio (null = senza limite)
+  const [left, setLeft] = useState<number | null>(unlimited ? null : MAX_REGENERATIONS - (savedDraft?.regenerations ?? 0));
+  const [lastReply, setLastReply] = useState(savedDraft?.reply ?? "");
+  // una nuova risposta del cliente vale come messaggio nuovo: non consuma riscritture
+  const newReply = reply.trim() !== "" && reply.trim() !== lastReply;
+  const canRewrite = left === null || left > 0 || newReply;
 
   const current = messages.find((m) => m.channel === active);
   const due = item.due;
@@ -102,8 +109,10 @@ function OutreachCard({ item }: { item: OutreachItem }) {
     setLoading("draft");
     setError("");
     try {
-      const res = await api<{ messages: typeof messages }>("/api/app/outreach/draft", { body: { companyId: item.id, step, reply: reply.trim() || undefined } });
+      const res = await api<{ messages: typeof messages; regenerationsLeft: number | null }>("/api/app/outreach/draft", { body: { companyId: item.id, step, reply: reply.trim() || undefined } });
       setMessages(res.messages);
+      setLeft(res.regenerationsLeft);
+      setLastReply(reply.trim());
       if (!res.messages.some((m) => m.channel === active) && res.messages[0]) setActive(res.messages[0].channel as SendChannel);
     } catch (err) {
       setError((err as Error).message);
@@ -209,8 +218,21 @@ function OutreachCard({ item }: { item: OutreachItem }) {
                   </button>
                 ))}
                 {messages.length > 0 && (
-                  <button className={`${btn.ghost} ml-auto`} onClick={draft} disabled={loading !== ""}>
-                    {loading === "draft" ? "L'AI sta scrivendo…" : reply.trim() ? "↻ Riscrivi con la loro risposta" : "↻ Rigenera"}
+                  <button
+                    className={`${btn.ghost} ml-auto`}
+                    onClick={draft}
+                    disabled={loading !== "" || !canRewrite}
+                    title={canRewrite ? undefined : "Hai finito le riscritture: modifica il testo a mano"}
+                  >
+                    {loading === "draft"
+                      ? "L'AI sta scrivendo…"
+                      : newReply
+                        ? "↻ Riscrivi con la loro risposta"
+                        : left === null
+                          ? "↻ Rigenera"
+                          : left > 0
+                            ? `↻ Rigenera (${left} ${left === 1 ? "rimasta" : "rimaste"})`
+                            : "Riscritture finite · modifica a mano"}
                   </button>
                 )}
               </div>

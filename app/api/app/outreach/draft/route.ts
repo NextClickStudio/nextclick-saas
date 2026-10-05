@@ -5,7 +5,7 @@ import { handle, ownedCompany, readBody, uuid } from "@/lib/api";
 import { SITE_URL } from "@/lib/config";
 import { getCompanyRows, getUserProject } from "@/lib/data";
 import { db, UserError } from "@/lib/db";
-import { MAX_STEP, sendChannelsFor } from "@/lib/outreach";
+import { MAX_REGENERATIONS, MAX_STEP, sendChannelsFor } from "@/lib/outreach";
 import { getAccount, requireUser } from "@/lib/supabase-auth";
 import { consumeAiQuota } from "@/lib/quota";
 
@@ -19,16 +19,24 @@ export async function POST(request: Request) {
       z.object({ companyId: uuid, step: z.number().int().min(0).max(MAX_STEP), reply: z.string().max(2000).optional() }),
     );
     const company = await ownedCompany(companyId, user.id);
+    const account = await getAccount(user.id);
+
+    // Il primo messaggio di ogni passo è libero; poi al massimo 2 riscritture.
+    // Se arriva una nuova risposta del cliente è un messaggio nuovo, non una riscrittura.
+    const { data: stored } = await db().from("companies").select("drafts").eq("id", companyId).single();
+    const existing = ((stored?.drafts ?? {}) as Record<string, { regenerations?: number; reply?: string }>)[String(step)];
+    const sameRequest = Boolean(existing) && (existing?.reply ?? "") === (reply?.trim() ?? "");
+    const regenerations = sameRequest ? (existing?.regenerations ?? 0) + 1 : 0;
+    if (regenerations > MAX_REGENERATIONS && !account.unlimited) {
+      throw new UserError(`Hai già fatto riscrivere questo messaggio ${MAX_REGENERATIONS} volte: modificalo a mano qui sotto.`);
+    }
     await consumeAiQuota(user.id, "draft");
     const project = (await getUserProject(company.project_id, user.id))!;
     const rows = await getCompanyRows(project.id);
     const row = rows.find((r) => r.id === companyId);
     if (!row?.analysis || !row.report) throw new UserError("Analizza prima l'azienda: il messaggio si basa sul suo report.");
 
-    const [account, { data: previous }] = await Promise.all([
-      getAccount(user.id),
-      db().from("messages").select("body").eq("company_id", companyId).order("sent_at"),
-    ]);
+    const { data: previous } = await db().from("messages").select("body").eq("company_id", companyId).order("sent_at");
     const channels = sendChannelsFor(row.contact_channels, row.contact_plan?.channel_type);
     // a chi arriva il messaggio: il primo canale di quel tipo (le persone chiave sono messe prima del brand)
     const recipients: Record<string, { name: string; role: string } | undefined> = {};
@@ -60,10 +68,10 @@ export async function POST(request: Request) {
       reply,
     });
 
-    const all = (row.drafts ?? {}) as Record<string, unknown>;
-    all[String(step)] = { generated_at: new Date().toISOString(), messages: drafts };
+    const all = (stored?.drafts ?? {}) as Record<string, unknown>;
+    all[String(step)] = { generated_at: new Date().toISOString(), messages: drafts, regenerations, reply: reply?.trim() ?? "" };
     const { error } = await db().from("companies").update({ drafts: all }).eq("id", companyId);
     if (error) throw error;
-    return { messages: drafts };
+    return { messages: drafts, regenerationsLeft: account.unlimited ? null : Math.max(0, MAX_REGENERATIONS - regenerations) };
   });
 }

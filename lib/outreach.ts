@@ -118,7 +118,10 @@ export type OutreachItem = {
   step: number;
   nextFollowupAt: string | null;
   lastContactedAt: string | null;
-  drafts: Record<string, { generated_at: string; messages: { channel: string; subject?: string; body: string }[] }> | null;
+  drafts: Record<
+    string,
+    { generated_at: string; messages: { channel: string; subject?: string; body: string }[]; regenerations?: number; reply?: string }
+  > | null;
   /** follow-up scaduto (calcolato dal server) */
   due: boolean;
 };
@@ -148,3 +151,6 @@ export function groupOutreach(items: OutreachItem[]) {
   const today = [...replied, ...hot, ...due, ...fresh.slice(0, 10)].filter((i) => !seen.has(i.id) && seen.add(i.id));
   return { today, replied, hot, due, fresh, followup, done: items.filter((i) => DONE_STATUSES.includes(i.status)) };
 }
+
+/** Quante volte si può far riscrivere all'AI lo stesso messaggio (stesso passo, stessa risposta del cliente). */
+export const MAX_REGENERATIONS = 2;
