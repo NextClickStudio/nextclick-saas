@@ -40,12 +40,22 @@ export async function renewFromInvoice(invoice: {
   subscription?: string | null;
   parent?: { subscription_details?: { subscription?: string } };
 }): Promise<void> {
-  if (invoice.billing_reason !== "subscription_cycle") return; // il primo pagamento lo gestisce il checkout
   const subId = invoice.subscription ?? invoice.parent?.subscription_details?.subscription;
   if (!subId) return;
   const { data: acc } = await db().from("accounts").select("user_id, plan").eq("stripe_subscription_id", subId).maybeSingle();
   const plan = findPlan(acc?.plan);
   if (!acc || !plan) return;
+  // differenza pagata per un cambio piano: solo registro (le sessioni le ha già date il cambio piano)
+  if (invoice.billing_reason === "subscription_update") {
+    if ((invoice.amount_paid ?? 0) > 0) {
+      await db().from("purchases").upsert(
+        { user_id: acc.user_id, stripe_session_id: invoice.id, plan: plan.id, credits: 0, amount_cents: invoice.amount_paid, status: "paid", paid_at: new Date().toISOString() },
+        { onConflict: "stripe_session_id", ignoreDuplicates: true },
+      );
+    }
+    return;
+  }
+  if (invoice.billing_reason !== "subscription_cycle") return; // il primo pagamento lo gestisce il checkout
   // una fattura = una ricarica (la tabella acquisti fa da registro)
   const { data: inserted } = await db()
     .from("purchases")

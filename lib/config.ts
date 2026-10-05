@@ -19,3 +19,6 @@ export const EMAIL_AUTH_ENABLED = false;
  * Resta visibile solo agli account interni. Per riaccenderlo per tutti: true.
  */
 export const RADAR_ENABLED = false;
+
+/** Fase beta: etichetta "Beta" nel sito e avviso nei prezzi. Quando Yeppo esce dalla beta: false. */
+export const BETA = true;

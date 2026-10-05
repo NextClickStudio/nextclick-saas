@@ -6,7 +6,15 @@ import { sendPush } from "@/lib/push";
 
 export const maxDuration = 60;
 
-export async function GET() {
+/** Solo Vercel Cron può chiamarla: con CRON_SECRET impostato su Vercel arriva come "Authorization: Bearer ...". */
+function fromVercelCron(request: Request): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (secret) return request.headers.get("authorization") === `Bearer ${secret}`;
+  return (request.headers.get("user-agent") ?? "").startsWith("vercel-cron/");
+}
+
+export async function GET(request: Request) {
+  if (!fromVercelCron(request)) return Response.json({ error: "non autorizzato" }, { status: 401 });
   if (!RADAR_ENABLED) return Response.json({ reminded: 0, disabled: true });
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); // AAAA-MM-GG
   const { data: conns, error } = await db().from("instagram_connections").select("user_id").limit(1000);

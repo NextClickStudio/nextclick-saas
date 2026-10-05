@@ -5,6 +5,7 @@ import Scanner from "@/components/landing/scanner";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
 import { btn } from "@/components/ui";
+import { BETA } from "@/lib/config";
 import { COMPANIES_PER_FREE_SESSION, COMPANIES_PER_SESSION, PLANS, formatEuro } from "@/lib/plans";
 
 const STEPS = [
@@ -90,7 +91,7 @@ export default function Home() {
             <div>
               <div className="fade-in mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-zinc-300">
                 <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-cyan" />
-                Prospezione B2B guidata dall&apos;AI
+                {BETA ? "Beta pubblica · in test con i primi utenti" : "Prospezione B2B guidata dall\u2019AI"}
               </div>
               <h1 className="fade-in font-display text-[2.6rem] font-semibold leading-[1.05] tracking-tight text-white sm:text-6xl" style={{ animationDelay: "80ms" }}>
                 Il tuo commerciale AI.
@@ -337,6 +338,12 @@ export default function Home() {
               <p className="mt-5 text-lg text-zinc-400">
                 Abbonamento mensile, disdici quando vuoi. Prova gratis: 1 sessione (fino a {COMPANIES_PER_FREE_SESSION} aziende), senza carta.
               </p>
+              {BETA && (
+                <p className="mt-3 text-sm text-zinc-500">
+                  Yeppo è in beta: lo stiamo testando con i primi utenti e migliorando ogni settimana. Scrivici a info@yeppo.it per
+                  qualsiasi problema.
+                </p>
+              )}
             </Reveal>
             <div className="grid gap-5 md:grid-cols-3">
               {PLANS.map((p, i) => (

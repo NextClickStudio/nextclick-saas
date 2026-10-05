@@ -6,7 +6,7 @@ import NavProgress from "@/components/nav-progress";
 import { Logo } from "@/components/ui";
 import OnboardingTour, { GuideButton } from "@/components/onboarding-tour";
 import PlanBanner from "@/components/plan-banner";
-import { RADAR_ENABLED } from "@/lib/config";
+import { BETA, RADAR_ENABLED } from "@/lib/config";
 import { db } from "@/lib/db";
 import { availableSessions, getAccount, getCurrentUser, profileComplete } from "@/lib/supabase-auth";
 
@@ -34,7 +34,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <header className="no-print sticky top-0 z-40 border-b border-white/[0.06] bg-ink/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-6">
-            <Logo href="/app" />
+            <div className="flex items-center gap-2">
+              <Logo href="/app" />
+              {BETA && <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#c4b8ff]">Beta</span>}
+            </div>
             <nav className="hidden items-center gap-1 text-sm sm:flex">
               <NavLink href="/app">Dashboard</NavLink>
               {showRadar && (

@@ -141,7 +141,11 @@ export default async function PlansPage({ searchParams }: Props) {
           <ul className="divide-y divide-white/[0.06] text-sm">
             {(purchases ?? []).map((p) => (
               <li key={p.id} className="flex items-center justify-between py-3">
-                <span className="text-zinc-300">{p.plan === "extra" ? "Sessione extra" : `Abbonamento ${findPlan(p.plan)?.name ?? p.plan}`} · {p.credits} {p.credits === 1 ? "sessione" : "sessioni"}</span>
+                <span className="text-zinc-300">{p.plan === "extra"
+                    ? "Sessione extra · 1 sessione"
+                    : p.credits === 0
+                      ? `Cambio piano a ${findPlan(p.plan)?.name ?? p.plan} · differenza`
+                      : `Abbonamento ${findPlan(p.plan)?.name ?? p.plan} · ${p.credits} sessioni`}</span>
                 <span className="flex items-center gap-3 text-zinc-500">
                   {formatDate(p.created_at)} <Badge tone="green">{formatEuro(p.amount_cents)}</Badge>
                 </span>
