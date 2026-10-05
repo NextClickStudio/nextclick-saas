@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
+import NoZoom from "@/components/no-zoom";
 import SiteAnalytics from "@/components/site-analytics";
 import { SITE_URL } from "@/lib/config";
 import "./globals.css";
@@ -15,7 +16,14 @@ export const metadata: Metadata = {
   openGraph: { siteName: "Yeppo", locale: "it_IT", type: "website" },
 };
 
-export const viewport: Viewport = { themeColor: "#05060a" };
+// Sul telefono il sito non si ingrandisce: larghezza fissa allo schermo, niente zoom.
+export const viewport: Viewport = {
+  themeColor: "#05060a",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -23,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full flex flex-col font-sans">
         {children}
         <SiteAnalytics />
+        <NoZoom />
       </body>
     </html>
   );

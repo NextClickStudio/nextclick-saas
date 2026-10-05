@@ -15,11 +15,28 @@
 html {
   color-scheme: dark;
   scroll-behavior: smooth;
+  /* niente zoom col doppio tocco; niente ridimensionamento del testo quando giri il telefono */
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* niente scorrimento laterale della pagina (clip non rompe gli header "sticky") */
+  overflow-x: clip;
 }
 
 body {
   background: var(--color-ink);
   color: #e7e9f0;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+}
+
+/* iPhone ingrandisce la pagina quando tocchi un campo con testo sotto i 16px: sul telefono li porto a 16px */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 ::selection {
