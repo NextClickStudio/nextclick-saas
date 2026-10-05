@@ -124,7 +124,7 @@ export default function Home() {
           <div className="flex overflow-hidden">
             <div className="marquee flex shrink-0 gap-12 whitespace-nowrap pr-12 text-sm text-zinc-500">
               {[...Array(2)].flatMap((_, k) =>
-                ["Ricerca automatica delle aziende", "Analisi dei siti con prove", "Report privati", "Messaggi scritti dall'AI", "Follow-up automatici", "Richieste di call", "Classifica di settore", "Radar Instagram"].map((t) => (
+                ["Ricerca automatica delle aziende", "Analisi dei siti con prove", "Report privati", "Messaggi scritti dall'AI", "Follow-up automatici", "Richieste di call", "Classifica di settore"].map((t) => (
                   <span key={`${k}-${t}`} className="flex items-center gap-3">
                     <span className="h-1 w-1 rounded-full bg-accent" />
                     {t}
@@ -141,7 +141,7 @@ export default function Home() {
             <Reveal className="min-w-0">
               <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-accent">Guarda Yeppo al lavoro</p>
               <h2 className="font-display text-3xl font-semibold tracking-tight text-white sm:text-5xl">
-                Dalla lista di aziende alla call, in 5 passi.
+                Dalla lista di aziende alla call, in 4 passi.
               </h2>
               <p className="mt-6 text-lg leading-relaxed text-zinc-400">
                 Descrivi cosa vendi. Yeppo trova le aziende che ne hanno bisogno, ti mostra il problema concreto di ognuna, chi
@@ -335,7 +335,7 @@ export default function Home() {
               <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-accent">Prezzi</p>
               <h2 className="font-display text-3xl font-semibold tracking-tight text-white sm:text-5xl">Un commerciale AI, al prezzo di un caffè al giorno.</h2>
               <p className="mt-5 text-lg text-zinc-400">
-                Abbonamento mensile, disdici quando vuoi. Prova gratis: 1 sessione (fino a {COMPANIES_PER_FREE_SESSION} aziende) e 3 ricerche Radar.
+                Abbonamento mensile, disdici quando vuoi. Prova gratis: 1 sessione (fino a {COMPANIES_PER_FREE_SESSION} aziende), senza carta.
               </p>
             </Reveal>
             <div className="grid gap-5 md:grid-cols-3">

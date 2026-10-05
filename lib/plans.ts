@@ -29,7 +29,7 @@ export const PLANS: Plan[] = [
       `2 sessioni al mese (${2 * COMPANIES_PER_SESSION} aziende)`,
       "Analisi, report e persone chiave",
       "Messaggi scritti dall'AI e follow-up",
-      "Radar Instagram: 1 ricerca al giorno",
+      "Sai chi apre la tua proposta",
     ],
   },
   {
@@ -42,7 +42,7 @@ export const PLANS: Plan[] = [
     features: [
       `5 sessioni al mese (${5 * COMPANIES_PER_SESSION} aziende)`,
       "Tutto del Basic",
-      "Radar Instagram: 2 ricerche al giorno",
+      "Più aziende ogni mese per più settori",
       "Export CSV e classifica pubblica",
     ],
   },

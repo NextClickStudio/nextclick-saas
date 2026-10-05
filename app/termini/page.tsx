@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import LegalPage from "@/components/legal-page";
 import { LEGAL } from "@/lib/legal";
+import { RADAR_ENABLED } from "@/lib/config";
 import { COMPANIES_PER_FREE_SESSION, EXTRA_SESSION, FREE_RADAR_RUNS, formatEuro, PLANS } from "@/lib/plans";
 
 export const metadata: Metadata = { title: "Termini e condizioni" };
@@ -22,11 +23,13 @@ export default function TermsPage() {
         punteggi, classifiche e report, cerca le persone chiave e i canali di contatto pubblicati, e propone bozze di
         messaggi e follow-up che l&apos;utente decide se e come inviare.
       </p>
+      {RADAR_ENABLED && (
       <p>
         Il &quot;Radar&quot; è una funzione facoltativa che, collegando un account Instagram professionale tramite le API ufficiali di
         Meta, individua brand e post pubblici del settore scelto e propone bozze di commenti. Nessun contenuto viene
         pubblicato automaticamente: la pubblicazione è sempre fatta dall&apos;utente.
       </p>
+      )}
       <p>
         Il Servizio è destinato esclusivamente a professionisti e imprese (B2B). Non è destinato ai consumatori.
       </p>
@@ -43,12 +46,12 @@ export default function TermsPage() {
       <h2>3. Prova gratuita, abbonamenti e pagamenti</h2>
       <ul>
         <li>
-          Ogni nuovo account riceve una prova gratuita: una sessione fino a {COMPANIES_PER_FREE_SESSION} aziende e{" "}
-          {FREE_RADAR_RUNS} ricerche Radar. La prova non richiede carta e non si trasforma da sola in un abbonamento.
+          Ogni nuovo account riceve una prova gratuita: una sessione fino a {COMPANIES_PER_FREE_SESSION} aziende
+          {RADAR_ENABLED ? ` e ${FREE_RADAR_RUNS} ricerche Radar` : ""}. La prova non richiede carta e non si trasforma da sola in un abbonamento.
         </li>
         <li>
           I piani sono abbonamenti mensili ({PLANS.map((p) => `${p.name} ${formatEuro(p.priceCents)}`).join(", ")} al mese), con le
-          sessioni e le ricerche Radar indicate nella pagina Piani. I prezzi sono IVA esclusa.
+          sessioni indicate nella pagina Piani. I prezzi sono IVA esclusa.
         </li>
         <li>
           <strong>Rinnovo automatico:</strong> l&apos;abbonamento si rinnova ogni mese alla stessa data e l&apos;importo viene
@@ -101,10 +104,12 @@ export default function TermsPage() {
         </li>
         <li>È vietato usare il Servizio per inviare spam, molestie, contenuti ingannevoli o diffamatori, o per finalità illecite.</li>
         <li>È vietato tentare di eludere i limiti del Servizio, rivenderlo senza autorizzazione o usarlo per analizzare reti o sistemi non pubblici.</li>
+        {RADAR_ENABLED && (
         <li>
           Per il Radar l&apos;utente si impegna a rispettare i termini di Instagram e di Meta: i commenti vanno pubblicati a mano,
           devono essere pertinenti e non possono essere usati per spam o messaggi ripetitivi.
         </li>
+        )}
         <li>
           Per evitare abusi l&apos;uso dell&apos;intelligenza artificiale ha limiti giornalieri ragionevoli per account, indicati
           nell&apos;app quando vengono raggiunti.

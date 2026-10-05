@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Yeppo",
     short_name: "Yeppo",
     description: "Il tuo commerciale AI: trova chi sta cercando quello che vendi.",
-    start_url: "/app/radar",
+    start_url: "/app",
     display: "standalone",
     background_color: "#05060a",
     theme_color: "#05060a",

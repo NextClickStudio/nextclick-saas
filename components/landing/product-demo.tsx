@@ -8,7 +8,6 @@ const STEPS = [
   { id: "report", label: "Report", title: "Per ognuna un report privato con le prove" },
   { id: "persone", label: "Contatto", title: "La persona giusta e il primo messaggio" },
   { id: "aperta", label: "Proposta", title: "Sai chi apre la proposta, e quando" },
-  { id: "radar", label: "Radar", title: "Brand nuovi su Instagram, con il commento pronto" },
 ] as const;
 
 const COMPANIES = [
@@ -89,8 +88,7 @@ function Screen({ step }: { step: (typeof STEPS)[number]["id"] }) {
         </div>
       </Frame>
     );
-  if (step === "aperta")
-    return (
+  return (
       <Frame>
         <div className="flex items-center gap-3 rounded-xl border border-cyan/30 bg-cyan/10 px-3.5 py-3">
           <span className="pulse-dot h-2 w-2 rounded-full bg-cyan" />
@@ -121,26 +119,6 @@ function Screen({ step }: { step: (typeof STEPS)[number]["id"] }) {
         </div>
       </Frame>
     );
-  return (
-    <Frame>
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
-        <div className="flex items-center gap-2">
-          <span className="h-7 w-7 rounded-full bg-gradient-to-br from-rose-400 to-amber-300" />
-          <div>
-            <p className="text-sm text-zinc-100">@verdeolivo.studio</p>
-            <p className="text-[11px] text-zinc-500">brand nuovo · scoperto oggi</p>
-          </div>
-        </div>
-        <p className="mt-2.5 text-sm text-zinc-300">&quot;Finalmente online il nostro primo shop! Ogni ordine lo prepariamo a mano 🫒&quot;</p>
-        <p className="mt-1.5 text-[11px] text-zinc-500">♥ 128 · 💬 14</p>
-      </div>
-      <p className="pt-1 text-xs text-zinc-500">Commento suggerito dall&apos;AI · lo pubblichi tu</p>
-      <div className="rounded-xl border border-accent/30 bg-accent/10 px-3.5 py-2.5 text-sm text-zinc-100">
-        Bellissimo lancio! Un consiglio da chi ci lavora: mettete il &quot;fatto a mano&quot; anche nella pagina prodotto, vicino al prezzo.
-        Converte tantissimo 🙌
-      </div>
-    </Frame>
-  );
 }
 
 export default function ProductDemo() {

@@ -1,4 +1,5 @@
 // Job giornaliero (Vercel Cron): niente ricerche automatiche, solo un promemoria a chi non ha ancora fatto la ricerca di oggi.
+import { RADAR_ENABLED } from "@/lib/config";
 import { db } from "@/lib/db";
 import { radarAllowance } from "@/lib/plans";
 import { sendPush } from "@/lib/push";
@@ -6,6 +7,7 @@ import { sendPush } from "@/lib/push";
 export const maxDuration = 60;
 
 export async function GET() {
+  if (!RADAR_ENABLED) return Response.json({ reminded: 0, disabled: true });
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); // AAAA-MM-GG
   const { data: conns, error } = await db().from("instagram_connections").select("user_id").limit(1000);
   if (error) return Response.json({ error: error.message }, { status: 500 });

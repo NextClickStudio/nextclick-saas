@@ -16,7 +16,7 @@ export default function PlanBanner({ account }: { account: Account }) {
     cta = "Aggiorna pagamento";
     tone = "warn";
   } else if (!active && sessions === 0) {
-    text = "Hai usato la prova gratuita. Scegli un piano per trovare altre aziende, scrivere i messaggi e usare il Radar ogni giorno.";
+    text = "Hai usato la prova gratuita. Scegli un piano per trovare altre aziende ogni mese e scrivere i messaggi con l'AI.";
     cta = "Scegli un piano";
   } else if (active && sessions === 0) {
     text = "Hai usato tutte le sessioni di questo mese. Aggiungi una sessione extra o passa a un piano più grande.";

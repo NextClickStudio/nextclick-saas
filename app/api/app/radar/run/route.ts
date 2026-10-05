@@ -1,6 +1,7 @@
 // Ricerca del Radar (manuale): brand nuovi + post dei brand seguiti e degli hashtag.
 // Limite dal piano: Basic 1 al giorno, Pro/Agency 2; in prova gratuita 3 ricerche in tutto.
 import { handle } from "@/lib/api";
+import { RADAR_ENABLED } from "@/lib/config";
 import { db, UserError } from "@/lib/db";
 import { FREE_RADAR_RUNS, radarAllowance } from "@/lib/plans";
 import { runDiscovery, runRadar } from "@/lib/radar-run";
@@ -12,7 +13,9 @@ export const maxDuration = 60;
 export async function POST() {
   return handle(async () => {
     const user = await requireUser();
-    const allowance = radarAllowance(await getAccount(user.id));
+    const account = await getAccount(user.id);
+    if (!RADAR_ENABLED && !account.unlimited) throw new UserError("Il Radar non è disponibile.");
+    const allowance = radarAllowance(account);
     let left: number;
     if ("daily" in allowance) {
       const { data, error } = await db().rpc("use_radar_run", { p_user: user.id, p_max: allowance.daily });

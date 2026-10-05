@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { RADAR_ENABLED } from "@/lib/config";
 import { db } from "@/lib/db";
 import { getConnection, metaConfigured } from "@/lib/instagram";
 import { FREE_RADAR_RUNS, radarAllowance } from "@/lib/plans";
 import { isInstagramPost, readProfile } from "@/lib/radar";
-import { getCurrentUser } from "@/lib/supabase-auth";
+import { getAccount, getCurrentUser } from "@/lib/supabase-auth";
 import RadarView, { type RadarItem } from "./radar-view";
 
 export const metadata: Metadata = { title: "Radar" };
@@ -23,6 +25,7 @@ type Props = { searchParams: Promise<{ ig?: string; ig_error?: string }> };
 export default async function RadarPage({ searchParams }: Props) {
   const { ig, ig_error } = await searchParams;
   const user = (await getCurrentUser())!;
+  if (!RADAR_ENABLED && !(await getAccount(user.id)).unlimited) notFound();
   const [{ data: account }, { data: items }, conn] = await Promise.all([
     db().from("accounts").select("radar_profile, radar_last_run_at, company_offer, radar_runs_day, radar_runs_count, radar_free_runs_left, unlimited, plan, plan_status").eq("user_id", user.id).single(),
     db()

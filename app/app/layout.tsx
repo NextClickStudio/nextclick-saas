@@ -6,6 +6,7 @@ import NavProgress from "@/components/nav-progress";
 import { Logo } from "@/components/ui";
 import OnboardingTour, { GuideButton } from "@/components/onboarding-tour";
 import PlanBanner from "@/components/plan-banner";
+import { RADAR_ENABLED } from "@/lib/config";
 import { db } from "@/lib/db";
 import { availableSessions, getAccount, getCurrentUser, profileComplete } from "@/lib/supabase-auth";
 
@@ -23,7 +24,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq("companies.projects.user_id", user.id)
     .eq("status", "nuova");
   // opportunità nuove del Radar (notifica nel menu)
-  const { count: newRadar } = await db().from("radar_items").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "nuovo");
+  const showRadar = RADAR_ENABLED || account.unlimited;
+  const { count: newRadar } = showRadar
+    ? await db().from("radar_items").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("status", "nuovo")
+    : { count: 0 };
 
   return (
     <div className="flex flex-1 flex-col">
@@ -33,7 +37,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Logo href="/app" />
             <nav className="hidden items-center gap-1 text-sm sm:flex">
               <NavLink href="/app">Dashboard</NavLink>
-              <NavLink href="/app/radar">
+              {showRadar && (
+<NavLink href="/app/radar">
                 Radar
                 {(newRadar ?? 0) > 0 && (
                   <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white">
@@ -41,6 +46,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                   </span>
                 )}
               </NavLink>
+)}
               <NavLink href="/app/outreach">Outreach</NavLink>
               <NavLink href="/app/richieste">
                 Richieste
@@ -73,7 +79,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
         <nav className="flex gap-1 overflow-x-auto border-t border-white/[0.04] px-4 py-1.5 text-sm sm:hidden">
           <NavLink href="/app" compact>Dashboard</NavLink>
-          <NavLink href="/app/radar" compact>Radar{(newRadar ?? 0) > 0 ? ` (${newRadar})` : ""}</NavLink>
+          {showRadar && <NavLink href="/app/radar" compact>Radar{(newRadar ?? 0) > 0 ? ` (${newRadar})` : ""}</NavLink>}
           <NavLink href="/app/outreach" compact>Outreach</NavLink>
           <NavLink href="/app/richieste" compact>
             Richieste{(newRequests ?? 0) > 0 ? ` (${newRequests})` : ""}

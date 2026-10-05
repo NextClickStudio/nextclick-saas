@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Badge, Card } from "@/components/ui";
 import { activateFromCheckout } from "@/lib/billing";
 import { db } from "@/lib/db";
-import { COMPANIES_PER_FREE_SESSION, COMPANIES_PER_SESSION, EXTRA_SESSION, FREE_RADAR_RUNS, PLANS, findPlan, formatEuro, planActive } from "@/lib/plans";
+import { COMPANIES_PER_FREE_SESSION, COMPANIES_PER_SESSION, EXTRA_SESSION, PLANS, findPlan, formatEuro, planActive } from "@/lib/plans";
 import { getCheckout, paymentsEnabled } from "@/lib/stripe";
 import { availableSessions, getAccount, getCurrentUser } from "@/lib/supabase-auth";
 import { formatDate } from "@/lib/types";
@@ -77,7 +77,7 @@ export default async function PlansPage({ searchParams }: Props) {
               {current.name} <span className="text-base font-normal text-zinc-400">· {formatEuro(current.priceCents)}/mese</span>
             </p>
             <p className="mt-1 text-sm text-zinc-400">
-              {account.plan_sessions_left} di {current.sessions} sessioni rimaste questo mese · Radar {current.radarPerDay} {current.radarPerDay === 1 ? "ricerca" : "ricerche"} al giorno
+              {account.plan_sessions_left} di {current.sessions} sessioni rimaste questo mese
               {account.plan_period_end && ` · rinnovo il ${formatDate(account.plan_period_end)}`}
               {account.plan_status === "past_due" && " · ⚠️ pagamento non riuscito: aggiorna la carta"}
             </p>
@@ -86,7 +86,7 @@ export default async function PlansPage({ searchParams }: Props) {
         </div>
       ) : (
         <p className="rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 text-sm text-zinc-400">
-          Piano gratuito: 1 sessione di prova e {FREE_RADAR_RUNS} ricerche Radar in totale ({account.radar_free_runs_left} rimaste).
+          Piano gratuito: 1 sessione di prova fino a {COMPANIES_PER_FREE_SESSION} aziende.
         </p>
       )}
 

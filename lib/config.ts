@@ -13,3 +13,9 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://yeppo.it")
 // Fase di test: accesso solo con Google. Metti true per riattivare email e password
 // (prima configura l'invio email: Supabase → Authentication → SMTP, ad es. con Resend).
 export const EMAIL_AUTH_ENABLED = false;
+
+/**
+ * Radar Instagram: spento per il lancio (serve l'approvazione Meta, che richiede la partita IVA).
+ * Resta visibile solo agli account interni. Per riaccenderlo per tutti: true.
+ */
+export const RADAR_ENABLED = false;
