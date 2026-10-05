@@ -22,6 +22,13 @@ function toForm(obj: Record<string, unknown>, prefix = "", out = new URLSearchPa
   return out;
 }
 
+/** Errore restituito da Stripe (il messaggio tecnico resta nei log, all'utente arriva quello leggibile). */
+class StripeError extends UserError {
+  constructor(public stripeMessage: string) {
+    super("Il pagamento non è disponibile in questo momento. Riprova tra poco.");
+  }
+}
+
 async function stripe<T>(path: string, method: "GET" | "POST", body?: Record<string, unknown>): Promise<T> {
   const res = await fetch(API + path, {
     method,
@@ -31,7 +38,7 @@ async function stripe<T>(path: string, method: "GET" | "POST", body?: Record<str
   const json = await res.json();
   if (!res.ok) {
     console.error("Stripe", json);
-    throw new UserError("Il pagamento non è disponibile in questo momento. Riprova tra poco.");
+    throw new StripeError(String(json?.error?.message ?? ""));
   }
   return json as T;
 }
@@ -60,6 +67,22 @@ const common = (opts: { userId: string; email: string; customerId?: string | nul
   locale: "it",
 });
 
+/**
+ * Crea la pagina di pagamento. Gli account Stripe nuovi hanno "Managed Payments" attivo di default
+ * (Stripe venditore al posto tuo, con le sue regole sulle tasse): Yeppo usa il pagamento standard,
+ * quindi lo disattiva per la singola richiesta; se l'account non conosce quel parametro, riprova senza.
+ */
+async function createSession(body: Record<string, unknown>): Promise<CheckoutSession> {
+  try {
+    return await stripe<CheckoutSession>("/checkout/sessions", "POST", { ...body, managed_payments: { enabled: "false" } });
+  } catch (err) {
+    if (err instanceof StripeError && /managed_payments/i.test(err.stripeMessage) && /unknown|not supported|unrecognized/i.test(err.stripeMessage)) {
+      return stripe<CheckoutSession>("/checkout/sessions", "POST", body);
+    }
+    throw err;
+  }
+}
+
 /** Abbonamento mensile a un piano. */
 export async function createSubscriptionCheckout(opts: {
   userId: string;
@@ -71,7 +94,7 @@ export async function createSubscriptionCheckout(opts: {
   successUrl: string;
   cancelUrl: string;
 }): Promise<CheckoutSession> {
-  return stripe<CheckoutSession>("/checkout/sessions", "POST", {
+  return createSession({
     mode: "subscription",
     ...common(opts),
     line_items: {
@@ -102,7 +125,7 @@ export async function createCheckout(opts: {
   successUrl: string;
   cancelUrl: string;
 }): Promise<CheckoutSession> {
-  return stripe<CheckoutSession>("/checkout/sessions", "POST", {
+  return createSession({
     mode: "payment",
     ...common(opts),
     invoice_creation: { enabled: "true" },
