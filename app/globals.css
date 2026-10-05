@@ -1,0 +1,195 @@
+@import "tailwindcss";
+
+/* Tema scuro: nero, grigi e un accento viola-ciano. */
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display-face), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --color-accent: #8b7bff;
+  --color-accent-dark: #6d5cf6;
+  --color-accent-soft: rgb(139 123 255 / 0.14);
+  --color-cyan: #5eead4;
+  --color-ink: #05060a;
+  --color-panel: #0b0d14;
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+  /* niente zoom col doppio tocco; niente ridimensionamento del testo quando giri il telefono */
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* niente scorrimento laterale della pagina (clip non rompe gli header "sticky") */
+  overflow-x: clip;
+}
+
+body {
+  background: var(--color-ink);
+  color: #e7e9f0;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+}
+
+/* iPhone ingrandisce la pagina quando tocchi un campo con testo sotto i 16px: sul telefono li porto a 16px */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+::selection {
+  background: rgb(139 123 255 / 0.35);
+  color: white;
+}
+
+/* ---------- elementi decorativi ---------- */
+
+/* griglia di sfondo che sfuma verso i bordi */
+.bg-grid {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 30%, transparent 75%);
+}
+
+/* testo con gradiente */
+.text-gradient {
+  background: linear-gradient(100deg, #ffffff 10%, #c4b8ff 45%, #5eead4 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* bordo luminoso per le card in evidenza */
+.glow-border {
+  position: relative;
+  isolation: isolate;
+}
+.glow-border::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(140deg, rgb(139 123 255 / 0.8), rgb(94 234 212 / 0.25) 40%, transparent 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* sfere di luce animate */
+.orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  opacity: 0.55;
+  animation: orb-float 18s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes orb-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(40px, -30px, 0) scale(1.08); }
+  66% { transform: translate3d(-30px, 20px, 0) scale(0.95); }
+}
+
+/* linea di scansione */
+.scanline {
+  animation: scan 3.2s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+}
+@keyframes scan {
+  0% { transform: translateY(-10%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(1100%); opacity: 0; }
+}
+
+/* barre che si riempiono */
+.bar-fill {
+  transform-origin: left;
+  animation: bar 2.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes bar {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* comparsa allo scroll (vedi components/reveal.tsx) */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  filter: blur(6px);
+  transition: opacity 0.9s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.9s ease;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
+/* scorrimento orizzontale infinito */
+.marquee {
+  animation: marquee 40s linear infinite;
+}
+@keyframes marquee {
+  to { transform: translateX(-50%); }
+}
+
+/* puntino "live" che pulsa */
+.pulse-dot {
+  animation: pulse 1.8s ease-out infinite;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgb(94 234 212 / 0.6); }
+  100% { box-shadow: 0 0 0 10px rgb(94 234 212 / 0); }
+}
+
+.fade-in {
+  animation: fade-in 0.8s ease both;
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .reveal { opacity: 1; transform: none; filter: none; }
+}
+
+/* contenuto delle pagine legali */
+.legal h2 { margin-top: 2.25rem; margin-bottom: 0.75rem; font-size: 1.15rem; font-weight: 600; color: white; }
+.legal h3 { margin-top: 1.25rem; margin-bottom: 0.5rem; font-weight: 600; color: #e7e9f0; }
+.legal p, .legal li { color: #a1a5b3; line-height: 1.75; font-size: 0.95rem; }
+.legal ul { list-style: disc; padding-left: 1.25rem; margin: 0.5rem 0; }
+.legal a { color: #c4b8ff; text-decoration: underline; }
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; color: black; }
+}
+
+/* transizioni di pagina e barra di navigazione */
+.page-enter {
+  animation: page-enter 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.nav-progress {
+  animation: nav-progress 8s cubic-bezier(0.1, 0.7, 0.2, 1) forwards;
+}
+@keyframes nav-progress {
+  from { width: 0%; }
+  to { width: 92%; }
+}

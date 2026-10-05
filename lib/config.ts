@@ -1,0 +1,24 @@
+// Valori pubblici (non segreti) usati sia dal server sia dal browser.
+
+export const APP_NAME = "Yeppo";
+
+// Progetto Supabase "yeppo". La chiave "publishable" è pubblica per definizione:
+// serve solo al login. I dati restano protetti dalla Row Level Security.
+export const SUPABASE_URL = process.env.SUPABASE_URL || "https://djzzjybrcknrvvovvlpq.supabase.co";
+export const SUPABASE_PUBLISHABLE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_oZlJY_ee3NtgIqyFpru9ZA_s7_3owj1";
+
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://yeppo.it").replace(/\/+$/, "");
+
+// Fase di test: accesso solo con Google. Metti true per riattivare email e password
+// (prima configura l'invio email: Supabase → Authentication → SMTP, ad es. con Resend).
+export const EMAIL_AUTH_ENABLED = false;
+
+/**
+ * Radar Instagram: spento per il lancio (serve l'approvazione Meta, che richiede la partita IVA).
+ * Resta visibile solo agli account interni. Per riaccenderlo per tutti: true.
+ */
+export const RADAR_ENABLED = false;
+
+/** Fase beta: etichetta "Beta" nel sito e avviso nei prezzi. Quando Yeppo esce dalla beta: false. */
+export const BETA = true;
