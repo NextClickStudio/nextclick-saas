@@ -11,6 +11,7 @@ export const AI_DAILY_LIMITS = {
   reply: 100, // commenti/DM del Radar
   suggest: 15, // profilo Radar compilato dall'AI
   meme: 40, // copioni dei meme social (uso interno)
+  radar: 5, // ricerche Radar (il limite vero dipende dal piano: qui serve a contarle per i costi)
 } as const;
 
 export type AiKind = keyof typeof AI_DAILY_LIMITS;
@@ -24,6 +25,7 @@ const LABEL: Record<AiKind, string> = {
   reply: "risposte del Radar",
   suggest: "profili compilati dall'AI",
   meme: "generazioni di meme",
+  radar: "ricerche Radar",
 };
 
 /** Consuma una unità del limite di oggi; se è finito lancia un errore leggibile. */

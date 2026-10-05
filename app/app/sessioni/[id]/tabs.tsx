@@ -19,7 +19,7 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
-export type TabProps = { project: Project; criteria: Criterion[]; rows: CompanyRow[]; siteUrl: string };
+export type TabProps = { project: Project; criteria: Criterion[]; rows: CompanyRow[]; siteUrl: string; pro: boolean };
 
 export default function ProjectTabs(props: TabProps & { initialTab?: string; autoDiscover?: boolean }) {
   const [tab, setTab] = useState<TabId>(TABS.some((t) => t.id === props.initialTab) ? (props.initialTab as TabId) : "aziende");

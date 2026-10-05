@@ -1,7 +1,8 @@
 // Esporta la classifica del progetto in CSV (si apre con Excel / Google Sheets).
 import { handle, uuid } from "@/lib/api";
 import { getCompanyRows, getCriteria, getUserProject } from "@/lib/data";
-import { requireUser } from "@/lib/supabase-auth";
+import { hasProFeatures, PRO_ONLY_MESSAGE } from "@/lib/plans";
+import { getAccount, requireUser } from "@/lib/supabase-auth";
 import { UserError } from "@/lib/db";
 import { statusLabel } from "@/lib/types";
 
@@ -15,6 +16,7 @@ function csvCell(value: unknown): string {
 export async function GET(request: Request) {
   return handle(async () => {
     const user = await requireUser();
+    if (!hasProFeatures(await getAccount(user.id))) throw new UserError(PRO_ONLY_MESSAGE);
     const projectId = uuid.parse(new URL(request.url).searchParams.get("projectId"));
     const project = await getUserProject(projectId, user.id);
     if (!project) throw new UserError("Sessione non trovata.");

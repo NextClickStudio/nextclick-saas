@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { Badge, btn } from "@/components/ui";
 import { getCompanyRows, getCriteria, getUserProject } from "@/lib/data";
 import { siteUrl } from "@/lib/site";
-import { getCurrentUser } from "@/lib/supabase-auth";
+import { hasProFeatures } from "@/lib/plans";
+import { getAccount, getCurrentUser } from "@/lib/supabase-auth";
 import { TARGET_SIZES } from "@/lib/types";
 import ProjectTabs from "./tabs";
 
@@ -18,7 +19,7 @@ export default async function SessionPage({ params, searchParams }: Props) {
   const user = (await getCurrentUser())!;
   const project = await getUserProject(id, user.id);
   if (!project) notFound();
-  const [criteria, rows, site] = await Promise.all([getCriteria(id), getCompanyRows(id), siteUrl()]);
+  const [criteria, rows, site, account] = await Promise.all([getCriteria(id), getCompanyRows(id), siteUrl(), getAccount(user.id)]);
 
   return (
     <div>
@@ -37,7 +38,7 @@ export default async function SessionPage({ params, searchParams }: Props) {
           )}
         </div>
       </div>
-      <ProjectTabs project={project} criteria={criteria} rows={rows} siteUrl={site} initialTab={tab} autoDiscover={avvia === "1"} />
+      <ProjectTabs project={project} criteria={criteria} rows={rows} siteUrl={site} pro={hasProFeatures(account)} initialTab={tab} autoDiscover={avvia === "1"} />
     </div>
   );
 }

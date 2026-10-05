@@ -10,5 +10,5 @@ export const LEGAL = {
   vat: "", // vuoto finché non c'è la partita IVA
   email: "info@yeppo.it",
   pec: "", // vuota finché non c'è
-  lastUpdate: "1 ottobre 2026",
+  lastUpdate: "5 ottobre 2026",
 };

@@ -83,3 +83,11 @@ export function radarAllowance(a: { unlimited: boolean; plan: string; plan_statu
   const plan = planActive(a.plan_status) ? findPlan(a.plan) : undefined;
   return plan ? { daily: plan.radarPerDay } : { trial: true };
 }
+
+/** Export CSV e classifica pubblica: inclusi da Pro in su (e per gli account interni). */
+export function hasProFeatures(a: { unlimited: boolean; plan: string; plan_status: string | null }): boolean {
+  if (a.unlimited) return true;
+  return planActive(a.plan_status) && (a.plan === "pro" || a.plan === "agency");
+}
+
+export const PRO_ONLY_MESSAGE = "Export CSV e classifica pubblica sono inclusi nei piani Pro e Agency: puoi cambiare piano dalla pagina Piani.";

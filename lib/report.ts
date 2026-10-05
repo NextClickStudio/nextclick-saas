@@ -45,10 +45,14 @@ export async function getReportData(slug: string) {
   };
 }
 
-/** User-agent di anteprime link e crawler: non contano come visite. */
+/**
+ * User-agent di anteprime link e crawler: non contano come visite.
+ * Attenzione a non escludere i browser interni delle app (LinkedIn, Instagram...): lì apre una persona vera;
+ * i loro bot di anteprima hanno "bot" nel nome (LinkedInBot, Pinterestbot...).
+ */
 export function isBot(userAgent: string | null): boolean {
   if (!userAgent) return true;
-  return /bot|crawl|spider|preview|linkedin|facebookexternalhit|slack|whatsapp|telegram|discord|skype|embedly|headless|curl|wget|python|axios|node-fetch/i.test(
+  return /bot|crawl|spider|preview|facebookexternalhit|meta-externalagent|slack|whatsapp|telegram|discord|skype|embedly|iframely|pagerenderer|headless|curl|wget|python|axios|node-fetch/i.test(
     userAgent,
   );
 }

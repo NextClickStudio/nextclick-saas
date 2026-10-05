@@ -174,7 +174,8 @@ alter table companies
   add column if not exists contact_channels jsonb,
   add column if not exists contact_plan jsonb;
 
--- Usa una sessione: prima quelle gratuite (fino a 10 aziende), poi i crediti (fino a 30).
+-- Usa una sessione: prima quelle del piano (scadono a fine mese), poi la prova gratuita (fino a 10 aziende),
+-- poi le sessioni extra (non scadono). Versione aggiornata dalle migrazioni v9/v10.
 create or replace function use_session_credit(p_user uuid, p_project uuid)
 returns int language plpgsql security invoker set search_path = public as $$
 declare v_limit int := 0; v_acc accounts%rowtype;
@@ -185,6 +186,8 @@ begin
     return (select company_limit from projects where id = p_project);
   end if;
   if v_acc.unlimited then v_limit := 30;
+  elsif v_acc.plan_sessions_left > 0 and v_acc.plan_status in ('active', 'trialing', 'past_due') then
+    update accounts set plan_sessions_left = plan_sessions_left - 1 where user_id = p_user; v_limit := 30;
   elsif v_acc.free_sessions > 0 then
     update accounts set free_sessions = free_sessions - 1 where user_id = p_user; v_limit := 10;
   elsif v_acc.credits > 0 then

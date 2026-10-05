@@ -7,7 +7,7 @@ import { CopyButton } from "@/components/company-controls";
 import { Card, ErrorBox, btn, input, label } from "@/components/ui";
 import type { TabProps } from "./tabs";
 
-export default function PublishTab({ project, siteUrl }: TabProps) {
+export default function PublishTab({ project, siteUrl, pro }: TabProps) {
   const router = useRouter();
   const [form, setForm] = useState({
     public_ranking_enabled: project.public_ranking_enabled,
@@ -19,6 +19,7 @@ export default function PublishTab({ project, siteUrl }: TabProps) {
   const [state, setState] = useState<"" | "saving" | "saved">("");
   const [error, setError] = useState("");
   const publicUrl = `${siteUrl}/classifica/${project.public_slug}`;
+  const locked = !pro && !project.public_ranking_enabled;
 
   async function save() {
     setState("saving");
@@ -43,10 +44,17 @@ export default function PublishTab({ project, siteUrl }: TabProps) {
             type="checkbox"
             className="h-4 w-4 accent-[var(--color-accent)]"
             checked={form.public_ranking_enabled}
+            disabled={locked}
             onChange={(e) => setForm({ ...form, public_ranking_enabled: e.target.checked })}
           />
           Pubblica la classifica (mostra solo le prime N aziende)
         </label>
+        {locked && (
+          <p className="text-sm text-zinc-400">
+            La classifica pubblica è inclusa nei piani Pro e Agency.{" "}
+            <a href="/app/piani" className="text-[#c4b8ff] hover:underline">Cambia piano →</a>
+          </p>
+        )}
         <div>
           <label className={label} htmlFor="topn">Quante aziende mostrare (top N)</label>
           <input

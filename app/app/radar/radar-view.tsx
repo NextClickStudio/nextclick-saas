@@ -177,6 +177,9 @@ export default function RadarView({
           <button className={btn.accent} onClick={scan} disabled={scanning || runsLeft <= 0}>
             {scanning ? "Cerco brand e post… (fino a 50 s)" : runsLeft <= 0 ? (trial ? "Prova finita: scegli un piano" : "Ricerche di oggi finite") : `🔎 Cerca brand e post (${runsLeft} rimaste)`}
           </button>
+          {trial && runsLeft <= 0 && (
+            <a href="/app/piani" className="text-xs font-medium text-[#c4b8ff] hover:underline">Scegli un piano per il Radar ogni giorno →</a>
+          )}
           <PushButton />
         </div>
       </div>

@@ -1,8 +1,9 @@
 // Modifica o elimina una sessione (pubblicazione, impostazioni, criteri). Solo il proprietario.
 import { z } from "zod";
 import { criterionInput, handle, optionalUrl, ownedProjectId, readBody, uuid } from "@/lib/api";
-import { db } from "@/lib/db";
-import { requireUser } from "@/lib/supabase-auth";
+import { db, UserError } from "@/lib/db";
+import { hasProFeatures, PRO_ONLY_MESSAGE } from "@/lib/plans";
+import { getAccount, requireUser } from "@/lib/supabase-auth";
 
 const schema = z.object({
   // Impostazioni
@@ -28,6 +29,11 @@ export async function PATCH(request: Request, { params }: Params) {
     const user = await requireUser();
     const id = await ownedProjectId(uuid.parse((await params).id), user.id);
     const { criteria, ...fields } = await readBody(request, schema);
+    if (fields.public_ranking_enabled === true && !hasProFeatures(await getAccount(user.id))) {
+      // chi l'aveva già pubblicata può continuare a salvare le altre impostazioni
+      const { data: current } = await db().from("projects").select("public_ranking_enabled").eq("id", id).single();
+      if (!current?.public_ranking_enabled) throw new UserError(PRO_ONLY_MESSAGE);
+    }
     const supabase = db();
 
     const update: Record<string, unknown> = { ...fields };

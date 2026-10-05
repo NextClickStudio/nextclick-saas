@@ -6,7 +6,7 @@ import { COMPANIES_PER_FREE_SESSION, COMPANIES_PER_SESSION, EXTRA_SESSION, FREE_
 import { getCheckout, paymentsEnabled } from "@/lib/stripe";
 import { availableSessions, getAccount, getCurrentUser } from "@/lib/supabase-auth";
 import { formatDate } from "@/lib/types";
-import BuyButton, { PortalButton } from "./buy-button";
+import BuyButton, { ChangePlanButton, PortalButton } from "./buy-button";
 
 export const metadata: Metadata = { title: "Piani" };
 
@@ -110,8 +110,10 @@ export default async function PlansPage({ searchParams }: Props) {
             <div className="mt-7">
               {current?.id === p.id ? (
                 <p className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 py-2.5 text-center text-sm text-emerald-200">Il tuo piano</p>
+              ) : current && account.stripe_subscription_id ? (
+                <ChangePlanButton planId={p.id} planName={p.name} upgrade={p.priceCents > current.priceCents} highlight={Boolean(p.highlight)} />
               ) : (
-                <BuyButton planId={p.id} label={current ? "Cambia da «Gestisci abbonamento»" : "Abbonati"} highlight={Boolean(p.highlight)} enabled={enabled && !current} />
+                <BuyButton planId={p.id} label="Abbonati" highlight={Boolean(p.highlight)} enabled={enabled && !current} />
               )}
             </div>
           </div>

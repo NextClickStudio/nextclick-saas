@@ -5,6 +5,7 @@ import NavLink from "@/components/nav-link";
 import NavProgress from "@/components/nav-progress";
 import { Logo } from "@/components/ui";
 import OnboardingTour, { GuideButton } from "@/components/onboarding-tour";
+import PlanBanner from "@/components/plan-banner";
 import { db } from "@/lib/db";
 import { availableSessions, getAccount, getCurrentUser, profileComplete } from "@/lib/supabase-auth";
 
@@ -50,6 +51,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 )}
               </NavLink>
               {account.unlimited && <NavLink href="/app/meme">Meme</NavLink>}
+              {account.unlimited && <NavLink href="/app/admin">Admin</NavLink>}
               <NavLink href="/app/piani">Piani</NavLink>
               <NavLink href="/app/account">Account</NavLink>
             </nav>
@@ -69,7 +71,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </form>
           </div>
         </div>
-        <nav className="flex gap-1 border-t border-white/[0.04] px-4 py-1.5 text-sm sm:hidden">
+        <nav className="flex gap-1 overflow-x-auto border-t border-white/[0.04] px-4 py-1.5 text-sm sm:hidden">
           <NavLink href="/app" compact>Dashboard</NavLink>
           <NavLink href="/app/radar" compact>Radar{(newRadar ?? 0) > 0 ? ` (${newRadar})` : ""}</NavLink>
           <NavLink href="/app/outreach" compact>Outreach</NavLink>
@@ -77,10 +79,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             Richieste{(newRequests ?? 0) > 0 ? ` (${newRequests})` : ""}
           </NavLink>
           {account.unlimited && <NavLink href="/app/meme" compact>Meme</NavLink>}
+          {account.unlimited && <NavLink href="/app/admin" compact>Admin</NavLink>}
           <NavLink href="/app/piani" compact>Piani</NavLink>
           <NavLink href="/app/account" compact>Account</NavLink>
         </nav>
       </header>
+      <PlanBanner account={account} />
       <NavProgress />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">{children}</main>
       <OnboardingTour autoOpen={!account.onboarded_at} profileComplete={profileComplete(account)} />

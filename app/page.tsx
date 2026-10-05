@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Reveal from "@/components/reveal";
+import ProductDemo from "@/components/landing/product-demo";
 import Scanner from "@/components/landing/scanner";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
@@ -104,8 +105,8 @@ export default function Home() {
                 <Link href="/registrati" className={`${btn.accent} !px-6 !py-3 text-base`}>
                   Prova gratis
                 </Link>
-                <Link href="#come-funziona" className={`${btn.secondary} !px-6 !py-3 text-base`}>
-                  Come funziona
+                <Link href="#demo" className={`${btn.secondary} !px-6 !py-3 text-base`}>
+                  Guarda la demo
                 </Link>
               </div>
               <p className="fade-in mt-4 text-xs text-zinc-500" style={{ animationDelay: "320ms" }}>
@@ -123,7 +124,7 @@ export default function Home() {
           <div className="flex overflow-hidden">
             <div className="marquee flex shrink-0 gap-12 whitespace-nowrap pr-12 text-sm text-zinc-500">
               {[...Array(2)].flatMap((_, k) =>
-                ["Ricerca automatica delle aziende", "Analisi dei siti con prove", "Report privati", "Messaggi scritti dall'AI", "Follow-up automatici", "Richieste di call", "Classifica di settore"].map((t) => (
+                ["Ricerca automatica delle aziende", "Analisi dei siti con prove", "Report privati", "Messaggi scritti dall'AI", "Follow-up automatici", "Richieste di call", "Classifica di settore", "Radar Instagram"].map((t) => (
                   <span key={`${k}-${t}`} className="flex items-center gap-3">
                     <span className="h-1 w-1 rounded-full bg-accent" />
                     {t}
@@ -131,6 +132,28 @@ export default function Home() {
                 )),
               )}
             </div>
+          </div>
+        </section>
+
+        {/* DEMO DEL PRODOTTO */}
+        <section id="demo" className="mx-auto max-w-6xl scroll-mt-20 px-4 pt-24 sm:px-6">
+          <div className="grid items-center gap-12 lg:grid-cols-[1fr_1.15fr]">
+            <Reveal className="min-w-0">
+              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-accent">Guarda Yeppo al lavoro</p>
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-white sm:text-5xl">
+                Dalla lista di aziende alla call, in 5 passi.
+              </h2>
+              <p className="mt-6 text-lg leading-relaxed text-zinc-400">
+                Descrivi cosa vendi. Yeppo trova le aziende che ne hanno bisogno, ti mostra il problema concreto di ognuna, chi
+                decide e cosa scrivergli. Tu mandi il messaggio e vedi chi apre la proposta.
+              </p>
+              <Link href="/registrati" className={`${btn.accent} mt-8 !px-6 !py-3 text-base`}>
+                Provalo gratis
+              </Link>
+            </Reveal>
+            <Reveal delay={120} className="min-w-0">
+              <ProductDemo />
+            </Reveal>
           </div>
         </section>
 

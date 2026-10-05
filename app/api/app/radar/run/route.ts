@@ -4,6 +4,7 @@ import { handle } from "@/lib/api";
 import { db, UserError } from "@/lib/db";
 import { FREE_RADAR_RUNS, radarAllowance } from "@/lib/plans";
 import { runDiscovery, runRadar } from "@/lib/radar-run";
+import { consumeAiQuota } from "@/lib/quota";
 import { getAccount, requireUser } from "@/lib/supabase-auth";
 
 export const maxDuration = 60;
@@ -24,6 +25,7 @@ export async function POST() {
       left = data as number;
       if (left < 0) throw new UserError(`Hai usato le ${FREE_RADAR_RUNS} ricerche di prova: scegli un piano per continuare.`);
     }
+    await consumeAiQuota(user.id, "radar"); // conteggio per i costi (pagina admin)
     const [mon, disc] = await Promise.allSettled([runRadar(user.id), runDiscovery(user.id)]);
     if (mon.status === "rejected" && disc.status === "rejected") {
       // niente è andato a buon fine: restituisco la ricerca all'utente

@@ -6,7 +6,7 @@ import { CopyButton, StatusSelect } from "@/components/company-controls";
 import { EmptyState, ScoreBar, btn } from "@/components/ui";
 import type { TabProps } from "./tabs";
 
-export default function RankingTab({ project, criteria, rows, siteUrl }: TabProps) {
+export default function RankingTab({ project, criteria, rows, siteUrl, pro }: TabProps) {
   const [view, setView] = useState<"classifica" | "priorita">("classifica");
   const analyzed = rows.filter((r) => r.analysis);
 
@@ -33,9 +33,15 @@ export default function RankingTab({ project, criteria, rows, siteUrl }: TabProp
             </button>
           ))}
         </div>
-        <a href={`/api/app/export?projectId=${project.id}`} className={btn.secondary}>
-          Esporta CSV
-        </a>
+        {pro ? (
+          <a href={`/api/app/export?projectId=${project.id}`} className={btn.secondary}>
+            Esporta CSV
+          </a>
+        ) : (
+          <Link href="/app/piani" className={btn.secondary} title="Incluso nei piani Pro e Agency">
+            Esporta CSV · Pro
+          </Link>
+        )}
       </div>
       <p className="text-sm text-zinc-400">
         {view === "classifica"

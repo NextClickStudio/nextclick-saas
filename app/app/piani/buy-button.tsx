@@ -52,3 +52,32 @@ export function PortalButton() {
     </div>
   );
 }
+
+/** Cambio piano per chi ha già un abbonamento: conferma, poi Stripe calcola la differenza. */
+export function ChangePlanButton({ planId, planName, upgrade, highlight }: { planId: string; planName: string; upgrade: boolean; highlight: boolean }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  async function change() {
+    const note = upgrade
+      ? "Paghi subito solo la differenza per i giorni rimasti di questo mese e ricevi subito le sessioni in più."
+      : "La differenza resta come credito sui prossimi rinnovi; le sessioni di questo mese scendono al massimo del nuovo piano.";
+    if (!window.confirm(`Passare al piano ${planName}?\n\n${note}`)) return;
+    setLoading(true);
+    setError("");
+    try {
+      await api("/api/app/change-plan", { body: { plan: planId } });
+      window.location.reload();
+    } catch (err) {
+      setError((err as Error).message);
+      setLoading(false);
+    }
+  }
+  return (
+    <>
+      <button className={`w-full ${highlight ? btn.accent : btn.secondary}`} onClick={change} disabled={loading}>
+        {loading ? "Cambio piano…" : `Passa a ${planName}`}
+      </button>
+      {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
+    </>
+  );
+}

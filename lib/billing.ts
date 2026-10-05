@@ -1,8 +1,8 @@
 // Abbonamenti: attivazione, rinnovo mensile delle sessioni e disdetta (usato dal webhook e dal ritorno da Stripe).
 import "server-only";
-import { db } from "@/lib/db";
+import { db, UserError } from "@/lib/db";
 import { findPlan } from "@/lib/plans";
-import { getSubscription, periodEnd, type CheckoutSession } from "@/lib/stripe";
+import { changeSubscriptionPlan, getSubscription, periodEnd, type CheckoutSession } from "@/lib/stripe";
 
 /** Attiva il piano dopo il pagamento dell'abbonamento (idempotente: rifarlo non aggiunge sessioni). */
 export async function activateFromCheckout(session: CheckoutSession): Promise<boolean> {
@@ -63,14 +63,49 @@ export async function renewFromInvoice(invoice: {
 }
 
 /** Cambio di stato dell'abbonamento (pagamento fallito, disdetta, fine). */
-export async function syncSubscription(sub: { id: string; status: string; current_period_end?: number; items?: { data: { current_period_end?: number }[] } }): Promise<void> {
+export async function syncSubscription(sub: {
+  id: string;
+  status: string;
+  current_period_end?: number;
+  metadata?: Record<string, string>;
+  items?: { data: { current_period_end?: number }[] };
+}): Promise<void> {
   const ended = sub.status === "canceled" || sub.status === "unpaid" || sub.status === "incomplete_expired";
+  const plan = findPlan(sub.metadata?.plan);
   await db()
     .from("accounts")
     .update(
       ended
         ? { plan: "free", plan_status: sub.status, plan_sessions_left: 0, stripe_subscription_id: null }
-        : { plan_status: sub.status, plan_period_end: periodEnd(sub as Parameters<typeof periodEnd>[0]) },
+        : { plan_status: sub.status, plan_period_end: periodEnd(sub as Parameters<typeof periodEnd>[0]), ...(plan ? { plan: plan.id } : {}) },
     )
     .eq("stripe_subscription_id", sub.id);
+}
+
+/**
+ * Cambio di piano da Yeppo. Le sessioni del mese seguono il nuovo piano:
+ * passando a uno più grande ricevi subito la differenza, a uno più piccolo restano al massimo quelle del nuovo piano.
+ */
+export async function changePlan(userId: string, newPlanId: string): Promise<{ plan: string; sessionsLeft: number }> {
+  const next = findPlan(newPlanId);
+  const { data: acc } = await db()
+    .from("accounts")
+    .select("plan, plan_status, plan_sessions_left, stripe_subscription_id")
+    .eq("user_id", userId)
+    .single();
+  const current = findPlan(acc?.plan);
+  if (!next || !acc?.stripe_subscription_id || !current) throw new UserError("Non hai un abbonamento attivo da cambiare.");
+  if (current.id === next.id) throw new UserError("È già il tuo piano.");
+  if (acc.plan_status !== "active" && acc.plan_status !== "trialing") {
+    throw new UserError("Prima aggiorna il metodo di pagamento da «Gestisci abbonamento».");
+  }
+  const sub = await changeSubscriptionPlan(acc.stripe_subscription_id, next);
+  const left = acc.plan_sessions_left ?? 0;
+  const sessionsLeft = next.sessions > current.sessions ? left + (next.sessions - current.sessions) : Math.min(left, next.sessions);
+  const { error } = await db()
+    .from("accounts")
+    .update({ plan: next.id, plan_sessions_left: sessionsLeft, plan_status: sub.status, plan_period_end: periodEnd(sub) })
+    .eq("user_id", userId);
+  if (error) throw error;
+  return { plan: next.id, sessionsLeft };
 }

@@ -134,6 +134,32 @@ export async function getSubscription(id: string): Promise<Subscription> {
   return stripe<Subscription>(`/subscriptions/${encodeURIComponent(id)}`, "GET");
 }
 
+/** Prodotto Stripe del piano (cercato per metadato, creato la prima volta). */
+async function planProduct(plan: { id: string; name: string }): Promise<string> {
+  const query = encodeURIComponent(`metadata['yeppo_plan']:'${plan.id}'`);
+  const found = await stripe<{ data: { id: string }[] }>(`/products/search?query=${query}`, "GET");
+  if (found.data[0]) return found.data[0].id;
+  const created = await stripe<{ id: string }>("/products", "POST", { name: `Yeppo ${plan.name}`, metadata: { yeppo_plan: plan.id } });
+  return created.id;
+}
+
+/**
+ * Cambia il piano di un abbonamento attivo: Stripe calcola la differenza (proporzionale ai giorni rimasti)
+ * e la addebita subito, oppure la tiene come credito se il nuovo piano costa meno.
+ */
+export async function changeSubscriptionPlan(subId: string, plan: { id: string; name: string; priceCents: number }): Promise<Subscription> {
+  const sub = await stripe<{ items: { data: { id: string }[] } }>(`/subscriptions/${encodeURIComponent(subId)}`, "GET");
+  const item = sub.items.data[0];
+  if (!item) throw new UserError("Abbonamento non trovato: contattaci.");
+  const product = await planProduct(plan);
+  return stripe<Subscription>(`/subscriptions/${encodeURIComponent(subId)}`, "POST", {
+    items: { 0: { id: item.id, price_data: { currency: "eur", unit_amount: plan.priceCents, recurring: { interval: "month" }, product } } },
+    proration_behavior: "always_invoice",
+    cancel_at_period_end: "false",
+    metadata: { plan: plan.id },
+  });
+}
+
 /** Fine del periodo pagato (Stripe la espone sull'abbonamento o sulle sue voci, a seconda della versione). */
 export function periodEnd(sub: Subscription): string | null {
   const t = sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end;

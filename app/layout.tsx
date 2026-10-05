@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
+import SiteAnalytics from "@/components/site-analytics";
 import { SITE_URL } from "@/lib/config";
 import "./globals.css";
 
@@ -19,7 +20,10 @@ export const viewport: Viewport = { themeColor: "#05060a" };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="it" className={`${inter.variable} ${display.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        {children}
+        <SiteAnalytics />
+      </body>
     </html>
   );
 }
