@@ -2,19 +2,21 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { feedHref, getLanguage, type LangCode } from "@/lib/languages";
 import type { FeedMode, FeedResponse, Video } from "@/lib/types";
 import { Player } from "./Player";
-import { rememberTopic } from "./recentTopics";
+import { rememberTopic } from "./prefs";
 
-/** Una sessione ha una fine: dopo SESSION_SIZE video ti fermiamo e ti chiediamo se continuare. */
+/** A session has an end: after SESSION_SIZE videos we stop and ask. */
 const SESSION_SIZE = 12;
-/** Quanti video prima della fine iniziamo a caricare i successivi. */
+/** Start loading more this many videos before the end. */
 const PREFETCH_AHEAD = 4;
+/** Pages in a row with nothing new: after this we stop searching (and spending quota). */
 const MAX_EMPTY_PAGES = 3;
 
 type Slide = { kind: "video"; video: Video } | { kind: "end"; reason: "goal" | "exhausted" };
 
-export function Feed({ topic }: { topic: string }) {
+export function Feed({ topic, lang }: { topic: string; lang: LangCode }) {
   const [items, setItems] = useState<Video[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
@@ -22,7 +24,9 @@ export function Feed({ topic }: { topic: string }) {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<FeedMode | null>(null);
   const [label, setLabel] = useState(topic);
-  const [notice, setNotice] = useState<{ text: string; suggestions: string[] } | null>(null);
+  const [feedLang, setFeedLang] = useState<LangCode>(lang);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<FeedResponse["suggestions"]>([]);
 
   const [goal, setGoal] = useState(SESSION_SIZE);
   const [active, setActive] = useState(0);
@@ -35,7 +39,6 @@ export function Feed({ topic }: { topic: string }) {
   const seen = useRef(new Set<string>());
   const blockedChannels = useRef(new Set<string>());
   const inflight = useRef(false);
-  /** Pagine di fila senza video nuovi: oltre MAX_EMPTY_PAGES smettiamo di cercare (e di consumare quota). */
   const emptyPages = useRef(0);
 
   const load = useCallback(
@@ -45,15 +48,17 @@ export function Feed({ topic }: { topic: string }) {
       setLoading(true);
       setError(null);
       try {
-        const qs = new URLSearchParams({ topic });
+        const qs = new URLSearchParams({ topic, lang });
         if (nextCursor) qs.set("cursor", nextCursor);
         const res = await fetch(`/api/feed?${qs}`);
         const data = (await res.json()) as FeedResponse & { error?: string };
-        if (!res.ok) throw new Error(data.error ?? "Errore nel caricamento");
+        if (!res.ok) throw new Error(data.error ?? "Couldn't load videos");
 
         setMode(data.mode);
         setLabel(data.topic);
-        if (data.notice) setNotice({ text: data.notice, suggestions: data.suggestions ?? [] });
+        setFeedLang(data.lang);
+        setNotice(data.notice ?? null);
+        setSuggestions(data.suggestions ?? []);
         const fresh = data.items.filter(
           (v) => !seen.current.has(v.id) && !blockedChannels.current.has(v.channel),
         );
@@ -63,21 +68,21 @@ export function Feed({ topic }: { topic: string }) {
         setCursor(data.cursor);
         setHasMore(data.cursor !== null && emptyPages.current < MAX_EMPTY_PAGES);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Errore nel caricamento");
+        setError(e instanceof Error ? e.message : "Couldn't load videos");
       } finally {
         inflight.current = false;
         setLoading(false);
       }
     },
-    [topic],
+    [topic, lang],
   );
 
   useEffect(() => {
-    rememberTopic(topic);
+    rememberTopic(topic, lang);
     void load(null);
-  }, [topic, load]);
+  }, [topic, lang, load]);
 
-  // Carica altri video quando ci avviciniamo alla fine di quelli disponibili.
+  // Load more as we get close to the end of what we have.
   useEffect(() => {
     if (!hasMore || loading || error) return;
     const visible = Math.min(items.length, goal);
@@ -91,7 +96,7 @@ export function Feed({ topic }: { topic: string }) {
     return list;
   }, [items, goal, hasMore, loading]);
 
-  // Quale slide è a schermo.
+  // Which slide is on screen.
   useEffect(() => {
     const root = scrollerRef.current;
     if (!root) return;
@@ -125,39 +130,42 @@ export function Feed({ topic }: { topic: string }) {
     if (video.channel) {
       blockedChannels.current.add(video.channel);
       setItems((prev) => prev.filter((v) => v.id === video.id || v.channel !== video.channel));
-      showToast(`Ok, niente più video di ${video.channel} in questa sessione`);
+      showToast(`Got it. No more videos from ${video.channel} this session.`);
     } else {
-      showToast("Ok, tolto dal feed");
+      showToast("Got it. Removed from your feed.");
     }
     removeVideo(video.id);
   }
 
-  function continueSession() {
-    setGoal((g) => g + SESSION_SIZE);
-  }
-
   const minutes = Math.max(1, Math.round((Date.now() - startedAt) / 60000));
   const activeSlide = slides[active];
+  const language = getLanguage(feedLang);
+  const progress = Math.min(watched, goal);
 
   return (
     <div className="feed-shell">
       <header className="feed-top">
-        <Link href="/" className="icon-btn" aria-label="Cambia argomento">
+        <Link href="/learn" className="icon-btn" aria-label="Change topic">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
             <path d="M15 5l-7 7 7 7" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </Link>
         <div className="feed-title">
           <span className="feed-topic">{label}</span>
+          <span className="feed-lang" title={language.label}>
+            {language.flag}
+          </span>
           {mode === "demo" && <span className="chip-demo">demo</span>}
         </div>
-        <div className="feed-count" aria-label={`Video ${Math.min(watched, goal)} di ${goal}`}>
-          {Math.min(watched, goal)}/{goal}
+        <div className="feed-count" aria-label={`Video ${progress} of ${goal}`}>
+          {progress}/{goal}
         </div>
         <div className="progress" aria-hidden>
-          <div className="progress-bar" style={{ width: `${(Math.min(watched, goal) / goal) * 100}%` }} />
+          <div className="progress-bar" style={{ width: `${(progress / goal) * 100}%` }} />
         </div>
       </header>
+
+      {notice && items.length > 0 && <div className="feed-notice">{notice}</div>}
 
       <div className="feed" ref={scrollerRef}>
         {slides.map((slide, index) =>
@@ -181,7 +189,7 @@ export function Feed({ topic }: { topic: string }) {
                 topic={label}
                 count={Math.min(watched, items.length)}
                 minutes={minutes}
-                onContinue={continueSession}
+                onContinue={() => setGoal((g) => g + SESSION_SIZE)}
               />
             </section>
           ),
@@ -192,37 +200,54 @@ export function Feed({ topic }: { topic: string }) {
             <div className="state-card">
               {error ? (
                 <>
-                  <p className="state-title">Ops.</p>
+                  <p className="state-emoji" aria-hidden>
+                    🛰️
+                  </p>
+                  <p className="state-title">Lost the signal.</p>
                   <p className="state-text">{error}</p>
-                  <button type="button" className="btn-primary" onClick={() => load(cursor)}>
-                    Riprova
+                  <button type="button" className="btn btn-volt" onClick={() => load(cursor)}>
+                    Try again
                   </button>
                 </>
-              ) : notice ? (
+              ) : notice && !loading ? (
                 <>
-                  <p className="state-title">“{topic}” non è ancora nella demo</p>
-                  <p className="state-text">{notice.text}</p>
-                  <div className="chips">
-                    {notice.suggestions.map((s) => (
-                      <Link key={s} className="chip" href={`/feed?t=${encodeURIComponent(s)}`}>
-                        {s}
+                  <p className="state-emoji" aria-hidden>
+                    🧭
+                  </p>
+                  <p className="state-title">&ldquo;{topic}&rdquo; isn&apos;t in the demo yet</p>
+                  <p className="state-text">{notice}</p>
+                  <div className="chips chips-center">
+                    {suggestions?.map((s) => (
+                      <Link key={s.topic} className="chip" href={feedHref(s.topic, s.lang)}>
+                        <span aria-hidden>{getLanguage(s.lang).flag}</span> {s.topic}
                       </Link>
                     ))}
                   </div>
                 </>
               ) : !loading && !hasMore ? (
                 <>
-                  <p className="state-title">Nessun video trovato</p>
-                  <p className="state-text">Prova a scrivere l'argomento in un altro modo.</p>
-                  <Link className="btn-primary" href="/">
-                    Cambia argomento
+                  <p className="state-emoji" aria-hidden>
+                    🔍
+                  </p>
+                  <p className="state-title">Nothing good found</p>
+                  <p className="state-text">
+                    We skipped everything that wasn&apos;t clearly about &ldquo;{topic}&rdquo;. Try a different
+                    wording or another language.
+                  </p>
+                  <Link className="btn btn-volt" href="/learn">
+                    Change topic
                   </Link>
                 </>
               ) : (
                 <>
-                  <div className="spinner" aria-hidden />
-                  <p className="state-title">Sto preparando il tuo feed</p>
-                  <p className="state-text">Cerco video brevi su “{topic}” e scarto quelli fuori tema.</p>
+                  <div className="scan" aria-hidden>
+                    <span />
+                  </div>
+                  <p className="state-title">Building your feed</p>
+                  <p className="state-text">
+                    Finding short videos about &ldquo;{topic}&rdquo; in {language.english} and skipping anything
+                    off-topic.
+                  </p>
                 </>
               )}
             </div>
@@ -232,8 +257,10 @@ export function Feed({ topic }: { topic: string }) {
         {slides.length > 0 && loading && items.length < goal && (
           <section className="slide">
             <div className="state-card">
-              <div className="spinner" aria-hidden />
-              <p className="state-text">Carico altri video…</p>
+              <div className="scan" aria-hidden>
+                <span />
+              </div>
+              <p className="state-text">Loading more videos…</p>
             </div>
           </section>
         )}
@@ -242,7 +269,7 @@ export function Feed({ topic }: { topic: string }) {
           <div className="inline-error">
             {error}{" "}
             <button type="button" onClick={() => load(cursor)}>
-              Riprova
+              Try again
             </button>
           </div>
         )}
@@ -277,7 +304,7 @@ function VideoSlide({
   onOffTopic: () => void;
 }) {
   return (
-    <div className="video">
+    <div className={`video ${isActive ? "is-active" : ""}`}>
       {isNear && (
         <>
           <img className="video-bg" src={video.thumbnail} alt="" aria-hidden />
@@ -299,7 +326,7 @@ function VideoSlide({
       </div>
 
       <div className="rail">
-        <button type="button" className="rail-btn" onClick={onToggleMute} aria-label={muted ? "Attiva audio" : "Disattiva audio"}>
+        <button type="button" className="rail-btn" onClick={onToggleMute} aria-label={muted ? "Turn sound on" : "Mute"}>
           {muted ? (
             <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden>
               <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
@@ -311,21 +338,21 @@ function VideoSlide({
               <path d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
             </svg>
           )}
-          <span>{muted ? "Audio" : "Muto"}</span>
+          <span>{muted ? "Sound" : "Mute"}</span>
         </button>
-        <button type="button" className="rail-btn" onClick={onOffTopic} aria-label="Fuori tema, toglilo">
+        <button type="button" className="rail-btn" onClick={onOffTopic} aria-label="Off-topic, remove it">
           <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden>
             <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" fill="none" />
             <path d="M6 18L18 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
-          <span>Fuori tema</span>
+          <span>Off-topic</span>
         </button>
         <a
           className="rail-btn"
           href={`https://www.youtube.com/shorts/${video.id}`}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Apri su YouTube"
+          aria-label="Open on YouTube"
         >
           <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden>
             <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
@@ -336,7 +363,7 @@ function VideoSlide({
 
       {isActive && muted && (
         <button type="button" className="unmute-pill" onClick={onToggleMute}>
-          Tocca per l'audio
+          Tap for sound
         </button>
       )}
     </div>
@@ -359,21 +386,24 @@ function EndCard({
   return (
     <div className="state-card end-card">
       <div className="end-check" aria-hidden>
-        ✓
+        <svg viewBox="0 0 24 24" width="34" height="34">
+          <path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </div>
-      <p className="state-title">{reason === "goal" ? "Sessione completata" : "Hai visto tutto, per ora"}</p>
+      <p className="state-title">{reason === "goal" ? "Session complete" : "That's everything, for now"}</p>
       <p className="state-text">
-        {count} video su <strong>{topic}</strong> in circa {minutes} {minutes === 1 ? "minuto" : "minuti"}.
-        {reason === "goal" ? " Ti fermi qui o ne vuoi altri?" : " Prova un argomento vicino per andare più a fondo."}
+        {count} {count === 1 ? "video" : "videos"} on <strong>{topic}</strong> in about {minutes}{" "}
+        {minutes === 1 ? "minute" : "minutes"}.
+        {reason === "goal" ? " Stop here, or keep going?" : " Try a related topic to go deeper."}
       </p>
       <div className="end-actions">
         {reason === "goal" && (
-          <button type="button" className="btn-primary" onClick={onContinue}>
-            Altri {SESSION_SIZE} video
+          <button type="button" className="btn btn-volt" onClick={onContinue}>
+            {SESSION_SIZE} more videos
           </button>
         )}
-        <Link className={reason === "goal" ? "btn-ghost" : "btn-primary"} href="/">
-          Cambia argomento
+        <Link className={reason === "goal" ? "btn btn-ghost" : "btn btn-volt"} href="/learn">
+          Change topic
         </Link>
       </div>
     </div>

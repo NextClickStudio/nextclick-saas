@@ -1,10 +1,12 @@
+import type { LangCode } from "./languages.ts";
+
 export type Video = {
   id: string;
   title: string;
   channel: string;
   thumbnail: string;
   durationSec?: number;
-  /** Breve spiegazione del perché il video è nel feed (dalla curatela AI). */
+  /** One line on what you learn from this video (from AI curation or the demo set). */
   reason?: string;
 };
 
@@ -12,10 +14,11 @@ export type FeedMode = "live" | "demo";
 
 export type FeedResponse = {
   topic: string;
+  lang: LangCode;
   mode: FeedMode;
   items: Video[];
-  /** Da rimandare al server per la pagina successiva; null = fine dei risultati. */
+  /** Send back to get the next page; null = no more results. */
   cursor: string | null;
   notice?: string;
-  suggestions?: string[];
+  suggestions?: Array<{ topic: string; lang: LangCode }>;
 };

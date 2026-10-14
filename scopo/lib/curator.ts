@@ -3,12 +3,13 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import type { Candidate } from "./youtube.ts";
 import type { Video } from "./types.ts";
-import { keywords, looksLikeBait, normalize } from "./text.ts";
+import { getLanguage, type LangCode } from "./languages.ts";
+import { keywordHits, looksLikeBait, topicKeywords } from "./text.ts";
 
 /**
  * La curatela decide due cose:
- * 1. quali ricerche fare su YouTube per coprire bene l'argomento;
- * 2. quali risultati tenere (solo in tema, informativi, niente risse o clickbait).
+ * 1. quali ricerche fare su YouTube per coprire bene l'argomento, nella lingua scelta;
+ * 2. quali risultati tenere: solo in tema, utili, nella lingua giusta, niente risse o clickbait.
  *
  * Con ANTHROPIC_API_KEY lo fa Claude; senza, usa regole semplici.
  */
@@ -29,20 +30,26 @@ export function aiEnabled(): boolean {
   return getClient() !== null;
 }
 
+function languageClause(lang: LangCode): string {
+  return lang === "any"
+    ? "in any language (prefer the language that gives the best results, usually English)"
+    : `in ${getLanguage(lang).english}`;
+}
+
 // ---------------------------------------------------------------- query plan
 
-export function heuristicQueries(topic: string): string[] {
+export function heuristicQueries(topic: string, lang: LangCode): string[] {
   const t = topic.trim();
-  return [t, `${t} spiegato semplice`, `${t} in 1 minuto`, `${t} #shorts`, `${t} curiosità`];
+  return getLanguage(lang).templates.map((tpl) => tpl.replace("{t}", t));
 }
 
 const PlanSchema = z.object({
   queries: z.array(z.string()),
 });
 
-export async function planQueries(topic: string): Promise<string[]> {
+export async function planQueries(topic: string, lang: LangCode): Promise<string[]> {
   const ai = getClient();
-  if (!ai) return heuristicQueries(topic);
+  if (!ai) return heuristicQueries(topic, lang);
   try {
     const res = await ai.beta.messages.parse({
       model: MODEL,
@@ -54,36 +61,41 @@ export async function planQueries(topic: string): Promise<string[]> {
         {
           role: "user",
           content:
-            `Una persona vuole un feed di video brevi (YouTube Shorts) per imparare questo argomento: "${topic}".\n\n` +
-            "Scrivi 6 ricerche da fare su YouTube, come le scriverebbe una persona nella barra di ricerca. " +
-            "Ogni ricerca deve coprire un aspetto diverso dell'argomento (concetti base, come funziona, " +
-            "storia, attualità spiegata, curiosità, errori comuni...), così il feed resta vario ma sempre in tema. " +
-            "Punta a contenuti che spiegano e informano: evita parole che attirano risse, gossip o clickbait. " +
-            "Scrivi le ricerche nella lingua dell'argomento (di solito italiano).",
+            `Someone wants a feed of short videos (YouTube Shorts) to learn: "${topic}". ` +
+            `The videos must be ${languageClause(lang)}.\n\n` +
+            "Write 6 YouTube search queries the way a person would type them in the search bar, " +
+            `written ${languageClause(lang)} (translate the topic if needed). ` +
+            "Each query should target a different, specific part of the topic (for example, for snowboarding: " +
+            "ollie tutorial, carving tips, how to land a 180, beginner falls), so the feed stays varied " +
+            "but every result is unmistakably about the topic. Avoid words that attract drama, fights or clickbait.",
         },
       ],
     });
-    if (res.stop_reason === "refusal" || !res.parsed_output) return heuristicQueries(topic);
+    if (res.stop_reason === "refusal" || !res.parsed_output) return heuristicQueries(topic, lang);
     const planned = res.parsed_output.queries.map((q) => q.trim()).filter(Boolean).slice(0, 6);
-    return planned.length > 0 ? planned : heuristicQueries(topic);
+    return planned.length > 0 ? planned : heuristicQueries(topic, lang);
   } catch (err) {
     logAiError("planQueries", err);
-    return heuristicQueries(topic);
+    return heuristicQueries(topic, lang);
   }
 }
 
 // ---------------------------------------------------------------- filtering
 
-/** Senza AI: via i titoli da rissa/clickbait, prima i video che nominano l'argomento. */
+/**
+ * Senza AI: via i titoli da rissa/clickbait e via tutto quello che non nomina
+ * l'argomento nel titolo, nella descrizione o nei tag. Prima i più pertinenti.
+ */
 export function heuristicCurate(topic: string, candidates: Candidate[]): Video[] {
-  const words = keywords(topic);
+  const words = topicKeywords(topic);
   const scored = candidates
     .filter((c) => !looksLikeBait(c.title))
-    .map((c, index) => {
-      const text = normalize(`${c.title} ${c.description}`);
-      const hits = words.filter((w) => text.includes(w)).length;
-      return { c, index, hits };
-    });
+    .map((c, index) => ({
+      c,
+      index,
+      hits: keywordHits(words, `${c.title} ${c.description} ${c.tags.join(" ")}`),
+    }))
+    .filter(({ hits }) => words.length === 0 || hits > 0);
   // Ordine stabile: prima chi nomina più parole dell'argomento, poi l'ordine di YouTube.
   scored.sort((a, b) => b.hits - a.hits || a.index - b.index);
   return scored.map(({ c }) => toVideo(c));
@@ -98,7 +110,7 @@ const CurateSchema = z.object({
   ),
 });
 
-export async function curate(topic: string, candidates: Candidate[]): Promise<Video[]> {
+export async function curate(topic: string, lang: LangCode, candidates: Candidate[]): Promise<Video[]> {
   const ai = getClient();
   if (!ai || candidates.length === 0) return heuristicCurate(topic, candidates);
 
@@ -107,7 +119,14 @@ export async function curate(topic: string, candidates: Candidate[]): Promise<Vi
     title: c.title,
     channel: c.channel,
     description: c.description,
+    tags: c.tags,
+    declaredLanguage: c.language ?? null,
   }));
+
+  const languageRule =
+    lang === "any"
+      ? ""
+      : `- are in ${getLanguage(lang).english} (judge from the title and description; drop videos clearly in another language);\n`;
 
   try {
     const res = await ai.beta.messages.parse({
@@ -120,15 +139,17 @@ export async function curate(topic: string, candidates: Candidate[]): Promise<Vi
         {
           role: "user",
           content:
-            `Stai curando un feed di video brevi per chi vuole imparare: "${topic}".\n\n` +
-            "Tieni SOLO i video che:\n" +
-            "- parlano davvero di questo argomento (non di temi vicini o generici);\n" +
-            "- spiegano, insegnano o danno contesto (anche notizie, se spiegate).\n\n" +
-            "Scarta: risse e litigi in TV, insulti, video fatti per far arrabbiare, gossip, meme, " +
-            "titoli acchiappa-click o fuorvianti, promesse di guadagni facili, pubblicità, video fuori tema.\n\n" +
-            "Metti per primi i video migliori. Per ognuno scrivi in `reason` cosa si impara, " +
-            "in italiano, massimo 70 caratteri, senza iniziare con \"Perché\".\n\n" +
-            `Video candidati (JSON):\n${JSON.stringify(list)}`,
+            `You are curating a "learn by scrolling" feed for someone who searched: "${topic}".\n\n` +
+            "Keep ONLY videos that:\n" +
+            `- are clearly and specifically about "${topic}": someone who searched it would say "yes, exactly this" ` +
+            "(for snowboarding: tricks, technique, gear tips; not skiing, not generic travel vlogs);\n" +
+            "- teach something, show a technique, explain, or give useful context;\n" +
+            languageRule +
+            "\nDrop: drama, fights, rage-bait, gossip, pranks, memes with nothing to learn, misleading clickbait, " +
+            "get-rich-quick promises, ads and promos, compilations with no explanation, anything off-topic.\n\n" +
+            "Put the best videos first. For each one, write in `reason` what the viewer learns, " +
+            'in English, at most 70 characters, not starting with "Why".\n\n' +
+            `Candidate videos (JSON):\n${JSON.stringify(list)}`,
         },
       ],
     });
@@ -150,15 +171,15 @@ export async function curate(topic: string, candidates: Candidate[]): Promise<Vi
 }
 
 function toVideo(c: Candidate): Video {
-  const { description: _description, ...video } = c;
+  const { description: _description, tags: _tags, language: _language, ...video } = c;
   return video;
 }
 
 function logAiError(where: string, err: unknown) {
   if (err instanceof Anthropic.RateLimitError) {
-    console.warn(`[curator:${where}] rate limit, uso le regole semplici`);
+    console.warn(`[curator:${where}] rate limited, falling back to simple rules`);
   } else if (err instanceof Anthropic.APIError) {
-    console.warn(`[curator:${where}] errore API ${err.status}: ${err.message}`);
+    console.warn(`[curator:${where}] API error ${err.status}: ${err.message}`);
   } else {
     console.warn(`[curator:${where}]`, err);
   }

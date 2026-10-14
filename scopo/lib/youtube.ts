@@ -1,4 +1,5 @@
 import type { Video } from "./types.ts";
+import { baseLang, getLanguage, type LangCode } from "./languages.ts";
 import { decodeEntities, parseIsoDuration } from "./text.ts";
 
 const API = "https://www.googleapis.com/youtube/v3";
@@ -7,7 +8,12 @@ const API = "https://www.googleapis.com/youtube/v3";
 export const MAX_SHORT_SECONDS = 180;
 const MIN_SECONDS = 8;
 
-export type Candidate = Video & { description: string };
+export type Candidate = Video & {
+  description: string;
+  tags: string[];
+  /** Lingua dichiarata dal canale (audio o metadati), se presente. */
+  language?: string;
+};
 
 export type SearchPage = {
   candidates: Candidate[];
@@ -29,7 +35,11 @@ type SearchListResponse = {
 };
 
 type VideosListResponse = {
-  items?: Array<{ id: string; contentDetails?: { duration?: string } }>;
+  items?: Array<{
+    id: string;
+    contentDetails?: { duration?: string };
+    snippet?: { tags?: string[]; defaultAudioLanguage?: string; defaultLanguage?: string };
+  }>;
 };
 
 export class YouTubeError extends Error {
@@ -57,13 +67,16 @@ async function getJson<T>(url: URL): Promise<T> {
 
 /**
  * Una ricerca costa 100 unità di quota (10.000 al giorno gratis), il dettaglio
- * delle durate 1 unità. Teniamo solo video brevi, incorporabili e non in diretta.
+ * dei video 1 unità. Teniamo solo video brevi, incorporabili, non in diretta
+ * e, se il canale dichiara la lingua, solo quelli nella lingua scelta.
  */
 export async function searchShorts(
   apiKey: string,
   query: string,
+  lang: LangCode,
   pageToken?: string,
 ): Promise<SearchPage> {
+  const language = getLanguage(lang);
   const search = new URL(`${API}/search`);
   search.search = new URLSearchParams({
     part: "snippet",
@@ -72,10 +85,10 @@ export async function searchShorts(
     maxResults: "25",
     videoDuration: "short",
     videoEmbeddable: "true",
-    relevanceLanguage: "it",
-    regionCode: "IT",
     safeSearch: "moderate",
     key: apiKey,
+    ...(lang !== "any" ? { relevanceLanguage: lang } : {}),
+    ...(language.region ? { regionCode: language.region } : {}),
     ...(pageToken ? { pageToken } : {}),
   }).toString();
 
@@ -87,28 +100,30 @@ export async function searchShorts(
 
   const details = new URL(`${API}/videos`);
   details.search = new URLSearchParams({
-    part: "contentDetails",
+    part: "contentDetails,snippet",
     id: raw.map((it) => it.id!.videoId!).join(","),
     key: apiKey,
   }).toString();
-  const durations = new Map(
-    ((await getJson<VideosListResponse>(details)).items ?? []).map((v) => [
-      v.id,
-      parseIsoDuration(v.contentDetails?.duration ?? ""),
-    ]),
-  );
+  const info = new Map(((await getJson<VideosListResponse>(details)).items ?? []).map((v) => [v.id, v]));
 
   const candidates: Candidate[] = [];
   for (const it of raw) {
     const id = it.id!.videoId!;
-    const durationSec = durations.get(id) ?? 0;
+    const detail = info.get(id);
+    const durationSec = parseIsoDuration(detail?.contentDetails?.duration ?? "");
     if (durationSec < MIN_SECONDS || durationSec > MAX_SHORT_SECONDS) continue;
+
+    const language = detail?.snippet?.defaultAudioLanguage ?? detail?.snippet?.defaultLanguage;
+    if (lang !== "any" && language && baseLang(language) !== lang) continue;
+
     const s = it.snippet ?? {};
     candidates.push({
       id,
       title: decodeEntities(s.title ?? ""),
       channel: decodeEntities(s.channelTitle ?? ""),
       description: decodeEntities(s.description ?? "").slice(0, 220),
+      tags: (detail?.snippet?.tags ?? []).slice(0, 15),
+      language,
       thumbnail:
         s.thumbnails?.high?.url ?? s.thumbnails?.medium?.url ?? `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
       durationSec,

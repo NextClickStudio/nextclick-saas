@@ -132,7 +132,7 @@ export function Player({ videoId, muted, onAutoMuted, onUnavailable }: Props) {
         type="button"
         className="player-veil"
         onClick={togglePlay}
-        aria-label={paused ? "Riproduci" : "Metti in pausa"}
+        aria-label={paused ? "Play" : "Pause"}
       />
       {paused && (
         <div className="paused-badge" aria-hidden>

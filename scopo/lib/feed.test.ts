@@ -1,10 +1,12 @@
 import { strict as assert } from "node:assert";
 import { afterEach, describe, it } from "node:test";
 import { decodeCursor, encodeCursor, nextQueryIndex } from "./cursor.ts";
-import { heuristicCurate } from "./curator.ts";
+import { heuristicCurate, heuristicQueries } from "./curator.ts";
 import { demoFeed, liveFeed, mergeQueries } from "./feed.ts";
+import { isLangCode, langFromLocale } from "./languages.ts";
 import { matchSeedTopic } from "./seed.ts";
-import { decodeEntities, looksLikeBait, parseIsoDuration } from "./text.ts";
+import { decodeEntities, keywordHits, looksLikeBait, parseIsoDuration, topicKeywords } from "./text.ts";
+import type { Candidate } from "./youtube.ts";
 
 delete process.env.ANTHROPIC_API_KEY;
 
@@ -23,10 +25,42 @@ describe("text", () => {
 
   it("flags rage-bait titles but not explainers", () => {
     assert.ok(looksLikeBait("Bocchino umilia Formigli in diretta #politica"));
-    assert.ok(looksLikeBait("LITIGIO in studio tra ministri"));
+    assert.ok(looksLikeBait("Snowboard fail GONE WRONG"));
     assert.ok(looksLikeBait("NON CI CREDERAI MAI A QUESTO!!!"));
-    assert.ok(!looksLikeBait("Come funziona il Parlamento italiano"));
+    assert.ok(!looksLikeBait("How to ollie on a snowboard"));
     assert.ok(!looksLikeBait("La legge elettorale spiegata in 60 secondi"));
+  });
+
+  it("keeps only the words that say what the topic is", () => {
+    assert.deepEqual(topicKeywords("guitar lesson for beginners"), ["guitar"]);
+    assert.deepEqual(topicKeywords("impara la chitarra"), ["chitarra"]);
+    assert.deepEqual(topicKeywords("snowboard tricks"), ["snowboard"]);
+  });
+
+  it("matches word variants", () => {
+    assert.equal(keywordHits(["snowboarding"], "Easy SNOWBOARD trick for beginners"), 1);
+    assert.equal(keywordHits(["guitar"], "Learn this chord progression"), 0);
+  });
+});
+
+describe("languages", () => {
+  it("maps browser locales", () => {
+    assert.equal(langFromLocale("it-IT"), "it");
+    assert.equal(langFromLocale("pt-BR"), "pt");
+    assert.equal(langFromLocale("ja-JP"), "en");
+    assert.equal(langFromLocale(undefined), "en");
+  });
+
+  it("validates codes", () => {
+    assert.ok(isLangCode("it"));
+    assert.ok(isLangCode("any"));
+    assert.ok(!isLangCode("xx"));
+    assert.ok(!isLangCode(null));
+  });
+
+  it("builds search variants in the chosen language", () => {
+    assert.deepEqual(heuristicQueries("guitar", "en").slice(0, 3), ["guitar", "guitar tutorial", "guitar tips"]);
+    assert.ok(heuristicQueries("chitarra", "it").includes("chitarra consigli"));
   });
 });
 
@@ -49,39 +83,51 @@ describe("cursor", () => {
 });
 
 describe("demo mode", () => {
-  it("matches free text to a ready topic", () => {
-    assert.equal(matchSeedTopic("politica italiana")?.label, "Politica italiana");
-    assert.equal(matchSeedTopic("voglio capire la Costituzione")?.label, "Politica italiana");
-    assert.equal(matchSeedTopic("imparare l'inglese")?.label, "Inglese");
-    assert.equal(matchSeedTopic("cucina giapponese"), null);
+  it("matches free text to a ready topic, in any language", () => {
+    assert.equal(matchSeedTopic("snowboard tricks")?.label, "Snowboarding");
+    assert.equal(matchSeedTopic("impara la chitarra")?.label, "Guitar");
+    assert.equal(matchSeedTopic("politica italiana")?.label, "Italian politics");
+    assert.equal(matchSeedTopic("skiing")?.label, "Skiing");
+    assert.equal(matchSeedTopic("science")?.label, "Physics");
+    assert.equal(matchSeedTopic("photography camera"), null);
   });
 
   it("explains itself when the topic is not available", () => {
-    const res = demoFeed("cucina giapponese");
-    assert.equal(res.items.length, 0);
-    assert.ok(res.notice);
-    assert.ok(res.suggestions?.includes("Politica italiana"));
+    const res = demoFeed("japanese cooking knives sharpening", "en");
+    assert.equal(res.items.length > 0, true); // "cooking" matches the demo set
+    const none = demoFeed("photography", "en");
+    assert.equal(none.items.length, 0);
+    assert.ok(none.notice);
+    assert.ok(none.suggestions?.some((s) => s.topic === "Guitar"));
+  });
+
+  it("says when a demo topic exists only in another language", () => {
+    const res = demoFeed("politics", "en");
+    assert.equal(res.lang, "it");
+    assert.match(res.notice ?? "", /Italian/);
   });
 });
 
 describe("curation without AI", () => {
-  it("drops bait and ranks on-topic titles first", () => {
-    const base = { channel: "c", thumbnail: "", durationSec: 30, description: "" };
-    const out = heuristicCurate("politica italiana", [
-      { ...base, id: "1", title: "Ricetta della carbonara" },
-      { ...base, id: "2", title: "Scontro in diretta: lo umilia" },
-      { ...base, id: "3", title: "La politica italiana in 60 secondi" },
-    ]);
+  const base = { channel: "c", thumbnail: "", durationSec: 30, description: "", tags: [] as string[] };
+
+  it("drops bait and anything that doesn't name the topic", () => {
+    const out = heuristicCurate("snowboard tricks", [
+      { ...base, id: "1", title: "Best ski resorts in Europe" },
+      { ...base, id: "2", title: "Snowboard fail GONE WRONG" },
+      { ...base, id: "3", title: "How to ollie on a snowboard" },
+      { ...base, id: "4", title: "Easy beginner trick", tags: ["snowboarding", "ollie"] },
+    ] satisfies Candidate[]);
     assert.deepEqual(
       out.map((v) => v.id),
-      ["3", "1"],
+      ["3", "4"],
     );
   });
 
   it("merges planned queries without duplicates", () => {
-    assert.deepEqual(mergeQueries(["Politica italiana"], ["politica italiana", "come funziona il senato"]), [
-      "Politica italiana",
-      "come funziona il senato",
+    assert.deepEqual(mergeQueries(["Guitar"], ["guitar", "fingerpicking for beginners"]), [
+      "Guitar",
+      "fingerpicking for beginners",
     ]);
   });
 });
@@ -93,27 +139,37 @@ describe("liveFeed (YouTube simulato)", () => {
   });
 
   function fakeYouTube() {
-    const searches: string[] = [];
+    const searches: Array<{ q: string; lang: string | null; region: string | null }> = [];
     globalThis.fetch = (async (input: string | URL) => {
       const url = new URL(String(input));
       if (url.pathname.endsWith("/search")) {
         const q = url.searchParams.get("q")!;
-        searches.push(q);
+        searches.push({ q, lang: url.searchParams.get("relevanceLanguage"), region: url.searchParams.get("regionCode") });
         const n = searches.length;
+        const item = (id: string, title: string, live = "none") => ({
+          id: { videoId: `${id}-${n}` },
+          snippet: { title, channelTitle: "Channel", liveBroadcastContent: live, thumbnails: {} },
+        });
         return Response.json({
           nextPageToken: `tok-${n}`,
           items: [
-            { id: { videoId: `short-${n}` }, snippet: { title: `${q} spiegato`, channelTitle: "Canale", liveBroadcastContent: "none", thumbnails: {} } },
-            { id: { videoId: `long-${n}` }, snippet: { title: `${q} lezione lunga`, channelTitle: "Canale", liveBroadcastContent: "none", thumbnails: {} } },
-            { id: { videoId: `bait-${n}` }, snippet: { title: "Lo UMILIA in diretta", channelTitle: "Canale", liveBroadcastContent: "none", thumbnails: {} } },
-            { id: { videoId: `live-${n}` }, snippet: { title: `${q} live`, channelTitle: "Canale", liveBroadcastContent: "live", thumbnails: {} } },
+            item("short", `${q} explained`),
+            item("long", `${q} full lesson`),
+            item("bait", "Guitar drama EXPOSED"),
+            item("live", `${q} live`, "live"),
+            item("foreign", `${q} chitarra`),
+            item("offtopic", "My morning routine"),
           ],
         });
       }
       if (url.pathname.endsWith("/videos")) {
         const ids = url.searchParams.get("id")!.split(",");
         return Response.json({
-          items: ids.map((id) => ({ id, contentDetails: { duration: id.startsWith("long") ? "PT12M" : "PT50S" } })),
+          items: ids.map((id) => ({
+            id,
+            contentDetails: { duration: id.startsWith("long") ? "PT12M" : "PT50S" },
+            snippet: { defaultAudioLanguage: id.startsWith("foreign") ? "it" : "en-US", tags: [] },
+          })),
         });
       }
       throw new Error(`unexpected fetch ${url}`);
@@ -121,29 +177,41 @@ describe("liveFeed (YouTube simulato)", () => {
     return searches;
   }
 
-  it("keeps short, non-live, non-bait videos and paginates across planned queries", async () => {
+  it("keeps short, on-topic videos in the chosen language and paginates across queries", async () => {
     const searches = fakeYouTube();
 
-    const first = await liveFeed("KEY", "politica italiana");
-    // 1 video buono per ricerca, quindi fa 2 ricerche (il massimo per pagina).
+    const first = await liveFeed("KEY", "guitar", "en");
     assert.deepEqual(
       first.items.map((v) => v.id),
       ["short-1", "short-2"],
     );
-    assert.equal(first.items[0].durationSec, 50);
-    assert.deepEqual(searches, ["politica italiana", "politica italiana spiegato semplice"]);
+    assert.deepEqual(
+      searches.map((s) => s.q),
+      ["guitar", "guitar tutorial"],
+    );
+    assert.equal(searches[0].lang, "en");
+    assert.equal(searches[0].region, "US");
     assert.ok(first.cursor);
 
-    const second = await liveFeed("KEY", "politica italiana", first.cursor!);
-    assert.deepEqual(searches.slice(2), ["politica italiana in 1 minuto", "politica italiana #shorts"]);
+    const second = await liveFeed("KEY", "guitar", "en", first.cursor!);
+    assert.deepEqual(
+      searches.slice(2).map((s) => s.q),
+      ["guitar tips", "how to guitar"],
+    );
     assert.equal(second.items.length, 2);
+  });
+
+  it("does not filter by language when 'any' is chosen", async () => {
+    const searches = fakeYouTube();
+    const res = await liveFeed("KEY", "guitar", "any");
+    assert.equal(searches[0].lang, null);
+    assert.ok(res.items.some((v) => v.id.startsWith("foreign")));
   });
 
   it("stops when YouTube has no more pages", async () => {
     globalThis.fetch = (async () => Response.json({ items: [] })) as unknown as typeof fetch;
-    const res = await liveFeed("KEY", "argomento introvabile");
+    const res = await liveFeed("KEY", "argomento introvabile", "it");
     assert.equal(res.items.length, 0);
-    // Ogni ricerca senza nextPageToken è esaurita, ma ne restano altre pianificate.
     assert.ok(res.cursor);
     const state = decodeCursor(res.cursor!)!;
     assert.equal(state.t["0"], null);
