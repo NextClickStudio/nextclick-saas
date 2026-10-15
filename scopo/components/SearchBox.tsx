@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { DEFAULT_LANG, feedHref, getLanguage, LANGUAGES, type LangCode } from "@/lib/languages";
+import { DEFAULT_LANG, getLanguage, LANGUAGES, scanHref, type LangCode } from "@/lib/languages";
 import { readLang, saveLang } from "./prefs";
 
 type Props = {
@@ -32,7 +32,7 @@ export function SearchBox({ variant = "hero", placeholder = "guitar, snowboard t
         const t = topic.trim();
         if (!t) return;
         saveLang(lang);
-        router.push(feedHref(t, lang));
+        router.push(scanHref(t, lang));
       }}
     >
       <div className="search-field">
@@ -76,7 +76,7 @@ export function SearchBox({ variant = "hero", placeholder = "guitar, snowboard t
         </label>
 
         <button className="btn btn-volt search-go" type="submit" disabled={!topic.trim()}>
-          <span>Start scrolling</span>
+          <span>Build my path</span>
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
             <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </svg>

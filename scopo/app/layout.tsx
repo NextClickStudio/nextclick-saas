@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/bricolage-grotesque";
 import "@fontsource-variable/inter";
 import "./globals.css";
+import "./app.css";
 import { SWRegister } from "@/components/SWRegister";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://scopo-ten.vercel.app";

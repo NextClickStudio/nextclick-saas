@@ -10,8 +10,6 @@ export type Language = {
   flag: string;
   /** Paese usato come regionCode nella ricerca YouTube. */
   region?: string;
-  /** Varianti delle ricerche senza AI: {t} = argomento. */
-  templates: string[];
 };
 
 export const LANGUAGES: Language[] = [
@@ -21,7 +19,6 @@ export const LANGUAGES: Language[] = [
     english: "English",
     flag: "🇬🇧",
     region: "US",
-    templates: ["{t}", "{t} tutorial", "{t} tips", "how to {t}", "{t} explained", "{t} #shorts"],
   },
   {
     code: "it",
@@ -29,7 +26,6 @@ export const LANGUAGES: Language[] = [
     english: "Italian",
     flag: "🇮🇹",
     region: "IT",
-    templates: ["{t}", "{t} tutorial", "{t} consigli", "{t} spiegato", "{t} #shorts"],
   },
   {
     code: "es",
@@ -37,7 +33,6 @@ export const LANGUAGES: Language[] = [
     english: "Spanish",
     flag: "🇪🇸",
     region: "ES",
-    templates: ["{t}", "{t} tutorial", "{t} consejos", "{t} explicado", "{t} #shorts"],
   },
   {
     code: "fr",
@@ -45,7 +40,6 @@ export const LANGUAGES: Language[] = [
     english: "French",
     flag: "🇫🇷",
     region: "FR",
-    templates: ["{t}", "{t} tutoriel", "{t} astuces", "{t} expliqué", "{t} #shorts"],
   },
   {
     code: "de",
@@ -53,7 +47,6 @@ export const LANGUAGES: Language[] = [
     english: "German",
     flag: "🇩🇪",
     region: "DE",
-    templates: ["{t}", "{t} tutorial", "{t} tipps", "{t} erklärt", "{t} #shorts"],
   },
   {
     code: "pt",
@@ -61,14 +54,12 @@ export const LANGUAGES: Language[] = [
     english: "Portuguese",
     flag: "🇧🇷",
     region: "BR",
-    templates: ["{t}", "{t} tutorial", "{t} dicas", "{t} explicado", "{t} #shorts"],
   },
   {
     code: "any",
     label: "Any language",
     english: "any language",
     flag: "🌍",
-    templates: ["{t}", "{t} tutorial", "{t} tips", "{t} explained", "{t} #shorts"],
   },
 ];
 
@@ -93,6 +84,7 @@ export function baseLang(code: string | undefined): string {
   return (code ?? "").slice(0, 2).toLowerCase();
 }
 
-export function feedHref(topic: string, lang: LangCode): string {
-  return `/feed?${new URLSearchParams({ t: topic, lang })}`;
+/** Link alla "scansione": cosa sai già → percorso su misura. */
+export function scanHref(topic: string, lang: LangCode): string {
+  return `/path/new?${new URLSearchParams({ t: topic, lang })}`;
 }

@@ -6,7 +6,7 @@ import { Logo } from "@/components/Logo";
 import { Reveal } from "@/components/Reveal";
 import { SearchBox } from "@/components/SearchBox";
 import { SiteFooter } from "@/components/SiteFooter";
-import { feedHref, type LangCode } from "@/lib/languages";
+import { scanHref, type LangCode } from "@/lib/languages";
 
 const MARQUEE_A: Array<[string, string, LangCode]> = [
   ["🎸", "Guitar", "en"],
@@ -28,17 +28,17 @@ const MARQUEE_B: Array<[string, string, LangCode]> = [
 ];
 
 const STEPS = [
-  { n: "01", title: "Type a topic", text: "Guitar, snowboard tricks, Roman history. Anything you're curious about." },
-  { n: "02", title: "Pick a language", text: "English, Italiano, Español, Français, Deutsch, Português, or any." },
-  { n: "03", title: "Scroll & learn", text: "Short videos on that topic only. Swipe away anything that feels off." },
+  { n: "01", title: "Type a topic", text: "Guitar, snowboarding, chess, Roman history. Anything, in the language you want." },
+  { n: "02", title: "Tell us what you know", text: "Pick your level and say what you can already do. Scopo scans it and skips the parts you know." },
+  { n: "03", title: "Follow your path", text: "Short videos in the right order, one step at a time. Progress saves itself, so you continue anytime." },
 ];
 
-const FILTER_DEMO: Array<[boolean, string]> = [
-  [true, "How to ollie on a snowboard"],
-  [false, "Best ski resorts in Europe"],
-  [true, "Frontside 180 for beginners"],
-  [false, "Snowboard fail GONE WRONG 😂"],
-  [true, "Carving: edge control explained"],
+const PATH_DEMO: Array<["known" | "here" | "next", string, string]> = [
+  ["known", "Find your stance", "Regular or goofy"],
+  ["known", "Edges & side-slipping", "Control your speed"],
+  ["here", "Linking turns", "From C-turns to S-turns"],
+  ["next", "The ollie", "The base of every trick"],
+  ["next", "Your first 180", "Spin and ride away clean"],
 ];
 
 export default function Landing() {
@@ -76,18 +76,18 @@ export default function Landing() {
               by scrolling.
             </h1>
             <p className="hero-sub enter enter-3">
-              Type anything you want to learn. Scopo builds a vertical feed of short videos about that, and only
-              that, in the language you choose.
+              Not another endless feed. Tell Scopo what you want to learn and what you already know: it builds an
+              ordered path of short videos that starts exactly where you are, and saves it so you can continue anytime.
             </p>
             <div className="enter enter-4">
               <SearchBox variant="hero" />
             </div>
             <p className="hero-try enter enter-5">
               <span>Try</span>
-              <Link href={feedHref("Guitar", "en")}>🎸 Guitar</Link>
-              <Link href={feedHref("Snowboarding", "en")}>🏂 Snowboarding</Link>
-              <Link href={feedHref("Chess", "en")}>♟️ Chess</Link>
-              <Link href={feedHref("Italian politics", "it")}>🇮🇹 Italian politics</Link>
+              <Link href={scanHref("Guitar", "en")}>🎸 Guitar</Link>
+              <Link href={scanHref("Snowboarding", "en")}>🏂 Snowboarding</Link>
+              <Link href={scanHref("Chess", "en")}>♟️ Chess</Link>
+              <Link href={scanHref("Italian politics", "it")}>🇮🇹 Italian politics</Link>
             </p>
           </div>
           <div className="hero-visual enter enter-3">
@@ -100,7 +100,7 @@ export default function Landing() {
             <div key={r} className={`marquee-row ${r === 1 ? "marquee-reverse" : ""}`}>
               <div className="marquee-track">
                 {[...row, ...row].map(([emoji, label, lang], i) => (
-                  <Link key={i} className="marquee-chip" href={feedHref(label, lang)} tabIndex={i >= row.length ? -1 : 0}>
+                  <Link key={i} className="marquee-chip" href={scanHref(label, lang)} tabIndex={i >= row.length ? -1 : 0}>
                     <span aria-hidden>{emoji}</span> {label}
                   </Link>
                 ))}
@@ -114,7 +114,7 @@ export default function Landing() {
             How it works
           </p>
           <h2 className="section-title" data-reveal>
-            From &ldquo;I want to learn that&rdquo; to learning it, in three taps.
+            From &ldquo;I want to learn that&rdquo; to knowing it, one step at a time.
           </h2>
           <ol className="steps">
             {STEPS.map((s, i) => (
@@ -132,23 +132,39 @@ export default function Landing() {
             Why Scopo
           </p>
           <h2 className="section-title" data-reveal>
-            Your feed, on purpose.
+            A path, not a feed.
           </h2>
 
           <div className="bento">
             <article className="tile tile-wide" data-reveal>
-              <h3>Only what you asked for.</h3>
-              <p>Search snowboarding, get snowboarding: tricks, technique, gear. Not ski vlogs. Not memes.</p>
-              <ul className="filter-demo">
-                {FILTER_DEMO.map(([keep, title], i) => (
-                  <li key={title} className={keep ? "keep" : "drop"} style={{ transitionDelay: `${300 + i * 140}ms` }}>
-                    <span className="filter-mark" aria-hidden>
-                      {keep ? "✓" : "✕"}
+              <h3>Starts where you are.</h3>
+              <p>
+                &ldquo;I can already link turns&rdquo; is enough: Scopo marks what you know and puts you on the next
+                step. On TikTok you&apos;d still be watching beginner videos.
+              </p>
+              <ol className="path-demo">
+                {PATH_DEMO.map(([state, title, sub], i) => (
+                  <li key={title} className={`pd-row pd-row-${state}`} style={{ transitionDelay: `${300 + i * 140}ms` }}>
+                    <span className="pd-node" aria-hidden>
+                      {state === "known" ? "✓" : i + 1}
                     </span>
-                    <span className="filter-title">{title}</span>
+                    <span className="pd-text">
+                      <span className="pd-title">{title}</span>
+                      <span className="pd-sub">{sub}</span>
+                    </span>
+                    {state === "known" && <span className="pd-tag">You know this</span>}
+                    {state === "here" && <span className="pd-here">Start here</span>}
                   </li>
                 ))}
-              </ul>
+              </ol>
+            </article>
+
+            <article className="tile" data-reveal>
+              <div className="tile-icon" aria-hidden>
+                🎯
+              </div>
+              <h3>Only what you asked for.</h3>
+              <p>Search snowboarding, get snowboarding. Not ski vlogs, not memes, not drama.</p>
             </article>
 
             <article className="tile" data-reveal>
@@ -165,26 +181,26 @@ export default function Landing() {
             </article>
 
             <article className="tile" data-reveal>
+              <svg className="ring" viewBox="0 0 120 120" aria-hidden>
+                <circle cx="60" cy="60" r="48" className="ring-bg" />
+                <circle cx="60" cy="60" r="48" className="ring-fg" />
+                <text x="60" y="58" textAnchor="middle" className="ring-num">
+                  3/7
+                </text>
+                <text x="60" y="78" textAnchor="middle" className="ring-label">
+                  saved ✓
+                </text>
+              </svg>
+              <h3>Saved. Continue anytime.</h3>
+              <p>Stop after one step on the bus, continue tonight from the exact video you left.</p>
+            </article>
+
+            <article className="tile" data-reveal>
               <div className="tile-icon" aria-hidden>
                 🧯
               </div>
               <h3>No rage-bait.</h3>
               <p>Drama, fights and clickbait get filtered out before they reach you.</p>
-            </article>
-
-            <article className="tile" data-reveal>
-              <svg className="ring" viewBox="0 0 120 120" aria-hidden>
-                <circle cx="60" cy="60" r="48" className="ring-bg" />
-                <circle cx="60" cy="60" r="48" className="ring-fg" />
-                <text x="60" y="58" textAnchor="middle" className="ring-num">
-                  12/12
-                </text>
-                <text x="60" y="78" textAnchor="middle" className="ring-label">
-                  done ✓
-                </text>
-              </svg>
-              <h3>Sessions with an end.</h3>
-              <p>After 12 videos we stop and ask. Keep going, or go practise.</p>
             </article>
 
             <article className="tile" data-reveal>
@@ -215,12 +231,12 @@ export default function Landing() {
 
         <section className="manifesto" data-reveal>
           <p>
-            You&apos;re going to scroll anyway.
+            TikTok shows you what keeps you scrolling.
             <br />
-            <span className="grad-text">Make it count.</span>
+            <span className="grad-text">Scopo shows you what comes next.</span>
           </p>
           <Link href="/learn" className="btn btn-volt btn-lg">
-            Start learning, it&apos;s free
+            Build my first path, it&apos;s free
           </Link>
         </section>
       </main>

@@ -4,7 +4,7 @@ import { Contact, LegalPage } from "@/components/LegalPage";
 export const metadata: Metadata = { title: "Cookie policy" };
 
 const STORAGE = [
-  ["scopo:recent", "Your recent topics and their language, so you can jump back in."],
+  ["scopo:paths", "Your saved learning paths, their steps and videos, and where you left off."],
   ["scopo:lang", "The video language you picked last."],
   ["scopo:notice-ok", "Remembers that you closed the cookie notice."],
   ["scopo:install-dismissed", "Remembers that you closed the “install the app” tip."],

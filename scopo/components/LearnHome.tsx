@@ -2,22 +2,25 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { feedHref, getLanguage, type LangCode } from "@/lib/languages";
+import { getLanguage, scanHref, type LangCode } from "@/lib/languages";
 import { InstallHint } from "./InstallHint";
 import { Logo } from "./Logo";
-import { readLang, readRecent, type RecentTopic } from "./prefs";
+import { PathCard } from "./PathCard";
+import { listPaths, type SavedPath } from "./paths";
+import { readLang } from "./prefs";
 import { SearchBox } from "./SearchBox";
+import { TabBar } from "./TabBar";
 
 type Tile = { topic: string; emoji: string; lang?: LangCode };
 
 const IDEAS: Tile[] = [
   { topic: "Guitar", emoji: "🎸" },
-  { topic: "Snowboard tricks", emoji: "🏂" },
-  { topic: "Chess openings", emoji: "♟️" },
+  { topic: "Snowboarding", emoji: "🏂" },
+  { topic: "Chess", emoji: "♟️" },
   { topic: "Knife skills", emoji: "🔪" },
   { topic: "Photography", emoji: "📷" },
   { topic: "Piano", emoji: "🎹" },
-  { topic: "Skiing technique", emoji: "⛷️" },
+  { topic: "Skiing", emoji: "⛷️" },
   { topic: "Psychology", emoji: "🧠" },
 ];
 
@@ -27,18 +30,18 @@ type Props = {
 };
 
 export function LearnHome({ liveSearch, demoTiles }: Props) {
-  const [recent, setRecent] = useState<RecentTopic[]>([]);
+  const [resume, setResume] = useState<SavedPath | null>(null);
   const [lang, setLang] = useState<LangCode>("en");
 
   useEffect(() => {
-    setRecent(readRecent());
+    setResume(listPaths().find((p) => !p.finished) ?? null);
     setLang(readLang());
   }, []);
 
   const tiles = liveSearch ? IDEAS : demoTiles;
 
   return (
-    <main className="learn">
+    <main className="learn with-tabs">
       <div className="aurora aurora-soft" aria-hidden>
         <span className="blob blob-volt" />
         <span className="blob blob-ultra" />
@@ -51,31 +54,28 @@ export function LearnHome({ liveSearch, demoTiles }: Props) {
         <span className="pill pill-beta">beta</span>
       </header>
 
+      {resume && (
+        <section className="learn-block resume enter enter-1">
+          <h2 className="learn-label">Pick up where you left off</h2>
+          <PathCard path={resume} big />
+        </section>
+      )}
+
       <h1 className="learn-title enter enter-1">
         What do you want
         <br />
-        to <span className="grad-text">learn</span> today?
+        to <span className="grad-text">learn</span> next?
       </h1>
 
       <div className="enter enter-2">
         <SearchBox variant="app" />
       </div>
-
-      {recent.length > 0 && (
-        <section className="learn-block enter enter-3">
-          <h2 className="learn-label">Jump back in</h2>
-          <div className="chips">
-            {recent.map((r) => (
-              <Link key={`${r.topic}-${r.lang}`} className="chip" href={feedHref(r.topic, r.lang)}>
-                <span aria-hidden>{getLanguage(r.lang).flag}</span> {r.topic}
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+      <p className="learn-note enter enter-2">
+        Next you&apos;ll tell us what you already know. We build an ordered path that starts right there.
+      </p>
 
       <section className="learn-block enter enter-4">
-        <h2 className="learn-label">{liveSearch ? "Popular right now" : "Ready in the demo"}</h2>
+        <h2 className="learn-label">{liveSearch ? "Popular paths" : "Ready in the demo"}</h2>
         <div className="tiles">
           {tiles.map((t, i) => {
             const tileLang = t.lang ?? lang;
@@ -83,7 +83,7 @@ export function LearnHome({ liveSearch, demoTiles }: Props) {
               <Link
                 key={t.topic}
                 className={`topic-tile tone-${i % 6}`}
-                href={feedHref(t.topic, tileLang)}
+                href={scanHref(t.topic, tileLang)}
                 style={{ animationDelay: `${i * 50}ms` }}
               >
                 <span className="topic-emoji" aria-hidden>
@@ -97,7 +97,7 @@ export function LearnHome({ liveSearch, demoTiles }: Props) {
         </div>
         {!liveSearch && (
           <p className="learn-note">
-            This demo has a hand-picked set of topics. Search for anything is switching on very soon.
+            The demo has hand-picked paths. Paths for any topic are switching on very soon.
           </p>
         )}
       </section>
@@ -110,6 +110,8 @@ export function LearnHome({ liveSearch, demoTiles }: Props) {
         <Link href="/terms">Terms</Link>
         <Link href="/">About</Link>
       </footer>
+
+      <TabBar />
     </main>
   );
 }

@@ -12,18 +12,20 @@ export default function PrivacyPage() {
       <h2>The short version</h2>
       <ul>
         <li>No accounts, no sign-up, no ads, no analytics or tracking tools.</li>
-        <li>Your preferences (recent topics, video language) stay on your device.</li>
-        <li>What you search is used only to find videos, and we don&apos;t store it.</li>
+        <li>Your saved paths, progress and video language stay on your device.</li>
+        <li>What you search and what you tell us you already know are used only to build your path. We don&apos;t store them.</li>
         <li>Videos are played through YouTube&apos;s embedded player.</li>
       </ul>
 
       <h2>What we process and why</h2>
-      <h3>1. Your searches</h3>
+      <h3>1. Your topic and what you already know</h3>
       <p>
-        When you start a feed, the topic you typed and the language you picked are sent to our server, which uses
-        them to search the YouTube Data API for matching videos. To keep the feed on-topic, the topic together with
-        the public titles and descriptions of the videos found may also be sent to an AI service (Anthropic) that
-        selects the relevant ones. We don&apos;t keep a database of searches and we don&apos;t link them to you.
+        When you build a path, the topic you typed, the language you picked, your level and what you wrote about
+        what you already know are sent to our server. We use them to design the steps of your path and to search the
+        YouTube Data API for videos for each step. To do this well, this information, together with the public titles
+        and descriptions of the videos found, may also be sent to an AI service (Anthropic). Please don&apos;t write
+        personal details in the &ldquo;what can you already do&rdquo; box. We don&apos;t keep a database of searches
+        or paths, and we don&apos;t link them to you.
       </p>
       <h3>2. Technical data</h3>
       <p>
@@ -33,8 +35,8 @@ export default function PrivacyPage() {
       </p>
       <h3>3. Data stored on your device</h3>
       <p>
-        We use your browser&apos;s local storage to remember your recent topics, your preferred video language and
-        whether you&apos;ve dismissed our notices. This data never leaves your device and you can delete it at any
+        We use your browser&apos;s local storage to keep your saved paths and where you left off, your preferred video
+        language and whether you&apos;ve dismissed our notices. This data never leaves your device and you can delete it at any
         time by clearing your browser&apos;s site data. See the <a href="/cookies">cookie policy</a> for the full
         list.
       </p>
@@ -64,8 +66,8 @@ export default function PrivacyPage() {
       <p>
         Depending on where you live, you may have the right to access, correct, delete or object to the processing
         of your personal data, and to complain to your data protection authority. Since we don&apos;t keep accounts
-        or search history, most of what&apos;s stored about you lives on your own device and you can clear it
-        yourself.
+        or search history, what&apos;s stored about you lives on your own device and you can clear it yourself, for
+        example by deleting a path from your library or clearing this site&apos;s data.
       </p>
 
       <h2>Children</h2>
