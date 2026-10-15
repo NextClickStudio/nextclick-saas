@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: "Scopo · Learn by scrolling", template: "%s · Scopo" },
   description:
-    "Type anything you want to learn and get a vertical feed of short videos about that, and only that, in the language you choose.",
+    "Type what you want to learn and what you already know. Scopo builds an ordered path of short videos that starts where you are, in the language you choose.",
   applicationName: "Scopo",
   appleWebApp: { capable: true, title: "Scopo", statusBarStyle: "black-translucent" },
   formatDetection: { telephone: false },
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   other: { "apple-mobile-web-app-capable": "yes" },
   openGraph: {
     title: "Scopo · Learn by scrolling",
-    description: "A feed of short videos on the one thing you want to learn.",
+    description: "Short videos in the right order, starting where you are.",
     siteName: "Scopo",
     type: "website",
   },

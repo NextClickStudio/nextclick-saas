@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/learn",
     name: "Scopo · Learn by scrolling",
     short_name: "Scopo",
-    description: "A feed of short videos on the one thing you want to learn.",
+    description: "Short videos in the right order, starting where you are.",
     start_url: "/learn?source=pwa",
     scope: "/",
     display: "standalone",
