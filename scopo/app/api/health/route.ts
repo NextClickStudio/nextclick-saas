@@ -22,7 +22,8 @@ type Report = {
   sample?: {
     plan: { title: string; mode: "ai" | "template"; start: number; steps: string[] } | null;
     step: { title: string; videos: Array<{ title: string; reason?: string }> } | null;
-    ms: number;
+    planMs: number;
+    stepMs: number;
   };
   checkedAt: string;
 };
@@ -68,6 +69,7 @@ async function samplePath(apiKey: string, useAi: boolean): Promise<NonNullable<R
   const plan = useAi
     ? await aiPlan({ topic: "guitar", lang: "en", level: "basics", known: "I can play a few open chords" })
     : null;
+  const planMs = Date.now() - started;
   const step = plan?.steps[plan.startIndex];
   const title = step?.title ?? "Barre chords";
   const res = await fetchStepVideos(apiKey, {
@@ -81,7 +83,8 @@ async function samplePath(apiKey: string, useAi: boolean): Promise<NonNullable<R
       ? { title: plan.title, mode: "ai", start: plan.startIndex, steps: plan.steps.map((s) => s.title) }
       : null,
     step: { title, videos: res.items.map((v) => ({ title: v.title, reason: v.reason })) },
-    ms: Date.now() - started,
+    planMs,
+    stepMs: Date.now() - started - planMs,
   };
 }
 

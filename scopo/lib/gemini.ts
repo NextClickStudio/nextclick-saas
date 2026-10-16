@@ -26,6 +26,8 @@ function modelCandidates(): string[] {
 
 /** Il primo modello che ha risposto, per non riprovare quelli che non esistono. */
 let workingModel: string | null = null;
+/** Ragionamento breve = risposte molto più rapide; se il modello non lo accetta, si va senza. */
+let lowThinking = true;
 
 /** Sottoinsieme OpenAPI usato da `responseSchema`. */
 export type GeminiSchema =
@@ -83,17 +85,28 @@ export async function generateJson<T>(
   const auth = geminiKey();
   if (!auth) throw new GeminiError("No Gemini API key configured", 0);
 
-  const body = {
+  const body = (thinking: boolean) => ({
     contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { responseMimeType: "application/json", responseSchema: schema, temperature: 0.4 },
-  };
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: schema,
+      temperature: 0.4,
+      ...(thinking ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
+    },
+  });
 
   const models = workingModel ? [workingModel] : modelCandidates();
   let lastError: unknown = null;
   for (const model of models) {
     let data: GenerateResponse;
     try {
-      data = await callModel(model, auth.key, body, timeoutMs);
+      data = await callModel(model, auth.key, body(lowThinking), timeoutMs).catch((err: unknown) => {
+        if (!lowThinking || !(err instanceof GeminiError) || err.status !== 400 || !/thinking/i.test(err.message)) {
+          throw err;
+        }
+        lowThinking = false;
+        return callModel(model, auth.key, body(false), timeoutMs);
+      });
     } catch (err) {
       lastError = err;
       if (err instanceof GeminiError && err.status === 404) continue;

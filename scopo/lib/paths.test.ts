@@ -4,7 +4,7 @@ import { heuristicCurate } from "./curator.ts";
 import { decodeCursor, encodeCursor, nextQueryIndex } from "./cursor.ts";
 import { aiPlan, buildPlan, demoPlan, templatePlan } from "./curriculum.ts";
 import { fetchStepVideos } from "./feed.ts";
-import { GEMINI_KEY_ENVS, generateJson } from "./gemini.ts";
+import { GEMINI_KEY_ENVS, generateJson, type GeminiSchema } from "./gemini.ts";
 import { isLangCode, langFromLocale } from "./languages.ts";
 import { estimateMinutes, positiveClauses, startFromKnowledge } from "./paths.ts";
 import { matchSeedTopic, seedSteps } from "./seed.ts";
@@ -241,6 +241,25 @@ describe("Gemini (API simulata)", () => {
     assert.equal(calls.length, 2);
     assert.ok(calls.every((c) => c.key === "GKEY" && !c.url.includes("GKEY")));
     assert.equal(calls[0].body.generationConfig.responseMimeType, "application/json");
+  });
+
+  it("asks for short thinking and drops it when the model refuses", async () => {
+    process.env.GEMINI_API_KEY = "GKEY";
+    const configs: unknown[] = [];
+    globalThis.fetch = (async (_input: string | URL, init?: RequestInit) => {
+      const config = JSON.parse(String(init?.body)).generationConfig;
+      configs.push(config.thinkingConfig ?? null);
+      if (config.thinkingConfig) {
+        return Response.json({ error: { message: "Thinking level is not supported for this model." } }, { status: 400 });
+      }
+      return reply({ ok: "yes" });
+    }) as typeof fetch;
+
+    const schema: GeminiSchema = { type: "OBJECT", properties: { ok: { type: "STRING" } }, required: ["ok"] };
+    assert.deepEqual((await generateJson("hi", schema, (v) => v)).value, { ok: "yes" });
+    assert.deepEqual(configs, [{ thinkingLevel: "low" }, null]);
+    await generateJson("again", schema, (v) => v);
+    assert.deepEqual(configs.at(-1), null);
   });
 
   it("designs a path and picks where to start", async () => {
