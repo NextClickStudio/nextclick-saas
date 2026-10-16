@@ -33,6 +33,9 @@ const STEPS = [
   { n: "03", title: "Follow your path", text: "Short videos in the right order, one step at a time. Progress saves itself, so you continue anytime." },
 ];
 
+const TAPE_A = ["No fluff", "In the right order", "Starts where you are", "+XP every video", "Keep the streak"];
+const TAPE_B = ["No rage-bait", "Any language", "Saved automatically", "Free beta", "Install it on your phone"];
+
 const PATH_DEMO: Array<["known" | "here" | "next", string, string]> = [
   ["known", "Find your stance", "Regular or goofy"],
   ["known", "Edges & side-slipping", "Control your speed"],
@@ -47,7 +50,7 @@ export default function Landing() {
       <div className="aurora" aria-hidden>
         <span className="blob blob-volt" />
         <span className="blob blob-ultra" />
-        <span className="blob blob-ion" />
+        <span className="blob blob-hot" />
       </div>
       <div className="grain" aria-hidden />
 
@@ -69,15 +72,15 @@ export default function Landing() {
         <section className="hero">
           <div className="hero-copy">
             <p className="eyebrow enter enter-1">
-              <span className="dot dot-volt pulse" /> Free demo · we&apos;re building in public
+              <span className="dot dot-volt pulse" /> New: XP, streaks and levels
             </p>
             <h1 className="hero-title enter enter-2">
               Learn <RotatingWord />
               by scrolling.
             </h1>
             <p className="hero-sub enter enter-3">
-              Not another endless feed. Tell Scopo what you want to learn and what you already know: it builds an
-              ordered path of short videos that starts exactly where you are, and saves it so you can continue anytime.
+              Not another endless feed. Tell Scopo what you already know and get short videos in the perfect order,
+              starting exactly where you are. Earn XP, keep your streak, pick up anytime.
             </p>
             <div className="enter enter-4">
               <SearchBox variant="hero" />
@@ -94,6 +97,27 @@ export default function Landing() {
             <PhoneDemo />
           </div>
         </section>
+
+        <div className="tapes" aria-hidden>
+          <div className="tape">
+            <div className="tape-track">
+              {[...TAPE_A, ...TAPE_A].map((t, i) => (
+                <span key={i}>
+                  {t} <b>✦</b>
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="tape tape-hot">
+            <div className="tape-track tape-reverse">
+              {[...TAPE_B, ...TAPE_B].map((t, i) => (
+                <span key={i}>
+                  {t} <b>✦</b>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
 
         <section className="marquee" aria-label="Topics people learn">
           {[MARQUEE_A, MARQUEE_B].map((row, r) => (
@@ -119,7 +143,7 @@ export default function Landing() {
           <ol className="steps">
             {STEPS.map((s, i) => (
               <li key={s.n} className="step" data-reveal style={{ transitionDelay: `${i * 90}ms` }}>
-                <span className="step-n grad-text">{s.n}</span>
+                <span className="step-n">{s.n}</span>
                 <h3>{s.title}</h3>
                 <p>{s.text}</p>
               </li>
@@ -203,28 +227,16 @@ export default function Landing() {
               <p>Drama, fights and clickbait get filtered out before they reach you.</p>
             </article>
 
-            <article className="tile" data-reveal>
-              <div className="homescreen" aria-hidden>
-                <span className="app-dot" />
-                <span className="app-dot" />
-                <span className="app-icon-tile">
-                  <svg viewBox="0 0 64 64" width="44" height="44">
-                    <defs>
-                      <linearGradient id="tile-mark" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0" stopColor="#c6ff3d" />
-                        <stop offset="1" stopColor="#38f3e0" />
-                      </linearGradient>
-                    </defs>
-                    <rect width="64" height="64" rx="16" fill="url(#tile-mark)" />
-                    <circle cx="32" cy="32" r="15" fill="none" stroke="#07070c" strokeWidth="5" />
-                    <path d="M32 7v8M32 49v8M7 32h8M49 32h8" stroke="#07070c" strokeWidth="5" strokeLinecap="round" />
-                    <path d="M28.5 25.5l10 6.5-10 6.5z" fill="#07070c" />
-                  </svg>
-                </span>
-                <span className="app-dot" />
+            <article className="tile tile-xp" data-reveal>
+              <div className="xp-demo" aria-hidden>
+                <span className="xp-demo-streak">🔥 7</span>
+                <span className="xp-demo-pop">+50 XP</span>
               </div>
-              <h3>Install it like an app.</h3>
-              <p>Add Scopo to your home screen. Full screen, no browser bars.</p>
+              <div className="xp-demo-bar" aria-hidden>
+                <span />
+              </div>
+              <h3>Earn XP. Keep the streak.</h3>
+              <p>Every video and every step pays out. Level up from Rookie to Legend, one short video at a time.</p>
             </article>
           </div>
         </section>
@@ -236,7 +248,7 @@ export default function Landing() {
             <span className="grad-text">Scopo shows you what comes next.</span>
           </p>
           <Link href="/learn" className="btn btn-volt btn-lg">
-            Build my first path, it&apos;s free
+            Build my first path →
           </Link>
         </section>
       </main>

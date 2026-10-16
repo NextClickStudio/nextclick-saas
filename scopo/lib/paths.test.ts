@@ -2,15 +2,17 @@ import { strict as assert } from "node:assert";
 import { afterEach, describe, it } from "node:test";
 import { heuristicCurate } from "./curator.ts";
 import { decodeCursor, encodeCursor, nextQueryIndex } from "./cursor.ts";
-import { buildPlan, demoPlan, templatePlan } from "./curriculum.ts";
+import { aiPlan, buildPlan, demoPlan, templatePlan } from "./curriculum.ts";
 import { fetchStepVideos } from "./feed.ts";
+import { GEMINI_KEY_ENVS, generateJson } from "./gemini.ts";
 import { isLangCode, langFromLocale } from "./languages.ts";
 import { estimateMinutes, positiveClauses, startFromKnowledge } from "./paths.ts";
 import { matchSeedTopic, seedSteps } from "./seed.ts";
 import { decodeEntities, keywordHits, looksLikeBait, parseIsoDuration, topicKeywords } from "./text.ts";
 import type { Candidate } from "./youtube.ts";
 
-delete process.env.ANTHROPIC_API_KEY;
+for (const env of GEMINI_KEY_ENVS) delete process.env[env];
+delete process.env.GEMINI_MODEL;
 delete process.env.YOUTUBE_API_KEY;
 
 describe("text", () => {
@@ -206,5 +208,73 @@ describe("step videos (YouTube simulato)", () => {
     );
     assert.equal(searches[0].lang, "en");
     assert.ok(res.cursor);
+  });
+});
+
+describe("Gemini (API simulata)", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    delete process.env.GEMINI_API_KEY;
+  });
+
+  const reply = (value: unknown) =>
+    Response.json({
+      candidates: [{ content: { parts: [{ text: "thinking…", thought: true }, { text: JSON.stringify(value) }] } }],
+    });
+
+  it("sends the key in a header, asks for JSON and skips models that don't exist", async () => {
+    process.env.GEMINI_API_KEY = "GKEY";
+    const calls: Array<{ url: string; key: string | null; body: { generationConfig: { responseMimeType: string } } }> = [];
+    globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, key: new Headers(init?.headers).get("x-goog-api-key"), body: JSON.parse(String(init?.body)) });
+      if (url.includes("gemini-flash-latest")) {
+        return Response.json({ error: { message: "model not found" } }, { status: 404 });
+      }
+      return reply({ ok: "yes" });
+    }) as typeof fetch;
+
+    const out = await generateJson("hi", { type: "OBJECT", properties: { ok: { type: "STRING" } }, required: ["ok"] }, (v) => v);
+    assert.deepEqual(out.value, { ok: "yes" });
+    assert.equal(out.model, "gemini-2.5-flash");
+    assert.equal(calls.length, 2);
+    assert.ok(calls.every((c) => c.key === "GKEY" && !c.url.includes("GKEY")));
+    assert.equal(calls[0].body.generationConfig.responseMimeType, "application/json");
+  });
+
+  it("designs a path and picks where to start", async () => {
+    process.env.GEMINI_API_KEY = "GKEY";
+    globalThis.fetch = (async () =>
+      reply({
+        title: "Piano from zero",
+        emoji: "🎹",
+        steps: [
+          { title: "Find middle C", summary: "Know the keyboard", query: "piano middle c" },
+          { title: "Your first chords", summary: "Play C, F and G", query: "piano first chords" },
+          { title: "Both hands", summary: "Play hands together", query: "piano hands together" },
+        ],
+        startIndex: 9,
+        startReason: "You know the keys, so you start with chords.",
+      })) as typeof fetch;
+
+    const plan = await aiPlan({ topic: "piano", lang: "en", level: "basics", known: "I know where middle C is" });
+    assert.ok(plan);
+    assert.equal(plan.mode, "ai");
+    assert.equal(plan.steps.length, 3);
+    assert.deepEqual(plan.steps[1].queries, ["piano first chords"]);
+    assert.equal(plan.startIndex, 2);
+  });
+
+  it("falls back to generic steps when Gemini fails", async () => {
+    process.env.GEMINI_API_KEY = "GKEY";
+    process.env.YOUTUBE_API_KEY = "KEY";
+    globalThis.fetch = (async () => Response.json({ error: { message: "bad key" } }, { status: 400 })) as typeof fetch;
+    try {
+      const res = await buildPlan({ topic: "piano", lang: "en", level: "new", known: "" });
+      assert.ok("plan" in res && res.plan.mode === "template");
+    } finally {
+      delete process.env.YOUTUBE_API_KEY;
+    }
   });
 });

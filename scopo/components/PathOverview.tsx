@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getLanguage } from "@/lib/languages";
 import { estimateMinutes } from "@/lib/paths";
+import { XP } from "@/lib/xp";
 import { deletePath, getPath, nextTodo, progress, savePath, type SavedPath } from "./paths";
 
 export function PathOverview({ id }: { id: string }) {
@@ -21,6 +22,9 @@ export function PathOverview({ id }: { id: string }) {
   const minutes = Math.max(1, Math.round(estimateMinutes(path.steps.filter((s) => s.status !== "known"))));
   const started = path.position.video >= 0 || p.done > 0;
   const current = path.steps[path.position.step];
+  const xpLeft = path.steps
+    .filter((s) => s.status === "todo")
+    .reduce((sum, s) => sum + XP.step + (s.videos?.length ?? 3) * XP.video, path.finished ? 0 : XP.path);
 
   function update(next: SavedPath) {
     setPath(savePath(next));
@@ -91,6 +95,7 @@ export function PathOverview({ id }: { id: string }) {
           <p className="ov-meta">
             {language.flag} {language.label} · {path.steps.length} steps · ~{minutes} min to go
           </p>
+          {xpLeft > 0 && <p className="ov-xp">⚡ Up to +{xpLeft} XP to grab</p>}
         </div>
       </section>
 
@@ -124,6 +129,7 @@ export function PathOverview({ id }: { id: string }) {
                 <span className="tl-text">
                   <span className="tl-title">{s.title}</span>
                   <span className="tl-summary">{s.summary}</span>
+                  {s.status === "todo" && <span className="tl-xp">+{XP.step} XP</span>}
                   {isCurrent && (
                     <span className="tl-badge">{path.position.video >= 0 ? "You're here" : "Start here"}</span>
                   )}

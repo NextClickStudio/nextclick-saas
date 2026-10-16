@@ -2,11 +2,12 @@ import { decodeCursor, encodeCursor, nextQueryIndex, type CursorState } from "./
 import { curate } from "./curator.ts";
 import type { LangCode } from "./languages.ts";
 import type { StepResponse } from "./paths.ts";
-import type { Video } from "./types.ts";
-import { searchShorts } from "./youtube.ts";
+import { searchShorts, type Candidate } from "./youtube.ts";
 
 /** Al massimo 2 ricerche (200 unità di quota) per ogni richiesta. */
 const MAX_SEARCHES = 2;
+/** Con meno candidati di così si fa un'altra ricerca prima di scegliere. */
+const MIN_CANDIDATES = 12;
 export const VIDEOS_PER_STEP = 5;
 
 /**
@@ -20,19 +21,24 @@ export async function fetchStepVideos(
   const decoded = input.cursor ? decodeCursor(input.cursor) : null;
   const state: CursorState = decoded ?? { q: input.queries.slice(0, 3), i: 0, t: {} };
 
-  const items: Video[] = [];
+  const candidates: Candidate[] = [];
   const seen = new Set<string>();
-  for (let searches = 0; searches < MAX_SEARCHES && items.length < VIDEOS_PER_STEP; searches++) {
+  for (let searches = 0; searches < MAX_SEARCHES && candidates.length < MIN_CANDIDATES; searches++) {
     const k = nextQueryIndex(state);
     if (k === -1) break;
     const page = await searchShorts(apiKey, state.q[k], input.lang, state.t[k] ?? undefined);
     state.t[k] = page.nextPageToken;
     state.i = k + 1;
 
-    const fresh = page.candidates.filter((c) => !seen.has(c.id));
-    fresh.forEach((c) => seen.add(c.id));
-    items.push(...(await curate(input.topic, input.step, input.lang, fresh)));
+    for (const c of page.candidates) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      candidates.push(c);
+    }
   }
+
+  // Una sola chiamata all'AI per tutti i candidati del passo.
+  const items = await curate(input.topic, input.step, input.lang, candidates);
 
   return {
     items: items.slice(0, VIDEOS_PER_STEP),

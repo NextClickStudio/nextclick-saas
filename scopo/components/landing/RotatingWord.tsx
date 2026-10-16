@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const WORDS = ["guitar", "snowboard tricks", "chess openings", "Italian politics", "knife skills", "skiing"];
+const WORDS = ["guitar", "snowboard", "chess", "cooking", "piano", "politics", "physics", "skiing"];
 
 /** La parola che cambia nel titolo: "Learn ___ by scrolling." */
 export function RotatingWord() {
@@ -16,7 +16,7 @@ export function RotatingWord() {
 
   return (
     <span className="rotator" aria-live="polite">
-      <span key={index} className="rotator-word grad-text">
+      <span key={index} className="rotator-word hl">
         {WORDS[index]}
       </span>
     </span>

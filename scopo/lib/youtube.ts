@@ -131,3 +131,10 @@ export async function searchShorts(
   }
   return { candidates, nextPageToken: data.nextPageToken ?? null };
 }
+
+/** Controlla che la chiave funzioni: il dettaglio di un video costa 1 sola unità di quota. */
+export async function checkKey(apiKey: string): Promise<void> {
+  const url = new URL(`${API}/videos`);
+  url.search = new URLSearchParams({ part: "id", id: "kZ9T749GF1o", key: apiKey }).toString();
+  await getJson<VideosListResponse>(url);
+}

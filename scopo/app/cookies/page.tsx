@@ -5,6 +5,7 @@ export const metadata: Metadata = { title: "Cookie policy" };
 
 const STORAGE = [
   ["scopo:paths", "Your saved learning paths, their steps and videos, and where you left off."],
+  ["scopo:stats", "Your XP, level and day streak."],
   ["scopo:lang", "The video language you picked last."],
   ["scopo:notice-ok", "Remembers that you closed the cookie notice."],
   ["scopo:install-dismissed", "Remembers that you closed the “install the app” tip."],

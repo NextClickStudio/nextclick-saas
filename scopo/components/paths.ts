@@ -18,6 +18,8 @@ export type SavedStep = Omit<PlanStep, "videos"> & {
   /** undefined = non ancora caricati; [] = nessun video buono trovato. */
   videos?: Video[];
   cursor?: string | null;
+  /** Indice dell'ultimo video raggiunto: i punti di un video si prendono una volta sola. */
+  seen?: number;
 };
 
 export type SavedPath = {

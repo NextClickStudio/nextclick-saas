@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PathCard } from "./PathCard";
 import { listPaths, type SavedPath } from "./paths";
+import { StatsStrip } from "./StatsStrip";
 import { TabBar } from "./TabBar";
 
 export function Library() {
@@ -21,6 +22,9 @@ export function Library() {
       </div>
       <h1 className="learn-title enter enter-1">Your library</h1>
       <p className="screen-sub enter enter-1">Every path is saved on this device. Pick up exactly where you stopped.</p>
+      <div className="library-stats enter enter-2">
+        <StatsStrip />
+      </div>
 
       {paths !== null && paths.length === 0 && (
         <section className="empty enter enter-2">

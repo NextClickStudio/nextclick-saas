@@ -6,8 +6,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { getLanguage } from "@/lib/languages";
 import type { StepResponse } from "@/lib/paths";
 import type { Video } from "@/lib/types";
+import { dayKey, levelFor, liveStreak, XP, type XpKind } from "@/lib/xp";
+import { Confetti } from "./Confetti";
 import { MissingPath } from "./PathOverview";
 import { getPath, nextTodo, savePath, type SavedPath } from "./paths";
+import { buzz, earn, useStats } from "./stats";
 import { VideoSlide } from "./VideoSlide";
 
 type Slide =
@@ -43,6 +46,12 @@ export function PathPlayer({ id }: { id: string }) {
   const didInitialScroll = useRef(false);
   /** Ultima scheda attivata: l'observer viene ricreato a ogni salvataggio, non vogliamo riattivarla. */
   const lastActivated = useRef<string | null>(null);
+  const stats = useStats();
+  const [pops, setPops] = useState<Array<{ id: number; text: string }>>([]);
+  const [levelUp, setLevelUp] = useState<{ level: number; title: string } | null>(null);
+  /** Ricompense già date in questa visita (video, passi, percorso). */
+  const rewarded = useRef(new Set<string>());
+  const popId = useRef(0);
 
   useEffect(() => {
     const p = getPath(id);
@@ -64,6 +73,26 @@ export function PathPlayer({ id }: { id: string }) {
   const showToast = useCallback((text: string) => {
     setToast(text);
     window.setTimeout(() => setToast((t) => (t === text ? null : t)), 2600);
+  }, []);
+
+  const reward = useCallback((kind: XpKind, key: string) => {
+    if (rewarded.current.has(key)) return;
+    rewarded.current.add(key);
+    const gain = earn(kind);
+    // Passi e percorso mostrano i punti sulla loro scheda; i video con un "+10 XP" volante.
+    if (kind === "video") {
+      const id = ++popId.current;
+      setPops((list) => [...list, { id, text: `+${gain.amount} XP` }]);
+      window.setTimeout(() => setPops((list) => list.filter((x) => x.id !== id)), 1300);
+    }
+    if (gain.levelUp) {
+      const { level, title } = levelFor(gain.stats.xp);
+      setLevelUp({ level, title });
+      window.setTimeout(() => setLevelUp((l) => (l?.level === level ? null : l)), 2600);
+      buzz([30, 60, 30, 60, 90]);
+    } else {
+      buzz(kind === "video" ? 10 : [25, 50, 25]);
+    }
   }, []);
 
   const ensureLoaded = useCallback(
@@ -159,12 +188,23 @@ export function PathPlayer({ id }: { id: string }) {
           void ensureLoaded(slide.step);
           break;
         case "video": {
-          commit((cur) => ({ ...cur, position: { step: slide.step, video: slide.index }, finished: false }));
+          const firstTime = slide.index > (p.steps[slide.step].seen ?? -1);
+          commit((cur) => ({
+            ...cur,
+            position: { step: slide.step, video: slide.index },
+            finished: false,
+            steps: firstTime
+              ? cur.steps.map((s, k) => (k === slide.step ? { ...s, seen: slide.index } : s))
+              : cur.steps,
+          }));
+          if (firstTime) reward("video", `v-${slide.step}-${slide.video.id}`);
           const count = p.steps[slide.step].videos?.length ?? 0;
           if (slide.index >= count - 2) void ensureLoaded(nextTodo(p, slide.step + 1));
           break;
         }
-        case "done":
+        case "done": {
+          const wasDone = p.steps[slide.step].status === "done";
+          const wasFinished = p.finished;
           commit((cur) => {
             const steps = cur.steps.map((s, k) => (k === slide.step ? { ...s, status: "done" as const } : s));
             const next = nextTodo({ ...cur, steps }, slide.step + 1);
@@ -175,8 +215,11 @@ export function PathPlayer({ id }: { id: string }) {
               finished: next === -1,
             };
           });
+          if (!wasDone) reward("step", `s-${slide.step}`);
+          if (!wasFinished && pathRef.current?.finished) window.setTimeout(() => reward("path", "path"), 700);
           if (slide.next >= 0) void ensureLoaded(slide.next);
           break;
+        }
         case "loading":
           void ensureLoaded(slide.step);
           break;
@@ -185,7 +228,7 @@ export function PathPlayer({ id }: { id: string }) {
           break;
       }
     },
-    [commit, ensureLoaded],
+    [commit, ensureLoaded, reward],
   );
 
   // Quale scheda è a schermo.
@@ -217,6 +260,9 @@ export function PathPlayer({ id }: { id: string }) {
   const activeSlide = slides[active];
   const activeStep = activeSlide && "step" in activeSlide ? activeSlide.step : path.position.step;
   const language = getLanguage(path.lang);
+  const xp = stats?.xp ?? 0;
+  const level = levelFor(xp);
+  const streak = stats ? liveStreak(stats, dayKey(new Date())) : 0;
 
   function removeVideo(step: number, videoId: string, channel?: string) {
     if (channel) blocked.current.add(channel);
@@ -246,6 +292,9 @@ export function PathPlayer({ id }: { id: string }) {
           </span>
           {path.mode === "demo" && <span className="chip-demo">demo</span>}
         </div>
+        <span className="xp-chip" key={xp} aria-label={`${xp} XP`}>
+          ⚡ {xp}
+        </span>
         <div className="feed-count" aria-label={`Step ${activeStep + 1} of ${total}`}>
           {Math.min(activeStep + 1, total)}/{total}
         </div>
@@ -309,6 +358,7 @@ export function PathPlayer({ id }: { id: string }) {
                     ) : (
                       <span>Finding the best videos…</span>
                     )}
+                    <span className="chip-xp">+{(count ?? 3) * XP.video + XP.step} XP</span>
                     {s.status === "done" && <span>✓ Done before</span>}
                   </div>
                   <button type="button" className="swipe-hint" onClick={next}>
@@ -359,17 +409,15 @@ export function PathPlayer({ id }: { id: string }) {
             const doneCount = path.steps.filter((x) => x.status === "done" || x.status === "known").length;
             return (
               <section className="slide" key={key} data-index={index}>
-                <div className="state-card end-card">
-                  <div className="end-check" aria-hidden>
-                    <svg viewBox="0 0 24 24" width="34" height="34">
-                      <path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                  <p className="step-kicker">Step {slide.step + 1} complete</p>
-                  <p className="state-title">{s.title}</p>
+                <div className="state-card end-card cleared">
+                  {index === active && <Confetti />}
+                  <p className="cleared-kicker">Step {slide.step + 1} cleared</p>
+                  <p className="cleared-title">{s.title}</p>
+                  {rewarded.current.has(`s-${slide.step}`) && <p className="xp-burst">+{XP.step} XP</p>}
                   {(s.videos?.length ?? 0) === 0 && (
                     <p className="state-text">We couldn&apos;t find great videos for this step yet, so we skipped it.</p>
                   )}
+                  <StatsLine streak={streak} level={level} />
                   <p className="state-text">
                     {doneCount} of {total} steps behind you. Your progress is saved.
                   </p>
@@ -383,7 +431,7 @@ export function PathPlayer({ id }: { id: string }) {
                   <div className="end-actions">
                     {nextStep && (
                       <button type="button" className="btn btn-volt" onClick={next}>
-                        Keep going
+                        Next step →
                       </button>
                     )}
                     <button
@@ -400,14 +448,16 @@ export function PathPlayer({ id }: { id: string }) {
           }
           return (
             <section className="slide" key={key} data-index={index}>
-              <div className="state-card end-card">
+              <div className="state-card end-card cleared">
+                {index === active && <Confetti count={48} />}
                 <p className="trophy" aria-hidden>
                   🏆
                 </p>
-                <p className="state-title">Path complete!</p>
-                <p className="state-text">
-                  You finished <strong>{path.title}</strong>, all {total} steps. Time to practise what you learned.
-                </p>
+                <p className="cleared-kicker">Path complete</p>
+                <p className="cleared-title">{path.title}</p>
+                {rewarded.current.has("path") && <p className="xp-burst">+{XP.path} XP bonus</p>}
+                <StatsLine streak={streak} level={level} />
+                <p className="state-text">All {total} steps done. Time to practise what you learned.</p>
                 <div className="end-actions">
                   <Link className="btn btn-volt" href="/learn">
                     Start a new path
@@ -427,6 +477,38 @@ export function PathPlayer({ id }: { id: string }) {
           {toast}
         </div>
       )}
+
+      <div className="xp-pops" aria-live="polite">
+        {pops.map((pop) => (
+          <span key={pop.id} className="xp-pop">
+            {pop.text}
+          </span>
+        ))}
+      </div>
+
+      {levelUp && (
+        <div className="levelup" role="status">
+          <span className="levelup-kicker">Level up</span>
+          <strong className="levelup-num">{levelUp.level}</strong>
+          <span className="levelup-title">{levelUp.title}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatsLine({ streak, level }: { streak: number; level: ReturnType<typeof levelFor> }) {
+  return (
+    <div className="cleared-stats">
+      <div className="cleared-chips">
+        <span>🔥 {streak}-day streak</span>
+        <span>
+          ⚡ LVL {level.level} · {level.title}
+        </span>
+      </div>
+      <span className="lvl-bar lvl-bar-lg" aria-label={`${level.into} of ${level.span} XP to the next level`}>
+        <span style={{ width: `${level.ratio * 100}%` }} />
+      </span>
     </div>
   );
 }

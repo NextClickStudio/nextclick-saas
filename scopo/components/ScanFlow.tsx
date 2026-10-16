@@ -19,7 +19,7 @@ const SCAN_LINES = [
   "Reading what you already know…",
   "Mapping the topic, from zero to advanced…",
   "Putting the steps in the right order…",
-  "Finding your starting point…",
+  "Locking in your starting point…",
 ];
 
 type Props = { topic: string; lang: LangCode };

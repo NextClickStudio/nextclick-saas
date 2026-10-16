@@ -1,6 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
+import { generateJson, geminiKey, logAiError, type GeminiSchema } from "./gemini.ts";
 import type { Candidate } from "./youtube.ts";
 import type { Video } from "./types.ts";
 import { getLanguage, type LangCode } from "./languages.ts";
@@ -9,24 +8,11 @@ import { keywordHits, looksLikeBait, topicKeywords } from "./text.ts";
 /**
  * La curatela sceglie quali video tenere per un passo del percorso:
  * solo in tema, utili, nella lingua giusta, niente risse o clickbait.
- * Con ANTHROPIC_API_KEY lo fa Claude; senza, usa regole semplici.
+ * Con una chiave Gemini lo fa l'AI; senza, usa regole semplici.
  */
 
-export const MODEL = "claude-opus-5-5";
-export const FALLBACK_BETA = "server-side-fallback-2026-07-01";
-
-let client: Anthropic | null | undefined;
-export function getAnthropic(): Anthropic | null {
-  if (client === undefined) {
-    client = process.env.ANTHROPIC_API_KEY
-      ? new Anthropic({ timeout: 40_000, maxRetries: 1 })
-      : null;
-  }
-  return client;
-}
-
 export function aiEnabled(): boolean {
-  return getAnthropic() !== null;
+  return geminiKey() !== null;
 }
 
 export function languageClause(lang: LangCode): string {
@@ -63,6 +49,21 @@ const CurateSchema = z.object({
   ),
 });
 
+const CURATE_SCHEMA: GeminiSchema = {
+  type: "OBJECT",
+  properties: {
+    keep: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: { id: { type: "STRING" }, reason: { type: "STRING" } },
+        required: ["id", "reason"],
+      },
+    },
+  },
+  required: ["keep"],
+};
+
 /**
  * `topic` è l'argomento del percorso, `focus` il passo (es. "Barre chords"):
  * teniamo solo i video che insegnano proprio quel passo.
@@ -73,9 +74,8 @@ export async function curate(
   lang: LangCode,
   candidates: Candidate[],
 ): Promise<Video[]> {
-  const ai = getAnthropic();
   const subject = focus ? `${topic}: ${focus}` : topic;
-  if (!ai || candidates.length === 0) return heuristicCurate(subject, candidates);
+  if (!aiEnabled() || candidates.length === 0) return heuristicCurate(subject, candidates);
 
   const list = candidates.map((c) => ({
     id: c.id,
@@ -91,36 +91,25 @@ export async function curate(
       ? ""
       : `- are in ${getLanguage(lang).english} (judge from the title and description; drop videos clearly in another language);\n`;
 
+  const prompt =
+    `You are picking videos for one step of a learning path about "${topic}".\n` +
+    (focus ? `This step is: "${focus}".\n\n` : "\n") +
+    "Keep ONLY videos that:\n" +
+    `- are clearly about ${focus ? `this step of ${topic}` : topic} (not a different skill, not a different sport or subject);\n` +
+    "- teach something, show a technique, explain, or give useful context;\n" +
+    languageRule +
+    "\nDrop: drama, fights, rage-bait, gossip, pranks, memes with nothing to learn, misleading clickbait, " +
+    "get-rich-quick promises, ads and promos, compilations with no explanation, anything off-topic.\n\n" +
+    "Order them from the most beginner-friendly to the most advanced. For each one, write in `reason` " +
+    'what the viewer learns, in English, at most 70 characters, not starting with "Why".\n\n' +
+    `Candidate videos (JSON):\n${JSON.stringify(list)}`;
+
   try {
-    const res = await ai.beta.messages.parse({
-      model: MODEL,
-      max_tokens: 4000,
-      betas: [FALLBACK_BETA],
-      fallbacks: "default",
-      output_config: { effort: "low", format: betaZodOutputFormat(CurateSchema) },
-      messages: [
-        {
-          role: "user",
-          content:
-            `You are picking videos for one step of a learning path about "${topic}".\n` +
-            (focus ? `This step is: "${focus}".\n\n` : "\n") +
-            "Keep ONLY videos that:\n" +
-            `- are clearly about ${focus ? `this step of ${topic}` : topic} (not a different skill, not a different sport or subject);\n` +
-            "- teach something, show a technique, explain, or give useful context;\n" +
-            languageRule +
-            "\nDrop: drama, fights, rage-bait, gossip, pranks, memes with nothing to learn, misleading clickbait, " +
-            "get-rich-quick promises, ads and promos, compilations with no explanation, anything off-topic.\n\n" +
-            "Order them from the most beginner-friendly to the most advanced. For each one, write in `reason` " +
-            'what the viewer learns, in English, at most 70 characters, not starting with "Why".\n\n' +
-            `Candidate videos (JSON):\n${JSON.stringify(list)}`,
-        },
-      ],
-    });
-    if (res.stop_reason === "refusal" || !res.parsed_output) return heuristicCurate(subject, candidates);
+    const { value } = await generateJson(prompt, CURATE_SCHEMA, (v) => CurateSchema.parse(v), { timeoutMs: 30_000 });
 
     const byId = new Map(candidates.map((c) => [c.id, c]));
     const kept: Video[] = [];
-    for (const { id, reason } of res.parsed_output.keep) {
+    for (const { id, reason } of value.keep) {
       const c = byId.get(id);
       if (!c) continue; // id inventato o duplicato
       byId.delete(id);
@@ -136,14 +125,4 @@ export async function curate(
 function toVideo(c: Candidate): Video {
   const { description: _description, tags: _tags, language: _language, ...video } = c;
   return video;
-}
-
-export function logAiError(where: string, err: unknown) {
-  if (err instanceof Anthropic.RateLimitError) {
-    console.warn(`[ai:${where}] rate limited, falling back to simple rules`);
-  } else if (err instanceof Anthropic.APIError) {
-    console.warn(`[ai:${where}] API error ${err.status}: ${err.message}`);
-  } else {
-    console.warn(`[ai:${where}]`, err);
-  }
 }

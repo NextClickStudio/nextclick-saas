@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Logo } from "./Logo";
 import { SiteFooter } from "./SiteFooter";
 
-export const LEGAL_UPDATED = "October 14, 2026";
+export const LEGAL_UPDATED = "October 16, 2026";
 
 type Props = { title: string; intro: string; children: React.ReactNode };
 

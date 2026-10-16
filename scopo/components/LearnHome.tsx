@@ -9,6 +9,7 @@ import { PathCard } from "./PathCard";
 import { listPaths, type SavedPath } from "./paths";
 import { readLang } from "./prefs";
 import { SearchBox } from "./SearchBox";
+import { StatsStrip } from "./StatsStrip";
 import { TabBar } from "./TabBar";
 
 type Tile = { topic: string; emoji: string; lang?: LangCode };
@@ -54,6 +55,10 @@ export function LearnHome({ liveSearch, demoTiles }: Props) {
         <span className="pill pill-beta">beta</span>
       </header>
 
+      <div className="enter enter-1">
+        <StatsStrip />
+      </div>
+
       {resume && (
         <section className="learn-block resume enter enter-1">
           <h2 className="learn-label">Pick up where you left off</h2>
@@ -64,7 +69,7 @@ export function LearnHome({ liveSearch, demoTiles }: Props) {
       <h1 className="learn-title enter enter-1">
         What do you want
         <br />
-        to <span className="grad-text">learn</span> next?
+        to <span className="hl">learn</span> next?
       </h1>
 
       <div className="enter enter-2">

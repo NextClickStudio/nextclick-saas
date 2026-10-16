@@ -1,6 +1,6 @@
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import { FALLBACK_BETA, getAnthropic, languageClause, logAiError, MODEL } from "./curator.ts";
+import { aiEnabled, languageClause } from "./curator.ts";
+import { generateJson, logAiError, type GeminiSchema } from "./gemini.ts";
 import { getLanguage, type LangCode } from "./languages.ts";
 import {
   LEVELS,
@@ -16,7 +16,7 @@ import { matchSeedTopic, seedSteps, seedSuggestions } from "./seed.ts";
 /**
  * Costruisce il percorso:
  * - senza YOUTUBE_API_KEY → percorsi demo con video scelti a mano;
- * - con ANTHROPIC_API_KEY → Claude disegna i passi e legge "cosa sai già";
+ * - con una chiave Gemini → l'AI disegna i passi e legge "cosa sai già";
  * - altrimenti → passi generici (dalle basi all'avanzato) per qualsiasi argomento.
  */
 
@@ -135,45 +135,53 @@ const CurriculumSchema = z.object({
       query: z.string(),
     }),
   ),
-  startIndex: z.number().int(),
+  startIndex: z.number(),
   startReason: z.string(),
 });
 
+const CURRICULUM_SCHEMA: GeminiSchema = {
+  type: "OBJECT",
+  properties: {
+    title: { type: "STRING" },
+    emoji: { type: "STRING" },
+    steps: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: { title: { type: "STRING" }, summary: { type: "STRING" }, query: { type: "STRING" } },
+        required: ["title", "summary", "query"],
+      },
+    },
+    startIndex: { type: "INTEGER" },
+    startReason: { type: "STRING" },
+  },
+  required: ["title", "emoji", "steps", "startIndex", "startReason"],
+};
+
 export async function aiPlan({ topic, lang, level, known }: PlanInput): Promise<PathPlan | null> {
-  const ai = getAnthropic();
-  if (!ai) return null;
+  if (!aiEnabled()) return null;
   const levelLabel = LEVELS.find((l) => l.id === level)?.title ?? "Brand new";
+  const prompt =
+    `Design a learning path for someone who wants to learn "${topic}" by watching short videos ` +
+    "(YouTube Shorts, under 3 minutes each).\n\n" +
+    "Create 6 to 10 steps, ordered from the absolute basics to advanced. Each step must be ONE concrete " +
+    "skill or idea that 2 to 5 short videos can teach, and each step should build on the previous ones.\n" +
+    "For each step write:\n" +
+    "- title: at most 40 characters, in English;\n" +
+    "- summary: at most 90 characters, in English, what the learner can do after this step;\n" +
+    `- query: a YouTube search query written ${languageClause(lang)} that finds short videos for exactly ` +
+    "this step. Include the topic name so the results stay on topic.\n\n" +
+    `The learner describes their level as: ${levelLabel}.\n` +
+    `In their own words, what they already know: ${known.trim() ? `"${known.trim()}"` : "(nothing written)"}\n\n` +
+    "Set startIndex to the 0-based index of the first step they still need. Skip what they clearly already " +
+    "know; when in doubt, start earlier.\n" +
+    "Write startReason in English, second person, at most 110 characters: where they start and why.\n" +
+    "Also give the path a short title (at most 40 characters, in English) and one emoji for the topic.";
+
   try {
-    const res = await ai.beta.messages.parse({
-      model: MODEL,
-      max_tokens: 6000,
-      betas: [FALLBACK_BETA],
-      fallbacks: "default",
-      output_config: { effort: "medium", format: betaZodOutputFormat(CurriculumSchema) },
-      messages: [
-        {
-          role: "user",
-          content:
-            `Design a learning path for someone who wants to learn "${topic}" by watching short videos ` +
-            "(YouTube Shorts, under 3 minutes each).\n\n" +
-            "Create 6 to 10 steps, ordered from the absolute basics to advanced. Each step must be ONE concrete " +
-            "skill or idea that 2 to 5 short videos can teach, and each step should build on the previous ones.\n" +
-            "For each step write:\n" +
-            "- title: at most 40 characters, in English;\n" +
-            "- summary: at most 90 characters, in English, what the learner can do after this step;\n" +
-            `- query: a YouTube search query written ${languageClause(lang)} that finds short videos for exactly ` +
-            "this step. Include the topic name so the results stay on topic.\n\n" +
-            `The learner describes their level as: ${levelLabel}.\n` +
-            `In their own words, what they already know: ${known.trim() ? `"${known.trim()}"` : "(nothing written)"}\n\n` +
-            "Set startIndex to the 0-based index of the first step they still need. Skip what they clearly already " +
-            "know; when in doubt, start earlier.\n" +
-            "Write startReason in English, second person, at most 110 characters: where they start and why.\n" +
-            "Also give the path a short title (at most 40 characters, in English) and one emoji for the topic.",
-        },
-      ],
+    const { value: out } = await generateJson(prompt, CURRICULUM_SCHEMA, (v) => CurriculumSchema.parse(v), {
+      timeoutMs: 45_000,
     });
-    const out = res.parsed_output;
-    if (res.stop_reason === "refusal" || !out) return null;
 
     const steps: PlanStep[] = out.steps
       .filter((s) => s.title.trim() && s.query.trim())

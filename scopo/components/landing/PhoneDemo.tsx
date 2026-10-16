@@ -15,7 +15,9 @@ export function PhoneDemo() {
         <span className="dot dot-volt" /> Starts where you are
       </div>
       <div className="float-badge badge-2">Step 4 of 7 · in order</div>
-      <div className="float-badge badge-3">✓ Saved, continue anytime</div>
+      <div className="float-badge badge-3">🔥 5-day streak</div>
+      <div className="xp-sticker">+10 XP</div>
+      <div className="xp-sticker xp-sticker-2">+50 XP</div>
 
       <div className="phone">
         <div className="phone-island" />
