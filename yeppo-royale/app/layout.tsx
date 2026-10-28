@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: "yeppo royale", description: "The trading battle royale on real pump.fun launches." },
 };
 
-export const viewport: Viewport = { themeColor: "#060714", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#0a0b0d", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
