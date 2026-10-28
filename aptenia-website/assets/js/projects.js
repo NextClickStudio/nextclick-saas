@@ -18,7 +18,10 @@
    Ogni immagine accetta: src, alt (descrizione per accessibilità/SEO),
    caption (didascalia, opzionale), ratio (proporzione, es. "3/4", opzionale).
 
-   ⚠ I testi qui sotto sono SEGNAPOSTO: vanno sostituiti con quelli definitivi.
+   I campi vuoti ("") non vengono mostrati: ad esempio senza "year" l'anno
+   sparisce da card, archivio e scheda del progetto.
+
+   ⚠ Titoli e testi qui sotto sono PROVVISORI: vanno sostituiti con quelli definitivi.
    ========================================================================== */
 
 window.APTENIA_PROJECTS = [
@@ -27,10 +30,10 @@ window.APTENIA_PROJECTS = [
     title: "Progetto Uno",
     tagline: "Una parete-galleria che racconta la storia dell’hotel a chi entra.",
     category: "Hotel",
-    location: "Città, Italia",
-    year: "2025",
+    location: "",
+    year: "",
     services: ["Brand & Concept Design", "Product & Interior Design", "Experience Design"],
-    credits: [["Fotografia", "Nome Cognome"]],
+    credits: [], // es. [["Fotografia", "Nome Cognome"]]
     cover: {
       src: "assets/img/progetti/progetto-uno/cover.jpg",
       alt: "Parete espositiva in metallo nero con mensole illuminate nella hall dell’hotel",
@@ -38,8 +41,7 @@ window.APTENIA_PROJECTS = [
     },
     intro: "Il primo sguardo dell’ospite diventa un racconto: una struttura in metallo nero, luce calda e oggetti su misura che trasformano la hall in una *galleria dell’identità*.",
     text: [
-      "Testo segnaposto. Qui va la descrizione del progetto: il contesto, la storia del luogo, cosa è emerso durante il sopralluogo e come è stato tradotto in spazi, prodotti ed esperienze.",
-      "Secondo paragrafo segnaposto: materiali, artigiani coinvolti, dettagli costruttivi e il risultato per gli ospiti."
+      // Paragrafi di descrizione: contesto, storia del luogo, cosa è emerso nel sopralluogo, materiali e artigiani.
     ],
     gallery: [
       {
@@ -54,9 +56,9 @@ window.APTENIA_PROJECTS = [
       {
         layout: "text",
         title: "Il dettaglio",
-        text: "Testo segnaposto sul dettaglio: come luce, metallo e oggetti dialogano con l’architettura esistente."
+        text: "Luce, metallo e oggetti su misura dialogano con l’architettura esistente: ogni mensola è pensata per ciò che custodisce."
       },
-      { layout: "offset", align: "right", src: "assets/img/progetti/progetto-uno/03.jpg", alt: "Dettaglio della parete con schermo e oggetti", ratio: "1/1", caption: "Didascalia segnaposto." },
+      { layout: "offset", align: "right", src: "assets/img/progetti/progetto-uno/03.jpg", alt: "Dettaglio della parete con schermo e oggetti", ratio: "1/1" },
       { layout: "offset", align: "left", size: "small", src: "assets/img/progetti/progetto-uno/04.jpg", alt: "Dettaglio del rivestimento a listelli in legno", ratio: "3/5", caption: "Listelli in legno all’ingresso." }
     ]
   },
@@ -66,10 +68,10 @@ window.APTENIA_PROJECTS = [
     title: "Progetto Due",
     tagline: "Un rituale di accoglienza costruito su materia, colore e misura.",
     category: "Residenza privata",
-    location: "Città, Italia",
-    year: "2025",
+    location: "",
+    year: "",
     services: ["Brand & Concept Design", "Product & Interior Design"],
-    credits: [["Fotografia", "Nome Cognome"]],
+    credits: [], // es. [["Fotografia", "Nome Cognome"]]
     cover: {
       src: "assets/img/progetti/progetto-due/cover.jpg",
       alt: "Stand appendiabiti su misura in un ambiente con pareti materiche e parquet",
@@ -77,8 +79,7 @@ window.APTENIA_PROJECTS = [
     },
     intro: "Un progetto privato pensato per accogliere: pareti materiche, legno caldo e un *oggetto su misura* che diventa il centro dell’esperienza.",
     text: [
-      "Testo segnaposto. Qui va la descrizione del progetto: chi sono gli ospiti, quale atmosfera si voleva creare, quali elementi sono stati disegnati su misura.",
-      "Secondo paragrafo segnaposto: materiali, finiture e collaborazioni con artigiani e produttori."
+      // Paragrafi di descrizione: ospiti, atmosfera, elementi disegnati su misura, finiture e produttori.
     ],
     gallery: [
       { layout: "full", src: "assets/img/progetti/progetto-due/05.jpg", alt: "Vista dell’ambiente con lo stand su misura", ratio: "21/9" },
@@ -90,7 +91,7 @@ window.APTENIA_PROJECTS = [
         ]
       },
       { layout: "quote", text: "Accogliere è *un gesto* che si progetta." },
-      { layout: "offset", align: "left", src: "assets/img/progetti/progetto-due/03.jpg", alt: "Base dello stand sul parquet in legno", ratio: "16/10", caption: "Didascalia segnaposto." },
+      { layout: "offset", align: "left", src: "assets/img/progetti/progetto-due/03.jpg", alt: "Base dello stand sul parquet in legno", ratio: "16/10" },
       { layout: "offset", align: "right", size: "small", src: "assets/img/progetti/progetto-due/04.jpg", alt: "Dettaglio dell’accessorio in pelle verde", ratio: "2/3", caption: "Pelle color salvia, cucita a mano." }
     ]
   }

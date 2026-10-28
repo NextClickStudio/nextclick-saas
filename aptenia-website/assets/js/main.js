@@ -587,6 +587,7 @@
 
     if (route.name === 'home') {
       heroAnimation(mm, enter);
+      blueprintAnimation();
       vennAnimation(mm);
       methodAnimation(mm);
       marqueeAnimation();
@@ -633,9 +634,185 @@
       .fromTo(img, { scale: 1.15 }, { scale: 1, ease: 'none', duration: 1.3, immediateRender: false }, 0)
       .fromTo(title, { yPercent: 0, autoAlpha: 1 }, { yPercent: -35, autoAlpha: 0, ease: 'power1.in', duration: 0.55, immediateRender: false }, 0)
       .fromTo(fades, { autoAlpha: 1 }, { autoAlpha: 0, duration: 0.3, immediateRender: false }, 0)
+      .fromTo('.hero__light', { opacity: 0.35 }, { opacity: 1, duration: 0.8, immediateRender: false }, 0)
       .fromTo(shade, { opacity: 0 }, { opacity: 1, duration: 0.4, immediateRender: false }, 0.75)
       .from(capSplit.lines, { yPercent: 110, duration: 0.45, stagger: 0.08, ease: 'power3.out' }, 0.85)
       .to({}, { duration: 0.25 });
+
+    heroLight(hero);
+  }
+
+  /* HERO: una luce calda segue il cursore (o si muove da sola su touch), con il pulviscolo nel fascio */
+  function heroLight(hero) {
+    const media = $('.hero__media', hero);
+    const canvas = $('.hero__dust', hero);
+    if (!media || !canvas) return;
+    const c2d = canvas.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    let w = 0;
+    let h = 0;
+    const size = () => {
+      w = media.clientWidth; h = media.clientHeight;
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+      c2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    size();
+    const motes = Array.from({ length: Math.round(Math.min(120, (w * h) / 12000)) }, () => ({
+      x: Math.random() * w, y: Math.random() * h, r: 0.4 + Math.random() * 1.5,
+      vx: (Math.random() - 0.5) * 0.12, vy: -0.04 - Math.random() * 0.18, p: Math.random() * 6.28
+    }));
+    const light = { x: w * 0.62, y: h * 0.42 };
+    const target = { ...light };
+    let usePointer = false;
+    const onMove = (e) => {
+      if (!finePointer) return;
+      const r = media.getBoundingClientRect();
+      if (e.clientY < r.top || e.clientY > r.bottom) return;
+      target.x = e.clientX - r.left; target.y = e.clientY - r.top;
+      usePointer = true;
+    };
+    window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('resize', size);
+    let visible = true;
+    let t = 0;
+    const tick = () => {
+      if (!visible) return;
+      t += 0.016;
+      if (!usePointer) {
+        target.x = w * (0.58 + 0.2 * Math.sin(t * 0.33));
+        target.y = h * (0.5 + 0.16 * Math.cos(t * 0.27));
+      }
+      light.x += (target.x - light.x) * 0.07;
+      light.y += (target.y - light.y) * 0.07;
+      media.style.setProperty('--lx', light.x.toFixed(1) + 'px');
+      media.style.setProperty('--ly', light.y.toFixed(1) + 'px');
+      c2d.clearRect(0, 0, w, h);
+      const reach = Math.max(w, h) * 0.3;
+      for (const m of motes) {
+        m.p += 0.02;
+        m.x += m.vx + Math.sin(m.p) * 0.07;
+        m.y += m.vy;
+        if (m.y < -4) { m.y = h + 4; m.x = Math.random() * w; }
+        if (m.x < -4) m.x = w + 4; else if (m.x > w + 4) m.x = -4;
+        const glow = Math.max(0, 1 - Math.hypot(m.x - light.x, m.y - light.y) / reach);
+        const a = 0.04 + 0.8 * glow * (0.65 + 0.35 * Math.sin(m.p * 1.4));
+        c2d.fillStyle = `rgba(255, 236, 214, ${a.toFixed(3)})`;
+        c2d.beginPath(); c2d.arc(m.x, m.y, m.r, 0, 6.283); c2d.fill();
+      }
+    };
+    G.ticker.add(tick);
+    const holder = hero.parentElement.classList.contains('pin-spacer') ? hero.parentElement : hero;
+    ScrollTrigger.create({ trigger: holder, start: 'top bottom', end: 'bottom top', onToggle: (self) => { visible = self.isActive; } });
+    cleanups.push(() => {
+      G.ticker.remove(tick);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('resize', size);
+    });
+  }
+
+  /* DAL DISEGNO ALLO SPAZIO: il disegno tecnico si traccia, poi diventa fotografia */
+  function blueprintAnimation() {
+    const sec = $('.bp', view);
+    if (!sec) return;
+    const draw = $$('.bp__draw > *', sec);
+    const dims = $$('.bp__dims path', sec);
+    const notes = $$('.bp__note', sec);
+    const leaders = notes.map((n) => $('path', n));
+    const count = $('.bp__count', sec);
+    G.set([...draw, ...dims, ...leaders], { strokeDasharray: 1, strokeDashoffset: 1 });
+
+    G.timeline({
+      defaults: { ease: 'none' },
+      scrollTrigger: {
+        trigger: sec, start: 'top top', end: '+=260%', pin: true, scrub: 1, anticipatePin: 1,
+        onUpdate: (self) => { count.textContent = String(Math.round(self.progress * 100)).padStart(3, '0'); }
+      }
+    })
+      .from('.bp__grid', { opacity: 0, duration: 0.3 }, 0)
+      .to(draw, { strokeDashoffset: 0, duration: 0.6, stagger: 0.05, ease: 'power1.inOut' }, 0.1)
+      .to(dims, { strokeDashoffset: 0, duration: 0.4, stagger: 0.12 }, 1.55)
+      .from('.bp__dims text', { opacity: 0, duration: 0.2 }, 1.85)
+      .from(notes.map((n) => $('circle', n)), { scale: 0, transformOrigin: '50% 50%', duration: 0.2, stagger: 0.12 }, 1.8)
+      .to(leaders, { strokeDashoffset: 0, duration: 0.3, stagger: 0.12 }, 1.9)
+      .from(notes.map((n) => $('text', n)), { opacity: 0, x: -24, duration: 0.3, stagger: 0.12 }, 2.05)
+      .to({}, { duration: 0.3 })
+      .addLabel('reveal')
+      .fromTo('.bp__photo', { clipPath: 'inset(0% 100% 0% 0%)' }, { clipPath: 'inset(0% 0% 0% 0%)', duration: 1.2, ease: 'power1.inOut' }, 'reveal')
+      .fromTo('.bp__scan', { left: '0%', opacity: 1 }, { left: '100%', duration: 1.2, ease: 'power1.inOut' }, 'reveal')
+      .to('.bp__scan', { opacity: 0, duration: 0.1 }, 'reveal+=1.15')
+      .to(['.bp__draw', '.bp__dims', '.bp__grid'], { opacity: 0.16, duration: 0.6 }, 'reveal+=0.5')
+      .to('.bp__notes', { opacity: 0, duration: 0.3 }, 'reveal+=0.95')
+      .from('.bp__copy > *', { yPercent: 60, opacity: 0, duration: 0.5, stagger: 0.1, ease: 'power2.out' }, 'reveal+=1')
+      .to({}, { duration: 0.4 });
+  }
+
+  /* THE IDENTITY WALKTHROUGH: la pianta si disegna e il percorso attraversa gli ambienti */
+  function walkTimeline(svg) {
+    const walls = $$('.walk__walls path', svg);
+    const shelf = $('.walk__shelf', svg);
+    const details = $$('.walk__details > *', svg).filter((el) => el !== shelf);
+    const reveal = $('.walk__reveal', svg);
+    const route = $('.walk__route', svg);
+    const dot = $('.walk__dot', svg);
+    const stops = $$('.walk__stop', svg);
+    const len = route.getTotalLength();
+    const stopAt = stops.map((st) => {
+      const x = Number(st.dataset.x);
+      const y = Number(st.dataset.y);
+      let best = 0;
+      let bestD = Infinity;
+      for (let i = 0; i <= 200; i++) {
+        const p = route.getPointAtLength((len * i) / 200);
+        const d = (p.x - x) ** 2 + (p.y - y) ** 2;
+        if (d < bestD) { bestD = d; best = i / 200; }
+      }
+      return best;
+    });
+    const reached = stops.map(() => false);
+    const setStop = (i, on) => {
+      if (reached[i] === on) return;
+      reached[i] = on;
+      G.to($('.walk__halo', stops[i]), { scale: on ? 1 : 0, duration: on ? 0.9 : 0.4, ease: on ? 'back.out(2.2)' : 'power2.in', overwrite: true });
+      G.to([$('text', stops[i]), $('.walk__pin', stops[i])], { opacity: on ? 1 : 0, duration: 0.5, overwrite: true });
+    };
+    G.set([...walls, ...details, reveal], { strokeDasharray: 1, strokeDashoffset: 1 });
+    G.set(stops.map((st) => $('.walk__halo', st)), { scale: 0, transformOrigin: '50% 50%' });
+    G.set(stops.map((st) => [$('text', st), $('.walk__pin', st)]).flat(), { opacity: 0 });
+    const walker = { p: 0 };
+    return G.timeline({ defaults: { ease: 'none' } })
+      .to(walls, { strokeDashoffset: 0, duration: 1, stagger: 0.15, ease: 'power1.inOut' }, 0)
+      .to(details, { strokeDashoffset: 0, duration: 0.7, stagger: 0.03 }, 0.5)
+      .from([shelf, ...$$('.walk__rooms text', svg)], { opacity: 0, duration: 0.4 }, 1)
+      .from(dot, { opacity: 0, duration: 0.1 }, 1.2)
+      .to(walker, {
+        p: 1, duration: 2.2,
+        onUpdate: () => {
+          const pt = route.getPointAtLength(len * walker.p);
+          dot.setAttribute('cx', pt.x.toFixed(1));
+          dot.setAttribute('cy', pt.y.toFixed(1));
+          reveal.style.strokeDashoffset = String(1 - walker.p);
+          stops.forEach((st, i) => setStop(i, walker.p >= stopAt[i]));
+        }
+      }, 1.2)
+      .to({}, { duration: 0.3 });
+  }
+
+  /* THE IDENTITY BOOK: il libro si apre e le pagine si sfogliano */
+  function bookTimeline(book) {
+    const pages = [1, 2, 3].map((n) => $(`.book__page[data-page="${n}"]`, book));
+    const sketchA = $$('.book__page[data-page="3"] .sketches path', book);
+    const sketchB = $$('.book__base .sketches path', book);
+    G.set([...sketchA, ...sketchB], { strokeDasharray: 1, strokeDashoffset: 1 });
+    const tl = G.timeline({ defaults: { ease: 'power2.inOut' } });
+    tl.fromTo(book, { xPercent: -25 }, { xPercent: 0, duration: 1 }, 0);
+    pages.forEach((page, i) => {
+      const at = i * 1.15;
+      tl.to(page, { rotateY: -180, duration: 1 }, at).set(page, { zIndex: 10 + i }, at + 0.5);
+    });
+    return tl
+      .to(sketchA, { strokeDashoffset: 0, duration: 0.7, stagger: 0.12, ease: 'none' }, 2.9)
+      .to(sketchB, { strokeDashoffset: 0, duration: 0.7, stagger: 0.08, ease: 'none' }, 3.1)
+      .to({}, { duration: 0.2 });
   }
 
   /* HOSPITALITY IDENTITY DESIGN: i tre cerchi si incontrano */
@@ -714,24 +891,22 @@
             scrollTrigger: { trigger: panel, containerAnimation: scroll, start: 'left right', end: 'right left', scrub: true }
           });
         }
-        const sw = $$('.mood__sw', panel);
-        if (sw.length) {
-          G.from(sw, {
-            scale: 0, duration: 1, ease: 'back.out(1.6)', stagger: 0.08,
-            scrollTrigger: { trigger: panel, containerAnimation: scroll, start: 'left 55%', toggleActions: 'play none none reverse' }
-          });
+        const walk = $('.walk', panel);
+        if (walk) {
+          ScrollTrigger.create({ trigger: panel, containerAnimation: scroll, start: 'left 45%', end: 'right 40%', scrub: 1, animation: walkTimeline(walk) });
         }
-        const trio = $$('.trio__c', panel);
-        if (trio.length) {
-          G.from(trio, {
-            x: (k) => (k - 1) * 110, scale: 0.6, duration: 1.4, ease: 'expo.out', stagger: 0.05,
-            scrollTrigger: { trigger: panel, containerAnimation: scroll, start: 'left 55%', toggleActions: 'play none none reverse' }
-          });
+        const book = $('.book', panel);
+        if (book) {
+          ScrollTrigger.create({ trigger: panel, containerAnimation: scroll, start: 'left 20%', end: 'right 45%', scrub: 1, animation: bookTimeline(book) });
         }
       });
     });
 
     mm.add('(max-width: 1023px)', () => {
+      const walk = $('.walk', sec);
+      if (walk) ScrollTrigger.create({ trigger: walk, start: 'top 80%', end: 'bottom 35%', scrub: 1, animation: walkTimeline(walk) });
+      const book = $('.book', sec);
+      if (book) ScrollTrigger.create({ trigger: book, start: 'top 80%', end: 'bottom 20%', scrub: 1, animation: bookTimeline(book) });
       $$('[data-h]', sec).forEach((el) => {
         G.from(el, { y: 36, autoAlpha: 0, duration: 1.2, ease: 'expo.out', scrollTrigger: { trigger: el, start: 'top 90%', once: true } });
       });

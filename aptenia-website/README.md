@@ -46,6 +46,20 @@ I blocchi galleria disponibili (`full`, `pair`, `offset`, `quote`, `text`) sono 
 
 I testi sono in `index.html`, dentro `<template id="tpl-home">`. Contatti e footer stanno in `<template id="tpl-footer">`.
 
+## Elementi animati
+
+| Elemento | Dove | Come funziona |
+| --- | --- | --- |
+| Luce e pulviscolo | Hero | Una luce calda segue il cursore sulla foto (su telefono si muove da sola), con il pulviscolo nel fascio. |
+| Dal disegno allo spazio | Home, prima dei progetti | Il disegno tecnico della parete del Progetto Uno si traccia linea per linea e poi diventa la foto. |
+| The Identity Walkthrough | Metodo, fase 01 | La pianta si disegna e un percorso attraversa lobby, bar e camera fermandosi sulle tre aree di analisi. |
+| The Identity Book | Metodo, fase 02 | Un libro in 3D si apre e si sfoglia: analisi, moodboard con palette e materiali, schizzi che si disegnano. |
+| Diagramma | Hospitality Identity Design | I tre cerchi si incontrano e generano il cuore del metodo. |
+
+Il disegno di "Dal disegno allo spazio" è tracciato sulla foto `assets/img/progetti/progetto-uno/cover.jpg`. Se cambia quella foto, va ridisegnato oppure basta togliere la `<section class="bp">` da `index.html`.
+
+Tutte le animazioni rispettano l'impostazione "riduci movimento" del sistema: in quel caso il sito si mostra fermo e completo.
+
 ## Vedere il sito in locale
 
 - Doppio clic su `index.html`: funziona, con indirizzi del tipo `index.html#/progetti/...`.
@@ -54,7 +68,7 @@ I testi sono in `index.html`, dentro `<template id="tpl-home">`. Contatti e foot
 ## Pubblicazione
 
 - **Vercel**: importa la cartella o il repository, senza build. `vercel.json` gestisce gli indirizzi puliti.
-- **Netlify**: trascina la cartella. `_redirects` fa la stessa cosa.
+- **Netlify**: trascina la cartella (o lo zip) su app.netlify.com/drop. `_redirects` fa la stessa cosa. Nella cartella da caricare servono solo `index.html`, `_redirects` e `assets/`.
 
 ## Font
 
@@ -66,7 +80,7 @@ La company profile usa **Favorit** (Dinamo). Sul sito c'è per ora **Hanken Grot
 
 ## Da completare prima della messa online
 
-- [ ] Testi, foto e crediti definitivi dei progetti: quelli in `projects.js` sono segnaposto.
+- [ ] Nomi, testi, luogo, anno e crediti dei progetti: i titoli "Progetto Uno/Due" sono provvisori, i campi vuoti non vengono mostrati.
 - [ ] Foto in alta qualità: ora sono estratte dalla company profile.
 - [ ] Numero di telefono: nella presentazione è `+39 333328627` (9 cifre dopo il +39). Va verificato.
 - [ ] P.IVA nel footer, obbligatoria per legge.

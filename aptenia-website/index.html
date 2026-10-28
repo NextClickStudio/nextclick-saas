@@ -91,6 +91,8 @@
     <section class="hero" data-theme="dark" data-section="Aptenia">
       <figure class="hero__media">
         <img src="assets/img/progetti/progetto-uno/cover.jpg" alt="Parete espositiva illuminata nella hall di un hotel" fetchpriority="high">
+        <span class="hero__light"></span>
+        <canvas class="hero__dust"></canvas>
         <span class="hero__shade"></span>
       </figure>
       <div class="hero__inner">
@@ -139,6 +141,69 @@
           <li><i></i>Design &amp; Spazio</li>
           <li><i></i>Prodotto &amp; Dettagli</li>
         </ul>
+      </div>
+    </section>
+
+    <!-- DAL DISEGNO ALLO SPAZIO: il disegno tecnico del Progetto Uno diventa fotografia.
+         Le linee sono tracciate su assets/img/progetti/progetto-uno/cover.jpg (2400×1595). -->
+    <section class="bp" data-theme="dark" data-section="Dal disegno allo spazio">
+      <div class="bp__stage">
+        <div class="bp__grid" aria-hidden="true"></div>
+        <figure class="bp__photo"><img src="assets/img/progetti/progetto-uno/cover.jpg" alt="La parete espositiva del Progetto Uno, realizzata" loading="lazy" decoding="async"></figure>
+        <span class="bp__scan" aria-hidden="true"></span>
+        <svg class="bp__svg" viewBox="0 0 2400 1595" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <g class="bp__draw">
+            <path pathLength="1" d="M576 0V1595"/>
+            <path pathLength="1" d="M88 0V1595M196 0V1595M300 0V1595M404 0V1595M500 0V1595"/>
+            <path pathLength="1" d="M772 600V1540"/>
+            <path pathLength="1" d="M1042 0V1580"/>
+            <path pathLength="1" d="M1194 0V1580"/>
+            <path pathLength="1" d="M1264 0V370"/>
+            <path pathLength="1" d="M1680 0V370"/>
+            <path pathLength="1" d="M1768 0V1580"/>
+            <path pathLength="1" d="M2126 110V1580"/>
+            <path pathLength="1" d="M2310 0V1580"/>
+            <rect pathLength="1" x="1000" y="200" width="190" height="50"/>
+            <rect pathLength="1" x="1220" y="365" width="464" height="45"/>
+            <rect pathLength="1" x="1768" y="108" width="396" height="82"/>
+            <rect pathLength="1" x="2126" y="300" width="194" height="60"/>
+            <rect pathLength="1" x="694" y="584" width="346" height="26"/>
+            <rect pathLength="1" x="984" y="754" width="212" height="16"/>
+            <rect pathLength="1" x="694" y="932" width="362" height="14"/>
+            <rect pathLength="1" x="2126" y="736" width="194" height="16"/>
+            <rect pathLength="1" x="2126" y="932" width="194" height="16"/>
+            <rect pathLength="1" x="990" y="1444" width="206" height="52"/>
+            <rect pathLength="1" x="1768" y="1490" width="392" height="80"/>
+            <rect pathLength="1" x="2126" y="1336" width="244" height="44"/>
+            <path pathLength="1" d="M694 1540H1200"/>
+            <rect pathLength="1" x="1220" y="444" width="616" height="952"/>
+            <rect pathLength="1" x="1256" y="480" width="574" height="856"/>
+            <rect pathLength="1" x="1304" y="524" width="220" height="766"/>
+            <rect pathLength="1" x="1564" y="524" width="226" height="766"/>
+            <path pathLength="1" d="M1304 660H1524M1564 660H1790"/>
+            <rect pathLength="1" x="740" y="1100" width="300" height="176"/>
+            <rect pathLength="1" x="1330" y="86" width="280" height="274"/>
+          </g>
+          <g class="bp__dims">
+            <path pathLength="1" d="M1220 1440H1836M1220 1416V1464M1836 1416V1464"/>
+            <path pathLength="1" d="M1888 444V1396M1864 444H1912M1864 1396H1912"/>
+            <text x="1528" y="1498">L</text>
+            <text x="1930" y="930">H</text>
+          </g>
+          <g class="bp__notes">
+            <g class="bp__note"><circle cx="760" cy="597" r="9"/><path pathLength="1" d="M760 597L660 340H610"/><text x="610" y="318">Mensole su misura</text></g>
+            <g class="bp__note"><circle cx="2140" cy="752" r="9"/><path pathLength="1" d="M2140 752L2060 690H1880"/><text x="1880" y="668">Luce integrata</text></g>
+            <g class="bp__note"><circle cx="1042" cy="1350" r="9"/><path pathLength="1" d="M1042 1350L980 1410H720"/><text x="720" y="1388">Struttura in metallo</text></g>
+          </g>
+        </svg>
+        <div class="bp__top">
+          <span class="eyebrow">Dal disegno allo spazio</span>
+          <span class="eyebrow bp__sheet">Tavola 01 — <span class="bp__count">000</span></span>
+        </div>
+        <div class="bp__copy">
+          <h2 class="bp__title display">Ogni linea <em>diventa materia.</em></h2>
+          <a class="link-arrow" href="/progetti/progetto-uno" data-link><span>Scopri il progetto</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16M14 6l6 6-6 6"/></svg></a>
+        </div>
       </div>
     </section>
 
@@ -255,11 +320,46 @@
               <p>Le tre fondatrici conducono un’esperienza strutturata: durante la visita vengono raccolte immagini, impressioni sensoriali, suggestioni narrative e dettagli tecnici. <strong>È un momento immersivo, empatico, quasi un rituale creativo.</strong></p>
             </div>
           </div>
-          <div class="trio" data-h aria-hidden="true">
-            <div class="trio__c"><span>Brand &amp;<br>Storytelling</span></div>
-            <div class="trio__c"><span>Design &amp;<br>Spazio</span></div>
-            <div class="trio__c"><span>Prodotto &amp;<br>Dettagli</span></div>
-          </div>
+          <svg class="walk" viewBox="0 0 600 470" aria-hidden="true">
+            <defs>
+              <mask id="walk-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="470">
+                <path class="walk__reveal" pathLength="1" d="M140 460V330C140 270 150 225 155 195C165 150 215 125 260 125H330C385 125 410 132 410 150C410 180 405 195 405 220V265C405 295 385 315 360 320"/>
+              </mask>
+            </defs>
+            <g class="walk__walls">
+              <path pathLength="1" d="M110 400H40V40H560V400H170"/>
+              <path pathLength="1" d="M260 40V100M260 150V400"/>
+              <path pathLength="1" d="M260 220H380M430 220H560"/>
+            </g>
+            <g class="walk__details">
+              <path pathLength="1" d="M110 400V340M110 340A60 60 0 0 1 170 400"/>
+              <path pathLength="1" d="M260 100H310M310 100A50 50 0 0 1 260 150"/>
+              <path pathLength="1" d="M430 220V270M430 270A50 50 0 0 1 380 220"/>
+              <path pathLength="1" d="M330 33H480M330 47H480M33 130V230M47 130V230M553 260V360M567 260V360"/>
+              <rect pathLength="1" x="70" y="66" width="120" height="28"/>
+              <rect pathLength="1" x="64" y="230" width="34" height="110" rx="6"/>
+              <circle pathLength="1" cx="150" cy="285" r="18"/>
+              <path pathLength="1" d="M250 170V388" class="walk__shelf"/>
+              <rect pathLength="1" x="300" y="58" width="220" height="24"/>
+              <path pathLength="1" d="M327 104a7 7 0 1 0 0.1 0M367 104a7 7 0 1 0 0.1 0M407 104a7 7 0 1 0 0.1 0M447 104a7 7 0 1 0 0.1 0M487 104a7 7 0 1 0 0.1 0"/>
+              <circle pathLength="1" cx="330" cy="175" r="16"/>
+              <circle pathLength="1" cx="490" cy="168" r="16"/>
+              <rect pathLength="1" x="430" y="280" width="110" height="100"/>
+              <path pathLength="1" d="M440 288h40v18h-40zM490 288h40v18h-40z"/>
+              <rect pathLength="1" x="285" y="238" width="90" height="22"/>
+              <circle pathLength="1" cx="315" cy="352" r="18"/>
+            </g>
+            <g class="walk__rooms">
+              <text x="60" y="384">Lobby</text>
+              <text x="540" y="206" text-anchor="end">Bar</text>
+              <text x="545" y="250" text-anchor="end">Camera</text>
+            </g>
+            <path class="walk__route" mask="url(#walk-mask)" d="M140 460V330C140 270 150 225 155 195C165 150 215 125 260 125H330C385 125 410 132 410 150C410 180 405 195 405 220V265C405 295 385 315 360 320"/>
+            <g class="walk__stop" data-x="155" data-y="195"><circle class="walk__halo" cx="155" cy="195" r="28"/><circle class="walk__pin" cx="155" cy="195" r="5"/><text x="62" y="160">Brand &amp; Storytelling</text></g>
+            <g class="walk__stop" data-x="410" data-y="150"><circle class="walk__halo" cx="410" cy="150" r="28"/><circle class="walk__pin" cx="410" cy="150" r="5"/><text x="392" y="146" text-anchor="end">Design &amp; Spazio</text></g>
+            <g class="walk__stop" data-x="360" data-y="320"><circle class="walk__halo" cx="360" cy="320" r="28"/><circle class="walk__pin" cx="360" cy="320" r="5"/><text x="276" y="394">Prodotto &amp; Dettagli</text></g>
+            <circle class="walk__dot" cx="140" cy="460" r="6"/>
+          </svg>
         </article>
 
         <article class="method__panel" data-step="Design">
@@ -273,13 +373,65 @@
               <p>Una visione preliminare che permette di intuire come la storia del luogo possa prendere forma: un’analisi narrativa, un moodboard sensoriale con colori e materiali e tre concept direzionali disegnati a matita. È la base dell’<em>Identity Design Project</em>.</p>
             </div>
           </div>
-          <div class="mood" data-h aria-hidden="true">
-            <figure class="media mood__img" style="--ar: 3/2"><img src="assets/img/metodo/moodboard-bar.jpg" alt="" decoding="async"></figure>
-            <span class="mood__sw" style="background-image:url(assets/img/metodo/materia-pelle-panna.jpg)"></span>
-            <span class="mood__sw" style="background-image:url(assets/img/metodo/materia-pelle-salvia.jpg)"></span>
-            <span class="mood__sw" style="background-image:url(assets/img/metodo/materia-alluminio-nero.jpg)"></span>
-            <span class="mood__sw" style="background-image:url(assets/img/metodo/materia-ottone.jpg)"></span>
-            <span class="mood__label">Analisi &amp; studio — Moodboard sensoriali — Tre concept direzionali</span>
+          <div class="book" aria-hidden="true">
+            <div class="book__base">
+              <div class="face face--right">
+                <div class="sketches">
+                  <svg viewBox="0 0 200 200"><path pathLength="1" d="M40 30H160V180H40Z"/><path pathLength="1" d="M40 72H160M40 114H160M40 152H160"/><path pathLength="1" d="M72 58a12 12 0 1 0 .1 0M102 58a12 12 0 1 0 .1 0M132 58a12 12 0 1 0 .1 0"/><path pathLength="1" d="M58 114V92h22v22M110 152v-26h34v26"/><path pathLength="1" d="M38 33L44 183M158 28L163 181"/></svg>
+                  <svg viewBox="0 0 200 200"><path pathLength="1" d="M72 52H128L150 98H50Z"/><path pathLength="1" d="M100 98V170M74 176H126"/><path pathLength="1" d="M70 54L48 100M130 54L152 101"/><path pathLength="1" d="M62 118L44 142M100 112V146M138 118L156 142"/></svg>
+                </div>
+                <p class="face__cap">Concept B — Concept C</p>
+              </div>
+            </div>
+            <div class="book__page" data-page="3">
+              <div class="face face--right">
+                <p class="face__kicker">Materiali</p>
+                <div class="swatches">
+                  <span style="background-image:url(assets/img/metodo/materia-pelle-panna.jpg)"></span>
+                  <span style="background-image:url(assets/img/metodo/materia-pelle-salvia.jpg)"></span>
+                  <span style="background-image:url(assets/img/metodo/materia-alluminio-nero.jpg)"></span>
+                  <span style="background-image:url(assets/img/metodo/materia-ottone.jpg)"></span>
+                </div>
+                <p class="face__cap">Pelle martellata — pelle salvia — alluminio nero — ottone brunito</p>
+              </div>
+              <div class="face face--left">
+                <p class="face__kicker">03 — Tre concept direzionali</p>
+                <div class="sketches sketches--one">
+                  <svg viewBox="0 0 200 200"><path pathLength="1" d="M42 140C40 100 62 78 100 78C138 78 160 100 158 140"/><path pathLength="1" d="M48 140H152V156H48Z"/><path pathLength="1" d="M58 156L52 184M142 156L148 184"/><path pathLength="1" d="M40 118H64M136 118H160"/><path pathLength="1" d="M45 136C46 104 66 84 100 83C134 84 154 104 155 136"/></svg>
+                </div>
+                <p class="face__cap">Concept A — sketch a matita</p>
+              </div>
+            </div>
+            <div class="book__page" data-page="2">
+              <div class="face face--right face--photo">
+                <img src="assets/img/metodo/moodboard-bar.jpg" alt="" decoding="async">
+                <p class="face__cap">Atmosfera — riferimenti</p>
+              </div>
+              <div class="face face--left">
+                <p class="face__kicker">02 — Moodboard sensoriali</p>
+                <div class="palette">
+                  <span style="--c:#a6b7ba">Grigio fumo</span>
+                  <span style="--c:#2b2928">Nero</span>
+                  <span style="--c:#b6a494">Tortora</span>
+                  <span style="--c:#58463a">Moka</span>
+                  <span style="--c:#e8bd5f">Ocra</span>
+                  <span style="--c:#7e4d25">Cuoio</span>
+                </div>
+              </div>
+            </div>
+            <div class="book__page" data-page="1">
+              <div class="face face--right face--cover">
+                <div class="face__logo" data-logo></div>
+                <p class="face__kicker">The Identity Book</p>
+                <p class="face__cap">Hospitality Identity Design</p>
+              </div>
+              <div class="face face--left">
+                <p class="face__kicker">01 — Analisi &amp; studio</p>
+                <p class="face__title">Il contesto, il carattere, <em>l’anima.</em></p>
+                <span class="face__lines"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                <p class="face__cap">Essenza e valori percepiti</p>
+              </div>
+            </div>
           </div>
         </article>
 
@@ -379,7 +531,7 @@
       <div class="footer__bottom">
         <span>© <span data-year></span> Aptenia</span>
         <span>Hospitality Identity Design</span>
-        <span>P.IVA —</span>
+        <!-- <span>P.IVA 00000000000</span>  ← da inserire (obbligatoria) -->
         <a href="#main" data-top>Torna su ↑</a>
       </div>
     </footer>
