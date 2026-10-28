@@ -26,7 +26,7 @@ export default function Locker() {
       <TopBar />
       <main className="page">
         <div className="page-head">
-          <h1 className="display">Locker</h1>
+          <h1 className="display">Profile picture</h1>
           {me && look && (
             <button
               className="btn btn-gold"
@@ -39,7 +39,7 @@ export default function Locker() {
                   setMe(u);
                   sfx.win();
                   confetti();
-                  toast("Character saved", "up");
+                  toast("Profile picture saved", "up");
                 } catch (e) {
                   toast(e instanceof Error ? e.message : "Could not save", "down");
                 } finally {
@@ -47,23 +47,23 @@ export default function Locker() {
                 }
               }}
             >
-              {busy ? "Saving…" : dirty ? "Save character" : "Saved"}
+              {busy ? "Saving…" : dirty ? "Save" : "Saved"}
             </button>
           )}
         </div>
         {me && look ? (
           <div className="panel">
-            <Creator look={look} onChange={setLook} size={240} />
+            <Creator look={look} onChange={setLook} size={150} />
           </div>
         ) : (
           ready && (
             <div className="panel center" style={{ minHeight: 300 }}>
               <div>
-                <p className="display" style={{ fontSize: 32 }}>
-                  No character yet
+                <p className="display" style={{ fontSize: 15 }}>
+                  No profile yet
                 </p>
                 <button className="btn btn-gold" style={{ marginTop: 12 }} onClick={() => openCreator(true)}>
-                  Create your character
+                  Create profile
                 </button>
               </div>
             </div>

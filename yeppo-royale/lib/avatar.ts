@@ -1,32 +1,29 @@
-// A character is a handful of part indices. It is stored as JSON on the player and
-// rendered as SVG everywhere (lobby, leaderboards, kill feed).
+// A profile picture is a handful of part indices, stored as JSON on the player and
+// rendered as a small flat SVG (lobby, standings, live feed).
 import { rng } from "./rng";
 
 export type Look = { s: number; e: number; m: number; h: number; g: number; o: number; b: number };
 
-export const SKINS = ["#38f28c", "#9b6bff", "#2fd6ff", "#ff9f2e", "#ff5fa8", "#ffd84a", "#ff4d4d", "#4d7bff", "#f4f1ea", "#2b2d36", "#d9a441", "#7ef0d0"];
-export const BGS: [string, string][] = [
-  ["#3b1d8f", "#120a3a"], ["#0e5bd8", "#071b4f"], ["#d8326e", "#3d0a2a"], ["#0fa36b", "#06301f"], ["#ff8a00", "#5a1d00"],
-  ["#11c5e0", "#06364a"], ["#6b6f80", "#16171d"], ["#f5c542", "#5a3d00"], ["#a21caf", "#2a0730"], ["#ef4444", "#3b0909"],
-];
+export const FACES = ["#10d48e", "#3d8bff", "#a78bfa", "#f6465d", "#f0b90b", "#22d3ee", "#f472b6", "#e6e8eb", "#fb923c", "#84cc16", "#64748b", "#14b8a6"];
+export const BGS = ["#16181d", "#0f2a22", "#0f1d33", "#22163a", "#331419", "#2e2508", "#0b2a30", "#1f2937", "#2a1a10", "#1a2e05"];
 
 export const PARTS = {
-  s: { label: "Color", names: SKINS.map((_, i) => `Color ${i + 1}`) },
-  e: { label: "Eyes", names: ["Classic", "Happy", "Laser", "Sleepy", "Angry", "Stars", "Money", "Wide"] },
-  m: { label: "Mouth", names: ["Smile", "Grin", "Smirk", "Shook", "Tongue", "Flat", "Teeth", "Frown"] },
-  h: { label: "Headwear", names: ["None", "Cap", "Beanie", "Crown", "Cowboy", "Headphones", "Top hat", "Horns", "Halo", "Bandana"] },
-  g: { label: "Eyewear", names: ["None", "Shades", "Pixel", "Monocle", "Visor", "3D"] },
-  o: { label: "Outfit", names: ["None", "Hoodie", "Suit", "Gold chain", "Jersey", "Tank top", "Puffer"] },
-  b: { label: "Backdrop", names: BGS.map((_, i) => `Backdrop ${i + 1}`) },
+  b: { label: "Background", names: BGS.map((_, i) => `Tone ${i + 1}`) },
+  s: { label: "Face", names: FACES.map((_, i) => `Color ${i + 1}`) },
+  e: { label: "Eyes", names: ["Dots", "Wide", "Lines", "Calm", "Focus", "Squares", "Spark", "Sharp"] },
+  m: { label: "Mouth", names: ["Line", "Smile", "Open", "Smirk", "Wide", "Small", "Grin", "Flat"] },
+  h: { label: "Top", names: ["None", "Cap", "Beanie", "Crown", "Halo", "Headset", "Horns", "Band", "Antenna", "Star"] },
+  g: { label: "Eyewear", names: ["None", "Shades", "Frames", "Visor", "Monocle", "Pixel"] },
+  o: { label: "Ring", names: ["None", "White", "Green", "Gold", "Blue", "Double", "Dashed"] },
 } as const;
 
 export type PartKey = keyof typeof PARTS;
-export const PART_KEYS: PartKey[] = ["s", "e", "m", "h", "g", "o", "b"];
+export const PART_KEYS: PartKey[] = ["b", "s", "e", "m", "h", "g", "o"];
 
 export function randomLook(seed?: string | number): Look {
   const r = seed == null ? Math.random : rng(seed);
   const n = (k: PartKey) => Math.floor(r() * PARTS[k].names.length);
-  return { s: n("s"), e: n("e"), m: n("m"), h: n("h"), g: r() < 0.55 ? 0 : n("g"), o: n("o"), b: n("b") };
+  return { s: n("s"), e: n("e"), m: n("m"), h: r() < 0.5 ? 0 : n("h"), g: r() < 0.6 ? 0 : n("g"), o: r() < 0.5 ? 0 : n("o"), b: n("b") };
 }
 
 export function normLook(x: unknown): Look {

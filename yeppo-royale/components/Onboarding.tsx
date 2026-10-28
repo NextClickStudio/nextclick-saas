@@ -45,7 +45,7 @@ export default function Onboarding() {
     <div className="modal-back" onClick={() => openCreator(false)}>
       <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <div className="modal-head">
-          <h2 className="display">{mode === "new" ? "Create your trencher" : "Log in with your key"}</h2>
+          <h2 className="display">{mode === "new" ? "Create your profile" : "Log in with your key"}</h2>
           <button type="button" className="icon-btn" aria-label="Close" onClick={() => openCreator(false)}>
             ✕
           </button>
@@ -53,7 +53,7 @@ export default function Onboarding() {
         <div className="modal-body">
           {mode === "new" ? (
             <>
-              <Creator look={look} onChange={setLook} size={200} />
+              <Creator look={look} onChange={setLook} size={132} />
               <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, marginTop: 18 }}>
                 <input
                   className="input"
@@ -64,11 +64,11 @@ export default function Onboarding() {
                   onChange={(e) => setHandle(e.target.value.replace(/[^A-Za-z0-9_]/g, ""))}
                 />
                 <button className="btn btn-gold" disabled={busy || handle.trim().length < 3}>
-                  {busy ? "…" : "Enter the trenches"}
+                  {busy ? "…" : "Create profile"}
                 </button>
               </div>
               <p className="muted small" style={{ marginTop: 10 }}>
-                No email, no wallet. Every match you start with 10 play SOL. Your character is your profile picture.
+                No email, no wallet. Every match starts with 10 play SOL. You can change your picture any time.
               </p>
             </>
           ) : (
@@ -81,7 +81,7 @@ export default function Onboarding() {
           )}
           {err && <p className="err" style={{ marginTop: 10 }}>{err}</p>}
           <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={() => setMode(mode === "new" ? "key" : "new")}>
-            {mode === "new" ? "I already have an account key" : "Create a new character instead"}
+            {mode === "new" ? "I already have an account key" : "Create a new profile instead"}
           </button>
         </div>
       </form>

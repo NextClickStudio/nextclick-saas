@@ -1,32 +1,33 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readLocal, rpc, writeLocal } from "@/lib/supabase";
-import { clock } from "@/lib/format";
+import { readLocal, rpc, supabase, writeLocal } from "@/lib/supabase";
+import { clock, signed } from "@/lib/format";
 import { sfx, toast } from "@/lib/fx";
 import { level, tier } from "@/lib/rank";
-import type { Lobby as LobbyT, Mode } from "@/lib/types";
+import type { Lobby as LobbyT, User } from "@/lib/types";
 import { useApp } from "./AppProvider";
 import Avatar from "./Avatar";
 import TopBar from "./TopBar";
 
 const LOCKED = [
-  { id: "duos", name: "Duos", tagline: "Squad up with a friend. Shared bag." },
-  { id: "ranked", name: "Ranked", tagline: "Climb tiers against real players only." },
-  { id: "creative", name: "Creative", tagline: "Host your own room with your rules." },
+  { id: "duos", name: "Duos", tagline: "Squad up with a friend, shared bag." },
+  { id: "ranked", name: "Ranked", tagline: "Real players only, tiered matchmaking." },
+  { id: "custom", name: "Custom rooms", tagline: "Host a room with your own rules." },
 ];
 
 export default function Lobby() {
   const router = useRouter();
   const { me, session, openCreator, ready } = useApp();
   const [lobby, setLobby] = useState<LobbyT | null>(null);
+  const [top, setTop] = useState<User[]>([]);
   const [skew, setSkew] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [modeId, setModeId] = useState("royale");
-  const [picking, setPicking] = useState(false);
-  const [joining, setJoining] = useState(false);
-  const wantPlay = useRef(false);
+  const [joining, setJoining] = useState<string | null>(null);
+  const wantPlay = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     const t0 = Date.now();
@@ -41,6 +42,13 @@ export default function Lobby() {
 
   useEffect(() => {
     setModeId(readLocal("yr:mode", "royale"));
+    supabase
+      .from("yr_users")
+      .select("*")
+      .gt("matches", 0)
+      .order("rp", { ascending: false })
+      .limit(8)
+      .then(({ data }) => setTop((data as User[]) ?? []));
   }, []);
   useEffect(() => {
     void load();
@@ -52,39 +60,42 @@ export default function Lobby() {
     return () => clearInterval(t);
   }, []);
 
-  const play = useCallback(async () => {
-    if (!session) {
-      wantPlay.current = true;
-      openCreator(true);
-      return;
-    }
-    setJoining(true);
-    try {
-      const r = await rpc<{ id: string }>("yr_join", { p_secret: session.secret, p_mode: modeId });
-      sfx.go();
-      router.push(`/play/${r.id}`);
-    } catch (e) {
-      sfx.error();
-      toast(e instanceof Error ? e.message : "Could not join", "down");
-      setJoining(false);
-    }
-  }, [session, modeId, openCreator, router]);
+  const play = useCallback(
+    async (mode: string) => {
+      setModeId(mode);
+      writeLocal("yr:mode", mode);
+      if (!session) {
+        wantPlay.current = mode;
+        openCreator(true);
+        return;
+      }
+      setJoining(mode);
+      try {
+        const r = await rpc<{ id: string }>("yr_join", { p_secret: session.secret, p_mode: mode });
+        sfx.go();
+        router.push(`/play/${r.id}`);
+      } catch (e) {
+        sfx.error();
+        toast(e instanceof Error ? e.message : "Could not join", "down");
+        setJoining(null);
+      }
+    },
+    [session, openCreator, router],
+  );
 
-  // after creating a character from the PLAY button, drop straight in
+  // after creating a character from a Join button, drop straight in
   useEffect(() => {
     if (session && wantPlay.current) {
-      wantPlay.current = false;
-      void play();
+      const m = wantPlay.current;
+      wantPlay.current = null;
+      void play(m);
     }
   }, [session, play]);
 
-  const mode: Mode | undefined = lobby?.modes.find((m) => m.id === modeId) ?? lobby?.modes[0];
   const serverNow = now + skew;
-  const nextIn = mode ? mode.next_start - serverNow : 0;
   const lv = level(me?.xp ?? 0);
   const t = tier(me?.rp ?? 0);
   const noArenas = lobby != null && lobby.arenas === 0;
-
   const milestones = me
     ? [
         { text: "Play 5 matches", v: me.matches, max: 5 },
@@ -100,34 +111,60 @@ export default function Lobby() {
       <div className="world" />
       <TopBar online={lobby?.online} />
       <main className="lobby">
-        <section className="lobby-left">
-          <div className="billboard">
-            <span className="chip chip-gold">SEASON 0</span>
-            <h3 className="display" style={{ marginTop: 10 }}>
-              Spot the rug.
-              <br />
-              Ride the runner.
-            </h3>
-            <p>Every coin is a real pump.fun launch, replayed. Same coins for everyone. The worst bags get cut.</p>
-          </div>
-          <div className="panel">
-            <div className="panel-head">
-              <span className="lbl">How a match works</span>
-            </div>
-            <div className="steps">
-              <div className="step">
-                <b className="display">1</b>
-                <span>Drop in with 10 play SOL. New coins launch every few seconds.</span>
-              </div>
-              <div className="step">
-                <b className="display">2</b>
-                <span>Read the intel: dev wallet, holders, snipers. Buy the runners, dodge the rugs.</span>
-              </div>
-              <div className="step">
-                <b className="display">3</b>
-                <span>Every cut, the poorest traders are eliminated. Last bag standing wins.</span>
+        <aside className="lobby-col">
+          <div className="panel profile">
+            <div className="profile-top">
+              <Avatar look={me?.avatar ?? { b: 0, s: 0, e: 0, m: 1, h: 0, g: 0, o: 0 }} size={56} />
+              <div style={{ minWidth: 0 }}>
+                <h2 className="display">{me?.handle ?? (ready ? "Guest" : " ")}</h2>
+                {me ? (
+                  <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+                    <span className="chip" style={{ color: t.color }}>
+                      {t.name}
+                    </span>
+                    <span className="chip mono">LVL {lv.lvl}</span>
+                  </div>
+                ) : (
+                  <span className="muted small">Create a profile to play</span>
+                )}
               </div>
             </div>
+            {me ? (
+              <>
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span className="lbl">Level {lv.lvl}</span>
+                    <span className="mono small dim">
+                      {lv.into}/{lv.need} XP
+                    </span>
+                  </div>
+                  <div className="bar">
+                    <i style={{ width: `${lv.pct}%` }} />
+                  </div>
+                </div>
+                <div className="kv-grid">
+                  <div>
+                    <span className="lbl">Matches</span>
+                    <b className="mono">{me.matches}</b>
+                  </div>
+                  <div>
+                    <span className="lbl">Wins</span>
+                    <b className="mono">{me.wins}</b>
+                  </div>
+                  <div>
+                    <span className="lbl">RP</span>
+                    <b className="mono">{me.rp}</b>
+                  </div>
+                </div>
+                <Link href="/locker" className="btn btn-sm">
+                  Edit profile picture
+                </Link>
+              </>
+            ) : (
+              <button className="btn btn-gold" onClick={() => openCreator(true)}>
+                Create profile
+              </button>
+            )}
           </div>
           {me && (
             <div className="panel">
@@ -149,123 +186,140 @@ export default function Lobby() {
               ))}
             </div>
           )}
-        </section>
+        </aside>
 
-        <section className="stage">
-          <div className="stage-glow" />
-          <div className="stage-ring" />
-          <div className="hero">
-            <Avatar look={me?.avatar ?? { s: 0, e: 0, m: 0, h: 1, g: 1, o: 1, b: 0 }} size={300} />
-          </div>
-          <div className="nameplate">
-            <h2 className="display">{me?.handle ?? (ready ? "New trencher" : " ")}</h2>
-            <div className="sub">
-              {me ? (
-                <>
-                  <span className="chip">LVL {lv.lvl}</span>
-                  <span className="chip" style={{ color: t.color }}>
-                    {t.name}
-                  </span>
-                  <span className="chip">{me.wins} wins</span>
-                  <button className="chip" onClick={() => router.push("/locker")}>
-                    ✏️ Edit
-                  </button>
-                </>
-              ) : (
-                <button className="btn btn-gold btn-sm" onClick={() => openCreator(true)}>
-                  Create your character
-                </button>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="lobby-right">
-          {mode && (
-            <div className={`mode-card ${mode.id}`}>
-              <button className="btn btn-sm change" onClick={() => setPicking(true)}>
-                Change
-              </button>
-              <span className="lbl" style={{ color: "#dfe4ff" }}>
-                Selected mode
+        <section className="lobby-col">
+          {lobby?.active && (
+            <div className="active-banner">
+              <span>
+                <b>You are in a live match.</b> <span className="muted">Your bag is waiting.</span>
               </span>
-              <h3 className="display">{mode.name}</h3>
-              <p style={{ color: "#dfe4ff" }}>{mode.tagline}</p>
-              <div className="meta">
-                <span className="chip">{mode.size} traders</span>
-                <span className="chip">{mode.cuts} cuts</span>
-                <span className="chip">{Math.round(mode.dur_ms / 60000)} min</span>
-                {mode.live > 0 && (
-                  <span className="chip">
-                    <i className="live-dot" /> {mode.live} live
-                  </span>
-                )}
-              </div>
-              <div className="next-drop">
-                <span className="lbl" style={{ color: "#dfe4ff" }}>
-                  Next drop
-                </span>
-                <span className="display mono">{clock(nextIn)}</span>
-                {mode.queued > 0 && <span className="chip">{mode.queued} queued</span>}
-              </div>
+              <button className="btn btn-gold btn-sm" onClick={() => router.push(`/play/${lobby.active!.id}`)}>
+                Rejoin
+              </button>
             </div>
           )}
-          {lobby?.active ? (
-            <button className="play-btn" onClick={() => router.push(`/play/${lobby.active!.id}`)}>
-              Rejoin
-              <small>YOUR MATCH IS LIVE</small>
-            </button>
-          ) : (
-            <button className="play-btn" disabled={joining || noArenas || !lobby} onClick={play}>
-              {joining ? "Joining…" : noArenas ? "Loading" : "Play"}
-              <small>{noArenas ? "ARENAS WARMING UP: TRY AGAIN IN A FEW MINUTES" : session ? "DROP INTO THE NEXT MATCH" : "CREATE A CHARACTER AND DROP IN"}</small>
-            </button>
+          <div className="lobby-head">
+            <div>
+              <h1 className="display">Select a mode</h1>
+              <p className="muted" style={{ marginTop: 2 }}>
+                Same real pump.fun launches for everyone. Every cut, the smallest bags are eliminated.
+              </p>
+            </div>
+            {lobby && <span className="chip mono">{lobby.arenas} arenas ready</span>}
+          </div>
+          <div className="mode-list">
+            {(lobby?.modes ?? []).map((m) => {
+              const nextIn = m.next_start - serverNow;
+              return (
+                <div key={m.id} className={`mode-row ${m.id === modeId ? "sel" : ""}`}>
+                  <div>
+                    <h3>{m.name}</h3>
+                    <p>{m.tagline}</p>
+                    <div className="meta">
+                      <span className="chip">{m.size} traders</span>
+                      <span className="chip">{m.cuts} cuts</span>
+                      <span className="chip">{Math.round(m.dur_ms / 60000)} min</span>
+                      <span className="chip">10 SOL start</span>
+                      {m.live > 0 && (
+                        <span className="chip chip-down">
+                          <i className="live-dot" /> {m.live} live
+                        </span>
+                      )}
+                      {m.queued > 0 && <span className="chip chip-up">{m.queued} queued</span>}
+                    </div>
+                  </div>
+                  <div className="drop">
+                    <span className="lbl">Next drop</span>
+                    <span className="mono">{clock(nextIn)}</span>
+                  </div>
+                  <button className="play-btn" disabled={!!joining || noArenas || !!lobby?.active} onClick={() => play(m.id)}>
+                    {joining === m.id ? "Joining…" : noArenas ? "Warming up" : "Join"}
+                    <small>{session ? "drop in" : "create profile"}</small>
+                  </button>
+                </div>
+              );
+            })}
+            {!lobby && (
+              <div className="panel center" style={{ minHeight: 160 }}>
+                <i className="spinner" />
+              </div>
+            )}
+            {LOCKED.map((m) => (
+              <div key={m.id} className="mode-row locked">
+                <div>
+                  <h3>{m.name}</h3>
+                  <p>{m.tagline}</p>
+                </div>
+                <div className="drop">
+                  <span className="lbl">Status</span>
+                  <span className="small">Coming soon</span>
+                </div>
+                <button className="play-btn" disabled>
+                  Soon
+                </button>
+              </div>
+            ))}
+          </div>
+          {noArenas && (
+            <div className="note">
+              <b>Arenas are being built.</b> Every arena is made of launches recorded live from pump.fun over the last hours. The first ones are ready a few minutes after
+              launch.
+            </div>
           )}
         </section>
-      </main>
 
-      {picking && lobby && (
-        <div className="modes-overlay" onClick={() => setPicking(false)}>
-          <div onClick={(e) => e.stopPropagation()}>
-            <h2 className="display" style={{ fontSize: 48, marginBottom: 16 }}>
-              Select mode
-            </h2>
-            <div className="modes-grid">
-              {lobby.modes.map((m) => (
-                <div
-                  key={m.id}
-                  className={`mode-card ${m.id} ${m.id === mode?.id ? "sel" : ""}`}
-                  onClick={() => {
-                    sfx.tick();
-                    setModeId(m.id);
-                    writeLocal("yr:mode", m.id);
-                    setPicking(false);
-                  }}
-                >
-                  <h3 className="display">{m.name}</h3>
-                  <p style={{ color: "#dfe4ff", marginTop: 6 }}>{m.tagline}</p>
-                  <div className="meta">
-                    <span className="chip">{m.size} traders</span>
-                    <span className="chip">{Math.round(m.dur_ms / 60000)} min</span>
-                  </div>
-                  <div className="next-drop">
-                    <span className="display mono">{clock(m.next_start - serverNow)}</span>
-                  </div>
-                </div>
-              ))}
-              {LOCKED.map((m) => (
-                <div key={m.id} className="mode-card locked">
-                  <span className="chip chip-gold">COMING SOON</span>
-                  <h3 className="display" style={{ marginTop: 8 }}>
-                    {m.name}
-                  </h3>
-                  <p style={{ color: "#dfe4ff", marginTop: 6 }}>{m.tagline}</p>
-                </div>
-              ))}
+        <aside className="lobby-col right">
+          <div className="panel">
+            <div className="panel-head">
+              <span className="lbl">How it works</span>
+            </div>
+            <div className="steps">
+              <div className="step">
+                <b>1</b>
+                <span>Drop in with 10 play SOL. Real pump.fun launches replay at speed, under codenames.</span>
+              </div>
+              <div className="step">
+                <b>2</b>
+                <span>Read the intel: dev wallet, holders, snipers, flow. Buy runners, avoid rugs.</span>
+              </div>
+              <div className="step">
+                <b>3</b>
+                <span>At every cut the smallest bags are eliminated. Last bag standing wins.</span>
+              </div>
+              <div className="step">
+                <b>4</b>
+                <span>After the match the real coins are revealed. Earn XP and rank points.</span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+          <div className="panel mini-lb">
+            <div className="panel-head">
+              <span className="lbl">Top traders</span>
+              <Link href="/leaderboard" className="small muted">
+                View all
+              </Link>
+            </div>
+            {top.length ? (
+              top.map((u, i) => (
+                <div key={u.id} className="row">
+                  <span className="mono dim">{i + 1}</span>
+                  <Avatar look={u.avatar} size={22} />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.handle}</span>
+                  <span className="mono small">{u.rp} RP</span>
+                </div>
+              ))
+            ) : (
+              <p className="muted small">No ranked traders yet. The first win takes #1.</p>
+            )}
+          </div>
+          {me && me.best_pnl > 0 && (
+            <div className="note">
+              Best match so far: <b className="mono t-up">{signed(me.best_pnl, 2)} SOL</b>
+            </div>
+          )}
+        </aside>
+      </main>
     </>
   );
 }

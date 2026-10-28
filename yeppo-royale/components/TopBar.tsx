@@ -10,7 +10,7 @@ import Avatar from "./Avatar";
 
 const TABS = [
   { href: "/", label: "Play" },
-  { href: "/locker", label: "Locker" },
+  { href: "/locker", label: "Profile" },
   { href: "/career", label: "Career" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/shop", label: "Shop", soon: true },
@@ -26,11 +26,11 @@ export default function TopBar({ online }: { online?: number }) {
 
   return (
     <header className="topbar">
-      <Link href="/" className="logo display">
+      <Link href="/" className="logo">
         yeppo <b>royale</b>
         <span>trading battle royale</span>
       </Link>
-      <nav className="tabs display">
+      <nav className="tabs">
         {TABS.map((x) => (
           <Link key={x.href} href={x.href} className={path === x.href ? "on" : ""}>
             {x.label}
@@ -51,7 +51,7 @@ export default function TopBar({ online }: { online?: number }) {
               {t.name}
             </span>
             <div className="lvl-badge" title={`${lv.into} / ${lv.need} XP`}>
-              <div className="lvl-hex display">{lv.lvl}</div>
+              <div className="lvl-hex mono">{lv.lvl}</div>
               <div className="lvl-meta">
                 <span className="lbl">Level {lv.lvl}</span>
                 <div className="bar">
@@ -60,13 +60,13 @@ export default function TopBar({ online }: { online?: number }) {
               </div>
             </div>
             <Link href="/locker" aria-label="Your character">
-              <Avatar look={me.avatar} size={38} />
+              <Avatar look={me.avatar} size={28} />
             </Link>
           </>
         ) : (
           !session && (
             <button className="btn btn-gold btn-sm" onClick={() => openCreator(true)}>
-              Create character
+              Create profile
             </button>
           )
         )}
@@ -78,7 +78,10 @@ export default function TopBar({ online }: { online?: number }) {
             setSound(!sound);
           }}
         >
-          {sound ? "🔊" : "🔇"}
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M11 5 6 9H2v6h4l5 4V5z" />
+            {sound ? <path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" /> : <path d="m16 9 6 6m0-6-6 6" />}
+          </svg>
         </button>
       </div>
     </header>

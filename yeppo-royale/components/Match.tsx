@@ -12,6 +12,7 @@ import type { Board, FeedEv, MatchInfo, Results, RosterRow } from "@/lib/types";
 import { useApp } from "./AppProvider";
 import Avatar from "./Avatar";
 import CoinChart from "./CoinChart";
+import CoinIcon from "./CoinIcon";
 import ResultsView from "./ResultsView";
 
 const TIPS = [
@@ -127,7 +128,7 @@ export default function Match({ id }: { id: string }) {
           if (since.current > 1500) {
             sfx.coin();
             const nm = names.get(newly[0]);
-            if (nm) toast(`${nm.emoji} NEW LAUNCH · $${nm.ticker}`, "gold");
+            if (nm) toast(`New launch: $${nm.ticker}`, "gold");
           }
           setTimeout(() => setFresh((s) => new Set([...s].filter((x) => !newly.includes(x)))), 1500);
         }
@@ -333,8 +334,8 @@ export default function Match({ id }: { id: string }) {
               if (!st.launched(matchMs)) {
                 return (
                   <div key={c.ci} className="coin-row pending">
-                    <div className="coin-ico" style={{ background: "rgba(255,255,255,0.06)" }}>
-                      ?
+                    <div className="coin-ico mono dim" style={{ background: "var(--bg2)" }}>
+                      ··
                     </div>
                     <div className="nm">
                       <b>Next launch</b>
@@ -348,9 +349,7 @@ export default function Match({ id }: { id: string }) {
               const held = (mine.pos.get(c.ci) ?? 0) > 0;
               return (
                 <button key={c.ci} className={`coin-row ${sel === c.ci ? "sel" : ""} ${fresh.has(c.ci) ? "new" : ""}`} onClick={() => setSel(c.ci)}>
-                  <div className="coin-ico" style={{ background: `hsl(${nm.hue} 70% 22%)` }}>
-                    {nm.emoji}
-                  </div>
+                  <CoinIcon nm={nm} />
                   <div className="nm">
                     <b>
                       ${nm.ticker}
@@ -383,7 +382,7 @@ export default function Match({ id }: { id: string }) {
           ) : (
             <div className="panel center" style={{ minHeight: 300 }}>
               <div>
-                <p className="display" style={{ fontSize: 34 }}>
+                <p className="display" style={{ fontSize: 15 }}>
                   First launch incoming
                 </p>
                 <p className="muted" style={{ marginTop: 6 }}>
@@ -416,7 +415,7 @@ export default function Match({ id }: { id: string }) {
                 const nm = names.get(sel);
                 if (side === "buy") {
                   sfx.buy();
-                  floatText(`+${nm?.emoji ?? ""} $${nm?.ticker ?? ""}`, x, y - 30, "up");
+                  floatText(`+ $${nm?.ticker ?? ""}`, x, y - 30, "up");
                 } else {
                   const buys = mine.fills.filter((f) => f[0] === sel && f[1] === 1);
                   const spent = buys.reduce((s, f) => s + f[2], 0);
@@ -513,7 +512,7 @@ function Pregame({ info, matchMs }: { info: MatchInfo; matchMs: number }) {
             </span>
           ))}
         </div>
-        <p className="tips">💡 {TIPS[Math.floor(Date.now() / 5000) % TIPS.length]}</p>
+        <p className="tips">{TIPS[Math.floor(Date.now() / 5000) % TIPS.length]}</p>
         <div className="row-gap" style={{ display: "flex", gap: 10 }}>
           <span className="chip">Start with {info.start_sol} play SOL</span>
           <span className="chip">{info.coins.length} real launches</span>
@@ -539,9 +538,7 @@ function CoinPanel({ coin, intel, name, info, ver, mine }: { coin: CoinState; in
     <>
       <div className="panel">
         <div className="coin-head">
-          <div className="coin-ico" style={{ background: `hsl(${name.hue} 70% 22%)` }}>
-            {name.emoji}
-          </div>
+          <CoinIcon nm={name} size={36} />
           <div>
             <h2 className="display">{name.name}</h2>
             <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
@@ -739,9 +736,7 @@ function Positions({ mine, coins, names, onPick }: { mine: Mine; coins: Map<numb
         const pnl = spent > 0 ? ((value + back - spent) / spent) * 100 : 0;
         return (
           <button key={ci} className="pos-row" style={{ width: "100%", background: "none", border: 0, textAlign: "left" }} onClick={() => onPick(ci)}>
-            <div className="coin-ico" style={{ background: `hsl(${nm?.hue ?? 200} 70% 22%)` }}>
-              {nm?.emoji}
-            </div>
+            <CoinIcon nm={nm} size={22} />
             <b>${nm?.ticker}</b>
             <span className="mono">{sol(value, 2)}</span>
             <span className={`mono t-${tone(pnl)}`} style={{ minWidth: 58, textAlign: "right" }}>
@@ -819,9 +814,7 @@ function KillFeed({ board, roster, names }: { board: Board | null; roster: Map<n
               <b>{p?.[1] ?? "trader"}</b>
               <span className={f[2] === 1 ? "t-up" : "t-down"}>{f[2] === 1 ? "aped" : "dumped"}</span>
               <span className="mono">{sol(f[3], 2)} SOL</span>
-              <span className="dim">
-                {nm?.emoji} ${nm?.ticker}
-              </span>
+              <span className="dim">${nm?.ticker}</span>
             </div>
           );
         })}

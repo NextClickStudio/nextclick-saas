@@ -14,7 +14,7 @@ import {
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
-import { usd } from "@/lib/format";
+import { clock, usd } from "@/lib/format";
 import type { CoinState } from "@/lib/coin";
 
 /** Market cap candles (in USD) for one coin, with the player's own buys and sells marked. */
@@ -44,9 +44,17 @@ export default function CoinChart({
       layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#8b90b3", fontSize: 11, attributionLogo: false },
       grid: { vertLines: { color: "rgba(255,255,255,0.04)" }, horzLines: { color: "rgba(255,255,255,0.04)" } },
       rightPriceScale: { borderColor: "rgba(255,255,255,0.08)", scaleMargins: { top: 0.1, bottom: 0.22 } },
-      timeScale: { borderColor: "rgba(255,255,255,0.08)", timeVisible: true, secondsVisible: true, rightOffset: 4, barSpacing: 9 },
+      timeScale: {
+        borderColor: "rgba(255,255,255,0.08)",
+        timeVisible: true,
+        secondsVisible: true,
+        rightOffset: 4,
+        barSpacing: 9,
+        // candle times are match seconds: show them as a match clock
+        tickMarkFormatter: (t: Time) => clock(Number(t) * 1000),
+      },
       crosshair: { mode: 0 },
-      localization: { priceFormatter: (p: number) => usd(p) },
+      localization: { priceFormatter: (p: number) => usd(p), timeFormatter: (t: Time) => clock(Number(t) * 1000) },
     });
     candles.current = c.addSeries(CandlestickSeries, {
       upColor: "#2bff88",
@@ -57,7 +65,7 @@ export default function CoinChart({
       wickDownColor: "#ff3b5c",
       priceFormat: { type: "custom", formatter: (p: number) => usd(p), minMove: 0.01 },
     });
-    vol.current = c.addSeries(HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" } });
+    vol.current = c.addSeries(HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
     c.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     markers.current = createSeriesMarkers(candles.current, []);
     chart.current = c;

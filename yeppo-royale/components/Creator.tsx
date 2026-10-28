@@ -20,7 +20,7 @@ export default function Creator({ look, onChange, size = 220 }: { look: Look; on
             onChange(randomLook());
           }}
         >
-          🎲 Randomize
+          Randomize
         </button>
       </div>
       <div>
@@ -43,7 +43,7 @@ export default function Creator({ look, onChange, size = 220 }: { look: Look; on
                   onChange(preview);
                 }}
               >
-                <Avatar look={preview} size={58} />
+                <Avatar look={preview} size={40} />
                 {name}
               </button>
             );

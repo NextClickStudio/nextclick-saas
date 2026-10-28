@@ -8,6 +8,7 @@ import { level, tier } from "@/lib/rank";
 import { SITE_URL } from "@/lib/config";
 import type { MatchInfo, Results } from "@/lib/types";
 import Avatar from "./Avatar";
+import CoinIcon from "./CoinIcon";
 
 const OUTCOME: Record<string, { label: string; cls: string }> = {
   runner: { label: "Runner", cls: "t-up" },
@@ -89,9 +90,7 @@ export default function ResultsView({
             const o = OUTCOME[c.outcome ?? "mid"] ?? OUTCOME.mid;
             return (
               <div key={c.ci} className="reveal-card" style={{ animationDelay: `${0.15 * i}s` }}>
-                <div className="coin-ico" style={{ background: `hsl(${nm?.hue ?? 200} 70% 22%)` }}>
-                  {nm?.emoji}
-                </div>
+                <CoinIcon nm={nm} />
                 <div style={{ minWidth: 0 }}>
                   <div className="small dim">${nm?.ticker} was really</div>
                   <b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

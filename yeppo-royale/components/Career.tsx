@@ -20,11 +20,11 @@ export default function Career() {
           {ready && (
             <div className="panel center" style={{ minHeight: 300 }}>
               <div>
-                <p className="display" style={{ fontSize: 32 }}>
-                  Create a character to start your career
+                <p className="display" style={{ fontSize: 15 }}>
+                  Create a profile to start your career
                 </p>
                 <button className="btn btn-gold" style={{ marginTop: 12 }} onClick={() => openCreator(true)}>
-                  Create character
+                  Create profile
                 </button>
               </div>
             </div>
@@ -42,7 +42,7 @@ export default function Career() {
       <main className="page">
         <div className="page-head">
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <Avatar look={me.avatar} size={86} />
+            <Avatar look={me.avatar} size={52} />
             <div>
               <h1 className="display">{me.handle}</h1>
               <span className="muted">
@@ -116,7 +116,7 @@ export default function Career() {
           <div className="panel-head">
             <span className="lbl">Account key</span>
           </div>
-          <p className="muted small">This key is your login on other devices. Anyone who has it controls your character, so keep it private.</p>
+          <p className="muted small">This key is your login on other devices. Anyone who has it controls your profile, so keep it private.</p>
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             <input className="input mono" style={{ flex: 1, minWidth: 220, fontSize: 12 }} readOnly value={showKey ? session.secret : "•".repeat(32)} />
             <button className="btn btn-sm" onClick={() => setShowKey((s) => !s)}>

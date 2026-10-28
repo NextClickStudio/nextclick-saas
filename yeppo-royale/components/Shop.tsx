@@ -28,17 +28,13 @@ export default function Shop() {
         </div>
         <div className="shop-grid">
           {ITEMS.map((it) => (
-            <div key={it.name} className="shop-item" style={{ background: it.bg }}>
+            <div key={it.name} className="shop-item">
               <div className="art">{it.art}</div>
-              <span className="chip lock">🔒 Locked</span>
+              <span className="chip lock">Locked</span>
               <div className="info">
-                <span className="lbl" style={{ color: "#dfe4ff" }}>
-                  {it.kind}
-                </span>
-                <b className="display">{it.name}</b>
-                <span className="small" style={{ color: "#dfe4ff" }}>
-                  {it.text}
-                </span>
+                <span className="lbl">{it.kind}</span>
+                <b>{it.name}</b>
+                <span className="small muted">{it.text}</span>
               </div>
             </div>
           ))}
