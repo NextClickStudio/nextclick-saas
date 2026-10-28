@@ -273,7 +273,7 @@ export default function Match({ id }: { id: string }) {
       <main className="hud">
         <header className="hud-top">
           <div className="left">
-            <Link href="/" className="logo display" style={{ fontSize: 20 }}>
+            <Link href="/" className="logo display" style={{ fontSize: 14 }}>
               yeppo <b>royale</b>
             </Link>
             <span className="chip">{info.mode_name}</span>
@@ -362,7 +362,7 @@ export default function Match({ id }: { id: string }) {
                       {flags(it)
                         .slice(0, 4)
                         .map((f, i) => (
-                          <i key={i} style={{ background: f.tone === "up" ? "var(--up)" : f.tone === "down" ? "var(--down)" : "#ffb02e" }} />
+                          <i key={i} style={{ background: f.tone === "up" ? "var(--up)" : f.tone === "down" ? "var(--down)" : "var(--warn)" }} />
                         ))}
                     </div>
                   </div>
@@ -508,12 +508,12 @@ function Pregame({ info, matchMs }: { info: MatchInfo; matchMs: number }) {
         <div className="squad">
           {humans.map((r) => (
             <span key={r[0]} className="who">
-              <Avatar look={r[2]} size={30} /> {r[1]}
+              <Avatar look={r[2]} size={22} /> {r[1]}
             </span>
           ))}
         </div>
         <p className="tips">{TIPS[Math.floor(Date.now() / 5000) % TIPS.length]}</p>
-        <div className="row-gap" style={{ display: "flex", gap: 10 }}>
+        <div className="row-gap" style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
           <span className="chip">Start with {info.start_sol} play SOL</span>
           <span className="chip">{info.coins.length} real launches</span>
           <span className="chip">{info.cuts.length} cuts</span>
@@ -782,7 +782,7 @@ function Standings({
         return (
           <div key={r[0]} className={`row ${r[0] === meSlot ? "me" : ""} ${cut ? "cutline" : ""}`}>
             <span className="mono dim">#{rank}</span>
-            <Avatar look={p?.[2]} size={26} />
+            <Avatar look={p?.[2]} size={20} />
             <span className="nm">
               {p?.[1] ?? "…"}
               {p?.[3] && <span className="chip chip-ai">AI</span>}
@@ -810,9 +810,9 @@ function KillFeed({ board, roster, names }: { board: Board | null; roster: Map<n
           const nm = names.get(f[1]);
           return (
             <div key={`${f[0]}-${f[4]}-${f[1]}-${f[2]}`} className="k">
-              <Avatar look={p?.[2]} size={18} />
+              <Avatar look={p?.[2]} size={16} />
               <b>{p?.[1] ?? "trader"}</b>
-              <span className={f[2] === 1 ? "t-up" : "t-down"}>{f[2] === 1 ? "aped" : "dumped"}</span>
+              <span className={f[2] === 1 ? "t-up" : "t-down"}>{f[2] === 1 ? "bought" : "sold"}</span>
               <span className="mono">{sol(f[3], 2)} SOL</span>
               <span className="dim">${nm?.ticker}</span>
             </div>

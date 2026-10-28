@@ -74,11 +74,11 @@ export default function Leaderboard() {
                     <td className="rank display">{i + 1}</td>
                     <td>
                       <span className="who">
-                        <Avatar look={u.avatar} size={34} />
+                        <Avatar look={u.avatar} size={24} />
                         {u.handle}
                       </span>
                     </td>
-                    <td style={{ color: t.color, fontWeight: 800 }}>{t.name}</td>
+                    <td style={{ color: t.color, fontWeight: 600 }}>{t.name}</td>
                     <td className="num mono">{level(u.xp).lvl}</td>
                     <td className="num mono">{u.matches}</td>
                     <td className="num mono t-gold">{u.wins}</td>
