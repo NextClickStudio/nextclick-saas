@@ -240,7 +240,7 @@ type ParsedTx = { transaction: { message: { instructions: Ix[] } }; meta: { err:
 const checked = new Map<string, Set<string>>();
 
 async function checkTwallet(sb: SupabaseClient<any, any, any>, t: TWallet): Promise<boolean> {
-  const sigs = await rpc<Sig[]>("getSignaturesForAddress", [t.address, { limit: 15, commitment: "confirmed" }]);
+  const sigs = await rpc<Sig[]>("getSignaturesForAddress", [t.address, { limit: 25, commitment: "confirmed" }]);
   const seen = checked.get(t.address) ?? new Set<string>();
   checked.set(t.address, seen);
   for (const s of sigs) {
