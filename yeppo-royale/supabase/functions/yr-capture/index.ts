@@ -6,7 +6,8 @@
 // Wallets and tx signatures are reduced to 32-bit hashes before they are stored. The one exception is
 // yr_hot_wallets: the public addresses of wallets trading pump.fun right now, which real duels use as
 // live-trader opponents when no player is around. Every trade of every coin also lands in yr_ticks,
-// about once a second, for the live terminal (kept 20 minutes).
+// about once a second, for the live terminal and the oracle (kept 20 minutes), and every launch with its
+// creator lands in yr_obirth.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 
 const WINDOW_MS = 20 * 60_000;
@@ -83,6 +84,22 @@ const num = (x: unknown) => {
   const n = Number(x);
   return Number.isFinite(n) ? n : 0;
 };
+
+// Coins on pump.fun's newer curves are paired with a quote token instead of SOL. Their TradeEvents leave
+// the SOL fields at 0 and carry the quote amounts after the instruction name (a borsh string at 258).
+// Only quote tokens priced like SOL are read, so market caps stay comparable.
+const SOL_LIKE = new Set(
+  ["So11111111111111111111111111111111111111112", "98sMhvDwXj1RQi5c5Mndm3vPe9cBqPrbLaufMXFNMh5g"].map((m) => hex(b58decode(m))),
+);
+function solSide(b: Uint8Array, dv: DataView): { sol: number; vsol: number } | null {
+  const vsol = Number(dv.getBigUint64(97, true)) / 1e9;
+  if (vsol > 0) return { sol: Number(dv.getBigUint64(40, true)) / 1e9, vsol };
+  if (b.length < 262) return null;
+  const n = dv.getUint32(258, true);
+  const at = 262 + n;
+  if (n > 64 || b.length < at + 93 || !SOL_LIKE.has(hex(b, at + 37, at + 69))) return null;
+  return { sol: Number(dv.getBigUint64(at + 69, true)) / 1e9, vsol: Number(dv.getBigUint64(at + 77, true)) / 1e9 };
+}
 const str = (x: unknown) => (typeof x === "string" && x.trim() ? x.trim() : null);
 
 Deno.serve(async (req) => {
@@ -129,6 +146,8 @@ Deno.serve(async (req) => {
   const stats = { creates: 0, notes: 0, trades: 0, matched: 0, stored: 0, coins: 0, errors: 0, meta: 0, hot: 0, ticks: 0 };
   // every trade of every coin, for the live terminal
   let ticks: Record<string, unknown>[] = [];
+  // every launch, with its creator, for the oracle (yr_obirth)
+  let births: Record<string, unknown>[] = [];
   // every wallet trading pump.fun during this run (any coin), for live-trader opponents
   const hot = new Map<string, { key: Uint8Array; n: number; buys: number; vol: number; coins: Set<string>; last: number }>();
 
@@ -152,6 +171,7 @@ Deno.serve(async (req) => {
       const hx = hex(b58decode(mint));
       if (!hx || tracked.has(hx) || fresh.has(hx)) return;
       stats.creates++;
+      births.push({ mint, t: now, dev: str(d.traderPublicKey), name: str(d.name), symbol: str(d.symbol), uri: str(d.uri) });
       const creator = h32(b58decode(String(d.traderPublicKey ?? "")));
       const sig = String(d.signature ?? "");
       fresh.set(hx, {
@@ -208,7 +228,8 @@ Deno.serve(async (req) => {
       const mintHex = hex(b, 8, 40);
       {
         const dvt = new DataView(b.buffer, b.byteOffset, b.byteLength);
-        const solT = Number(dvt.getBigUint64(40, true)) / 1e9;
+        const side = solSide(b, dvt);
+        const solT = side?.sol ?? 0;
         const vtT = Number(dvt.getBigUint64(105, true)) / 1e6;
         const uk = hex(b, 57, 89);
         let h = hot.get(uk);
@@ -221,7 +242,7 @@ Deno.serve(async (req) => {
         h.vol += solT;
         h.coins.add(mintHex);
         h.last = now;
-        if (vtT > 0) {
+        if (vtT > 0 && side) {
           ticks.push({
             sig: v.signature,
             ix,
@@ -230,7 +251,7 @@ Deno.serve(async (req) => {
             k: b[56] === 1 ? 1 : 2,
             sol: solT,
             tok: Number(dvt.getBigUint64(48, true)) / 1e6,
-            vsol: Number(dvt.getBigUint64(97, true)) / 1e9,
+            vsol: side.vsol,
             vtok: vtT,
             who: b58encode(h.key),
           });
@@ -245,11 +266,13 @@ Deno.serve(async (req) => {
       const t = now - base;
       if (t > WINDOW_MS) continue;
       const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
-      const sol = Number(dv.getBigUint64(40, true)) / 1e9;
+      const side = solSide(b, dv);
+      if (!side) continue;
+      const sol = side.sol;
       const tok = Number(dv.getBigUint64(48, true)) / 1e6;
       const isBuy = b[56] === 1;
       const user = h32(b.subarray(57, 89));
-      const vs = Number(dv.getBigUint64(97, true)) / 1e9;
+      const vs = side.vsol;
       const vt = Number(dv.getBigUint64(105, true)) / 1e6;
       if (!(vt > 0)) continue;
       stats.matched++;
@@ -330,6 +353,12 @@ Deno.serve(async (req) => {
   let tickChain: Promise<void> = Promise.resolve();
   function flushTicks() {
     tickChain = tickChain.then(async () => {
+      if (births.length) {
+        const rows = births;
+        births = [];
+        const { error } = await sb.from("yr_obirth").upsert(rows, { onConflict: "mint", ignoreDuplicates: true });
+        if (error) stats.errors++;
+      }
       if (!ticks.length) return;
       const rows = ticks;
       ticks = [];
