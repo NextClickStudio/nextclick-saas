@@ -45,7 +45,8 @@ export default function PlatformPicker({ onPick, current, walletShort }: { onPic
         <h2 className="display">Pick your platform</h2>
         <p className="muted small">
           Trade on yeppo or keep your usual app with all its settings. Every pump.fun trade from wallet <b className="mono">{walletShort}</b> is read from the
-          chain and counted, wherever it comes from.
+          chain and counted, wherever it comes from. Axiom, GMGN, Photon, BullX and Padre trade from a wallet of their own: link it once and those trades
+          count too.
         </p>
       </div>
       <div className="plat-grid">

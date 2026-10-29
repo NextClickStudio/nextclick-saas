@@ -16,7 +16,11 @@ import PlatformPicker, { openPlatform, platformById, type Platform, savedPlatfor
 import RealTerminal from "./RealTerminal";
 import TopBar from "./TopBar";
 import { MiniTracker, openPip } from "./Tracker";
+import TradingWallets from "./TradingWallets";
 import WalletConnect from "./WalletConnect";
+
+// apps that trade from a wallet of their own, which has to be linked for its trades to count
+const OWN_WALLET: Record<string, string> = { axiom: "Axiom", gmgn: "GMGN", photon: "Photon", bullx: "BullX", padre: "Padre" };
 
 export default function RealDuel({ code }: { code: string }) {
   const { me, session, refreshMe } = useApp();
@@ -332,6 +336,7 @@ export default function RealDuel({ code }: { code: string }) {
         {pre && (
           <div className="note">
             <b>Get ready.</b> Open your trading app with the wallet below. Trades made before the clock starts do not count.
+            {d.p2?.ghost && " Your opponent is a real wallet trading pump.fun right now. It has no idea it is in a duel."}
           </div>
         )}
 
@@ -344,6 +349,11 @@ export default function RealDuel({ code }: { code: string }) {
                 Use your usual settings there. Every pump.fun trade from your verified wallet is read from the chain and lands on this board within seconds.
               </p>
             </div>
+            {OWN_WALLET[chosen.id] && (
+              <div className="ext-wallet">
+                <TradingWallets suggest={OWN_WALLET[chosen.id]} compact />
+              </div>
+            )}
             <div className="ext-btns">
               <button className="btn btn-primary" onClick={() => openPlatform(chosen)}>
                 Open {chosen.name} ↗
@@ -386,6 +396,7 @@ function HudRoi({ p, s, you, side }: { p: RealPlayer | null; s: RealScore | null
         <b>
           {p?.name ?? "…"}
           {you && <span className="chip chip-you">YOU</span>}
+          {p?.ghost && <span className="chip chip-ghost">LIVE TRADER</span>}
         </b>
         <span className="mono small" style={{ color: t.color }}>
           {t.name} · {p?.elo ?? "—"}
@@ -424,14 +435,28 @@ function Side({ p, s, slot, d, lead }: { p: RealPlayer | null; s: RealScore | nu
           <b>
             {p?.name}
             {d.me === slot && <span className="chip chip-you">YOU</span>}
+            {p?.ghost && <span className="chip chip-ghost">LIVE TRADER</span>}
           </b>
-          <span className="mono small" style={{ color: t.color }}>
-            {t.name} · {p?.elo}
-          </span>
+          {p?.ghost ? (
+            <span className="small muted">
+              Real pump.fun wallet · {p.n ?? 0} trades in the last minute when picked
+            </span>
+          ) : (
+            <span className="mono small" style={{ color: t.color }}>
+              {t.name} · {p?.elo}
+            </span>
+          )}
           {p?.wallet && (
-            <a className="mono small muted" href={solscanAccount(p.wallet)} target="_blank" rel="noreferrer">
-              {short(p.wallet)} ↗
-            </a>
+            <span className="rl-wallets">
+              <a className="mono small muted" href={p.ghost ? `https://gmgn.ai/sol/address/${p.wallet}` : solscanAccount(p.wallet)} target="_blank" rel="noreferrer">
+                {short(p.wallet)} ↗
+              </a>
+              {(p.extra ?? []).map((x) => (
+                <a key={x} className="mono small dim" href={solscanAccount(x)} target="_blank" rel="noreferrer" title="Trading app wallet">
+                  + {short(x)}
+                </a>
+              ))}
+            </span>
           )}
         </div>
       </div>

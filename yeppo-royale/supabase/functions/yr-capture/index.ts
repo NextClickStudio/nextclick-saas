@@ -3,7 +3,9 @@
 //   - launches (name, symbol, creator) come from PumpPortal's free creation feed;
 //   - trades come straight from the chain: pump.fun TradeEvents in the program logs,
 //     read through the public Solana RPC (logsSubscribe), no API key needed.
-// Wallets and tx signatures are reduced to 32-bit hashes before they are stored.
+// Wallets and tx signatures are reduced to 32-bit hashes before they are stored. The one exception is
+// yr_hot_wallets: the public addresses of wallets trading pump.fun right now, which real duels use as
+// live-trader opponents when no player is around.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 
 const WINDOW_MS = 20 * 60_000;
@@ -50,6 +52,20 @@ function b58decode(s: string): Uint8Array {
     out.unshift(0);
   }
   return Uint8Array.from(out);
+}
+function b58encode(bytes: Uint8Array): string {
+  let n = 0n;
+  for (const b of bytes) n = (n << 8n) | BigInt(b);
+  let out = "";
+  while (n > 0n) {
+    out = B58[Number(n % 58n)] + out;
+    n /= 58n;
+  }
+  for (const b of bytes) {
+    if (b !== 0) break;
+    out = "1" + out;
+  }
+  return out;
 }
 function hex(b: Uint8Array, from = 0, to = b.length): string {
   let s = "";
@@ -109,7 +125,9 @@ Deno.serve(async (req) => {
   const fresh = new Map<string, { row: Record<string, unknown>; sig: string; events: Ev[] }>();
   let events: Ev[] = [];
   let migr: { mint: string; t: number }[] = [];
-  const stats = { creates: 0, notes: 0, trades: 0, matched: 0, stored: 0, coins: 0, errors: 0, meta: 0 };
+  const stats = { creates: 0, notes: 0, trades: 0, matched: 0, stored: 0, coins: 0, errors: 0, meta: 0, hot: 0 };
+  // every wallet trading pump.fun during this run (any coin), for live-trader opponents
+  const hot = new Map<string, { key: Uint8Array; n: number; buys: number; vol: number; coins: Set<string>; last: number }>();
 
   // ---- launches (PumpPortal, free) ----
   const pp = new WebSocket("wss://pumpportal.fun/api/data");
@@ -184,6 +202,19 @@ Deno.serve(async (req) => {
       if (!ok) continue;
       stats.trades++;
       const mintHex = hex(b, 8, 40);
+      {
+        const uk = hex(b, 57, 89);
+        let h = hot.get(uk);
+        if (!h) {
+          h = { key: b.slice(57, 89), n: 0, buys: 0, vol: 0, coins: new Set(), last: 0 };
+          hot.set(uk, h);
+        }
+        h.n++;
+        if (b[56] === 1) h.buys++;
+        h.vol += Number(new DataView(b.buffer, b.byteOffset, b.byteLength).getBigUint64(40, true)) / 1e9;
+        h.coins.add(mintHex);
+        h.last = now;
+      }
       const t0 = tracked.get(mintHex);
       const f = t0 ? undefined : fresh.get(mintHex);
       if (!t0 && !f) continue;
@@ -260,7 +291,23 @@ Deno.serve(async (req) => {
     stats.stored += data?.events ?? 0;
   }
 
-  const timer = setInterval(() => void flush(false), FLUSH_MS);
+  // the wallets that look like people trading (not bots, not dust), most active first
+  async function flushHot() {
+    const rows = [...hot.values()]
+      .filter((h) => h.n >= 3 && h.n <= 45 && h.coins.size >= 2 && h.vol / h.n >= 0.05 && h.vol / h.n <= 8)
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 40)
+      .map((h) => ({ address: b58encode(h.key), n: h.n, buys: h.buys, vol: Math.round(h.vol * 1000) / 1000, coins: h.coins.size, last_at: new Date(h.last).toISOString() }));
+    if (!rows.length) return;
+    const { error } = await sb.from("yr_hot_wallets").upsert(rows);
+    if (error) stats.errors++;
+    else stats.hot = rows.length;
+  }
+
+  const timer = setInterval(() => {
+    void flush(false);
+    void flushHot();
+  }, FLUSH_MS);
   await new Promise((r) => setTimeout(r, RUN_MS));
   clearInterval(timer);
   for (const w of [pp, rpc]) {
@@ -271,5 +318,7 @@ Deno.serve(async (req) => {
     }
   }
   await flush(true);
+  await flushHot();
+  await sb.from("yr_hot_wallets").delete().lt("last_at", new Date(Date.now() - 10 * 60_000).toISOString());
   return Response.json({ ok: true, ms: Date.now() - started, tracked: tracked.size, fresh: fresh.size, ...stats });
 });

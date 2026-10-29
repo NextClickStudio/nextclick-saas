@@ -105,12 +105,26 @@ export type Arena = {
 
 // ---------- real duels ----------
 
-export type RealPlayer = { name: string; avatar: unknown; elo: number; wallet: string; rw: number; rp: number };
+export type RealPlayer = {
+  name: string;
+  avatar?: unknown;
+  elo: number;
+  wallet: string;
+  /** trading-app wallets that count too */
+  extra?: string[];
+  rw?: number;
+  rp?: number;
+  /** a live trader: a real pump.fun wallet picked because it is trading right now */
+  ghost?: boolean;
+  n?: number;
+  vol?: number;
+};
 export type RealScore = { vol: number; pnl: number; roi: number | null; n: number };
 
 export type RealDuel = {
   id: string;
   code: string;
+  kind?: "challenge" | "match" | "ghost";
   status: "open" | "live" | "done" | "cancelled" | "expired";
   now: number;
   created: number;
@@ -132,10 +146,18 @@ export type RealDuel = {
 export type RealBoard = {
   now: number;
   mine: { code: string; status: string } | null;
+  /** you are searching for a match */
+  queue?: { dur_ms: number; since: number } | null;
+  /** players searching right now, by duel length in minutes */
+  searching?: Record<string, number>;
+  /** live pump.fun traders yeppo can put in front of you */
+  traders?: number;
   open: { code: string; name: string; avatar: unknown; elo: number; rw: number; rp: number; dur_ms: number; created: number }[];
-  live: { code: string; n1: string; a1: unknown; n2: string; a2: unknown; start: number; end: number }[];
-  recent: { code: string; n1: string; a1: unknown; n2: string; a2: unknown; winner: number; r1: number | null; r2: number | null; end_ms: number }[];
+  live: { code: string; n1: string; a1: unknown; n2: string; a2: unknown; ghost?: boolean; start: number; end: number }[];
+  recent: { code: string; n1: string; a1: unknown; n2: string; a2: unknown; ghost?: boolean; winner: number; r1: number | null; r2: number | null; end_ms: number }[];
 };
+
+export type TradingWallet = { address: string; label: string | null; status: "pending" | "ok"; sol: number; created: number; expires: number };
 
 // ---------- live duels (yeppo terminal) ----------
 

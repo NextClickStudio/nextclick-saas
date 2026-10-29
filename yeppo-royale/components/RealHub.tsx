@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { rpc } from "@/lib/supabase";
 import { age, clock, pct } from "@/lib/format";
 import { sfx, toast } from "@/lib/fx";
@@ -11,9 +11,12 @@ import type { RealBoard } from "@/lib/types";
 import { useApp } from "./AppProvider";
 import Avatar from "./Avatar";
 import TopBar from "./TopBar";
+import TradingWallets from "./TradingWallets";
 import WalletConnect from "./WalletConnect";
 
 const DURS = [5, 15, 30, 60];
+const QUICK = [5, 10, 15];
+type Found = { status: "queue" | "live"; code?: string; ghost?: boolean; waited?: number; waiting?: number };
 
 export default function RealHub() {
   const router = useRouter();
@@ -23,6 +26,10 @@ export default function RealHub() {
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [offline, setOffline] = useState(false);
+  const [qdur, setQdur] = useState(5);
+  const [search, setSearch] = useState<{ since: number; waiting: number } | null>(null);
+  const [friend, setFriend] = useState(false);
+  const finding = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -43,6 +50,50 @@ export default function RealHub() {
       clearInterval(c);
     };
   }, [load]);
+
+  // matchmaking: ask every 2 seconds; the server pairs you, or hands you a live trader after 25 seconds
+  const find = useCallback(
+    async (ghost: boolean) => {
+      if (!session || finding.current) return;
+      finding.current = true;
+      try {
+        const r = await rpc<Found>("yr_rduel_find", { p_secret: session.secret, p_minutes: qdur, p_ghost: ghost });
+        if (r.status === "live" && r.code) {
+          sfx.go();
+          toast(r.ghost ? "Matched with a live pump.fun trader" : "Opponent found", "up");
+          setSearch(null);
+          router.push(`/real/${r.code}`);
+          return;
+        }
+        setSearch((s) => ({ since: s?.since ?? Date.now() - (r.waited ?? 0), waiting: r.waiting ?? 0 }));
+        if (ghost) toast("No live trader to pair right now. Still searching…", "info");
+      } catch (e) {
+        sfx.error();
+        setSearch(null);
+        toast(e instanceof Error ? e.message : "Could not search", "down");
+      } finally {
+        finding.current = false;
+      }
+    },
+    [session, qdur, router],
+  );
+
+  const searchingNow = !!search;
+  useEffect(() => {
+    if (!searchingNow) return;
+    const t = setInterval(() => void find(false), 2000);
+    return () => clearInterval(t);
+  }, [searchingNow, find]);
+
+  const start = () => {
+    sfx.go();
+    setSearch({ since: Date.now(), waiting: 0 });
+    void find(false);
+  };
+  const stop = async () => {
+    setSearch(null);
+    if (session) await rpc("yr_rduel_leave", { p_secret: session.secret }).catch(() => null);
+  };
 
   const create = async () => {
     if (!session) return;
@@ -89,18 +140,18 @@ export default function RealHub() {
               One winner<span>.</span>
             </h1>
             <p className="hero-sub">
-              Challenge a trader for 5 to 60 minutes. You both trade memecoins with your own wallets, on pump.fun or any app built on it. yeppo reads every
-              trade from the Solana chain. The higher ROI wins and the win is stamped on your profile.
+              Press Find and yeppo puts a trader in front of you: another player, or a real pump.fun wallet that is trading right now. You both trade with your
+              own wallets, on the yeppo terminal, pump.fun, Axiom, GMGN or any app. Every trade is read from the chain. Highest ROI wins.
             </p>
             <ol className="steps steps-row">
               <li>
                 <b>Verify</b> your wallet with a free signature
               </li>
               <li>
-                <b>Challenge</b> anyone, or accept an open duel
+                <b>Link</b> your Axiom, GMGN or Photon wallet
               </li>
               <li>
-                <b>Trade</b> on pump.fun, Axiom, GMGN, Photon…
+                <b>Find</b> a duel: a player or a live trader
               </li>
               <li>
                 <b>Highest ROI</b> takes the win and the rating
@@ -129,21 +180,67 @@ export default function RealHub() {
                       {board.mine.status === "open" ? "Open my challenge" : "Go to my duel"}
                     </Link>
                   </div>
+                ) : search ? (
+                  <div className="mm">
+                    <div className="mm-radar" aria-hidden="true">
+                      <i />
+                      <i />
+                      <i />
+                    </div>
+                    <b className="display">Finding a {qdur} min duel</b>
+                    <span className="mono mm-clock">{clock(Math.max(0, now - search.since))}</span>
+                    <p className="small muted">
+                      {search.waiting > 0 ? `${search.waiting} other player${search.waiting > 1 ? "s" : ""} searching` : "Looking for players"} ·{" "}
+                      {board?.traders ?? 0} live traders ready. Nobody in 25 seconds? A live pump.fun trader takes the other side.
+                    </p>
+                    <div className="row-btns">
+                      <button className="btn btn-primary" onClick={() => void find(true)}>
+                        Duel a live trader now
+                      </button>
+                      <button className="btn btn-ghost" onClick={stop}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="create">
                     <span className="lbl">Duel length</span>
                     <div className="seg">
-                      {DURS.map((d) => (
-                        <button key={d} className={dur === d ? "on" : ""} onClick={() => setDur(d)}>
+                      {QUICK.map((d) => (
+                        <button key={d} className={qdur === d ? "on" : ""} onClick={() => setQdur(d)}>
                           {d} min
+                          {(board?.searching?.[String(d)] ?? 0) > 0 && <span className="seg-dot" />}
                         </button>
                       ))}
                     </div>
-                    <button className="btn btn-primary big" onClick={create} disabled={busy}>
-                      {busy ? "Creating…" : "Create challenge"}
+                    <button className="btn btn-primary big find-real" onClick={start}>
+                      Find real duel
                     </button>
+                    <span className="small dim">
+                      {Object.values(board?.searching ?? {}).reduce((a, b) => a + b, 0)} searching · {board?.traders ?? 0} live traders on pump.fun
+                    </span>
+                    {friend ? (
+                      <div className="friend">
+                        <span className="lbl">Challenge a friend with a link</span>
+                        <div className="seg sm">
+                          {DURS.map((d) => (
+                            <button key={d} className={dur === d ? "on" : ""} onClick={() => setDur(d)}>
+                              {d} min
+                            </button>
+                          ))}
+                        </div>
+                        <button className="btn" onClick={create} disabled={busy}>
+                          {busy ? "Creating…" : "Create challenge link"}
+                        </button>
+                      </div>
+                    ) : (
+                      <button className="link-btn small" onClick={() => setFriend(true)}>
+                        Or challenge a friend with a link
+                      </button>
+                    )}
                   </div>
                 )}
+                <TradingWallets />
               </>
             )}
             <ul className="rules small muted">
@@ -200,7 +297,7 @@ export default function RealHub() {
                 <b>{l.n1}</b>
                 <span className="dim small">vs</span>
                 <b>{l.n2}</b>
-                <Avatar look={l.a2} size={24} />
+                {l.ghost ? <span className="chip chip-ghost">LIVE TRADER</span> : <Avatar look={l.a2} size={24} />}
                 <span className="mono small" style={{ marginLeft: "auto" }}>
                   {now < l.start ? `starts ${clock(l.start - now)}` : `${clock(l.end - now)} left`}
                 </span>

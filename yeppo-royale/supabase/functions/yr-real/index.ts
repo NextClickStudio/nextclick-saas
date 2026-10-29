@@ -1,7 +1,9 @@
 // yr-real: the on-chain side of real duels.
 //  POST {action: "verify", secret, address, signature, message?}  (public)  checks a wallet signature and links the wallet
 //       (message: a Sign In With Solana message the wallet built around our nonce, base64)
+//  POST {action: "twallet_check", secret}                (public)  looks for a trading wallet's proof transfer right now
 //  POST {} with x-ingest-key                             (pg_cron) polls the duelists' wallets for pump.fun trades
+//       and checks trading wallets waiting for their proof
 // Trades are read from the public Solana RPC: the pump.fun program logs a TradeEvent for every buy
 // and sell, whatever app sent it. Only trades inside the duel window are stored.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
@@ -225,8 +227,59 @@ async function pollWallet(sb: SupabaseClient<any, any, any>, j: Job, marks: Map<
     if (error) throw new Error(error.message);
     stats.trades += rows.length;
   }
-  await sb.from("yr_rcursor").upsert({ rduel: j.rduel, slot: j.slot, last_sig: complete ? newest : j.last_sig, polled_at: new Date().toISOString() });
+  await sb.from("yr_rcursor2").upsert({ rduel: j.rduel, slot: j.slot, wallet: j.wallet, last_sig: complete ? newest : j.last_sig, polled_at: new Date().toISOString() });
   j.last_sig = complete ? newest : j.last_sig;
+}
+
+// ---------- trading wallets ----------
+// A trading app's wallet (Axiom, GMGN, Photon...) is linked once it sends the exact proof amount to the
+// player's verified wallet: only whoever controls the trading wallet can sign that transfer.
+type TWallet = { user_id: string; address: string; to: string; lamports: number; since: number };
+type Ix = { program?: string; parsed?: { type?: string; info?: { source?: string; destination?: string; lamports?: number | string } } };
+type ParsedTx = { transaction: { message: { instructions: Ix[] } }; meta: { err: unknown; innerInstructions?: { instructions: Ix[] }[] } | null } | null;
+const checked = new Map<string, Set<string>>();
+
+async function checkTwallet(sb: SupabaseClient<any, any, any>, t: TWallet): Promise<boolean> {
+  const sigs = await rpc<Sig[]>("getSignaturesForAddress", [t.address, { limit: 15, commitment: "confirmed" }]);
+  const seen = checked.get(t.address) ?? new Set<string>();
+  checked.set(t.address, seen);
+  for (const s of sigs) {
+    if (s.err || seen.has(s.signature)) continue;
+    if (s.blockTime != null && s.blockTime * 1000 < t.since - 120_000) break;
+    const tx = await rpc<ParsedTx>("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }]);
+    seen.add(s.signature);
+    if (!tx || tx.meta?.err) continue;
+    const ixs = [...tx.transaction.message.instructions, ...(tx.meta?.innerInstructions ?? []).flatMap((x) => x.instructions)];
+    const hit = ixs.some(
+      (ix) =>
+        ix.program === "system" &&
+        (ix.parsed?.type === "transfer" || ix.parsed?.type === "transferWithSeed") &&
+        ix.parsed.info?.source === t.address &&
+        ix.parsed.info?.destination === t.to &&
+        Math.abs(Number(ix.parsed.info?.lamports) - t.lamports) <= 20_000,
+    );
+    if (hit) {
+      const { error } = await sb.rpc("yr_twallet_ok", { p_user: t.user_id, p_address: t.address });
+      if (error) throw new Error(error.message);
+      return true;
+    }
+  }
+  return false;
+}
+
+async function twalletCheck(sb: SupabaseClient<any, any, any>, body: Record<string, string>) {
+  if (!body.secret) return json({ error: "Missing fields" }, 400);
+  const { data, error } = await sb.rpc("yr_twallet_pending", { p_secret: body.secret });
+  if (error) return json({ error: error.message }, 400);
+  const ok: string[] = [];
+  for (const t of (data as TWallet[]) ?? []) {
+    try {
+      if (await checkTwallet(sb, t)) ok.push(t.address);
+    } catch (e) {
+      return json({ error: e instanceof Error ? e.message : "Could not check the chain" }, 400);
+    }
+  }
+  return json({ ok: true, verified: ok, pending: ((data as TWallet[]) ?? []).length - ok.length });
 }
 
 /** latest bonding-curve reserves of a coin, from its newest trade */
@@ -244,15 +297,27 @@ async function refreshMark(mint: string, marks: Map<string, { vsol: number; vtok
 
 async function poll(sb: SupabaseClient<any, any, any>) {
   const t0 = Date.now();
-  const stats: Record<string, number> = { loops: 0, sigs: 0, txs: 0, trades: 0, marks: 0, errors: 0 };
+  const stats: Record<string, number> = { loops: 0, sigs: 0, txs: 0, trades: 0, marks: 0, errors: 0, proofs: 0 };
   const marked = new Map<string, number>();
+  let proofAt = 0;
   while (Date.now() - t0 < RUN_MS) {
     const { data, error } = await sb.rpc("yr_rduel_jobs");
     if (error) return json({ error: error.message, stats }, 500);
-    const jobs = (data as { wallets: Job[]; held: string[] }).wallets;
-    const held = (data as { wallets: Job[]; held: string[] }).held;
-    if (!jobs.length) break;
+    const jobs = (data as { wallets: Job[] }).wallets;
+    const held = (data as { held: string[] }).held;
+    const proofs = (data as { twallets?: TWallet[] }).twallets ?? [];
+    if (!jobs.length && !proofs.length) break;
     stats.loops++;
+    if (proofs.length && Date.now() - proofAt > 10_000) {
+      proofAt = Date.now();
+      for (const t of proofs) {
+        try {
+          if (await checkTwallet(sb, t)) stats.proofs++;
+        } catch {
+          stats.errors++;
+        }
+      }
+    }
     const marks = new Map<string, { vsol: number; vtok: number; at: number }>();
     for (const j of jobs) {
       try {
@@ -285,6 +350,7 @@ Deno.serve(async (req) => {
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
   const body = (await req.json().catch(() => ({}))) as Record<string, string>;
   if (body.action === "verify") return verify(sb, body);
+  if (body.action === "twallet_check") return twalletCheck(sb, body);
   const { data: keyRow } = await sb.from("yr_config").select("value").eq("key", "ingest_key").maybeSingle();
   if (!keyRow || req.headers.get("x-ingest-key") !== keyRow.value) return json({ error: "forbidden" }, 403);
   return poll(sb);
