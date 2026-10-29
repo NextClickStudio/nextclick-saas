@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { installedWallets, phantomBrowseLink, short, solscanAccount, verifyWallet, type WalletOption } from "@/lib/wallet";
+import { installedWallets, onWalletsChange, phantomBrowseLink, short, solscanAccount, verifyWallet, type Wallet } from "@/lib/wallet";
 import { sfx, toast } from "@/lib/fx";
 import { useApp } from "./AppProvider";
 
 /** Link a wallet by signing a free message. Shows the linked wallet once verified. */
 export default function WalletConnect({ compact }: { compact?: boolean }) {
   const { me, session, refreshMe, openCreator } = useApp();
-  const [wallets, setWallets] = useState<WalletOption[]>([]);
+  const [wallets, setWallets] = useState<Wallet[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [change, setChange] = useState(false);
@@ -17,8 +17,12 @@ export default function WalletConnect({ compact }: { compact?: boolean }) {
     // extensions inject themselves a moment after load
     const pick = () => setWallets(installedWallets());
     pick();
+    const off = onWalletsChange(pick);
     const t = setTimeout(pick, 600);
-    return () => clearTimeout(t);
+    return () => {
+      off();
+      clearTimeout(t);
+    };
   }, []);
 
   if (!session || !me) {
@@ -50,7 +54,7 @@ export default function WalletConnect({ compact }: { compact?: boolean }) {
     );
   }
 
-  const go = async (w: WalletOption) => {
+  const go = async (w: Wallet) => {
     setBusy(w.id);
     setErr(null);
     try {
@@ -74,6 +78,7 @@ export default function WalletConnect({ compact }: { compact?: boolean }) {
         <div className="wallet-btns">
           {wallets.map((w) => (
             <button key={w.id} className="btn btn-primary" disabled={!!busy} onClick={() => go(w)}>
+              {w.icon && <img className="wallet-ico" src={w.icon} alt="" />}
               {busy === w.id ? "Check your wallet…" : `Verify with ${w.name}`}
             </button>
           ))}

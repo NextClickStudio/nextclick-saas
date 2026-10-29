@@ -4094,3 +4094,56 @@ a.soc:hover {
     grid-template-columns: 18px 96px 44px minmax(0, 1fr) 52px;
   }
 }
+
+.wallet-ico {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex: none;
+}
+
+.soc-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+  border: 1px solid var(--line2);
+  text-decoration: none;
+}
+.soc-btn:hover {
+  border-color: var(--text2);
+}
+.thead-desc {
+  margin: 4px 0 0;
+  max-width: 440px;
+  font-size: 11px;
+  color: var(--text2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.feed-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.feed-dot i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--up);
+  box-shadow: 0 0 6px var(--up);
+}
+.feed-dot.chain i {
+  background: var(--gold, #f0b90b);
+  box-shadow: 0 0 6px var(--gold, #f0b90b);
+}
+.feed-dot.off i {
+  background: var(--down);
+  box-shadow: none;
+}

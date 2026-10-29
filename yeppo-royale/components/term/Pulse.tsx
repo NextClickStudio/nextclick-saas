@@ -40,6 +40,22 @@ const TABS: [Tab, string][] = [
 ];
 const BAD = /(nigg|n1gg|fag|rape|hitler|nazi|kkk|retard|kike|chink|spic|tranny|porn|nsfw|cunt|whore|slut)/i;
 
+/** where live prices come from right now: the PumpPortal socket, or Solana itself while the socket is down */
+function FeedDot() {
+  const [h, setH] = useState<"live" | "chain">("live");
+  useEffect(() => {
+    const f = getFeed();
+    const t = setInterval(() => setH(f.healthy() ? "live" : "chain"), 2000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span className={`feed-dot ${h}`} title={h === "live" ? "Every trade streams in live" : "Live socket reconnecting: prices are read from Solana every second"}>
+      <i />
+      {h === "live" ? "LIVE" : "CHAIN"}
+    </span>
+  );
+}
+
 /** the coin list on the left of the terminal: fresh launches, what is pumping, what is about to graduate */
 export default function Pulse({
   selected,
@@ -90,7 +106,7 @@ export default function Pulse({
       }
     };
     void load();
-    const t = setInterval(load, 8000);
+    const t = setInterval(load, 5000);
     return () => {
       dead = true;
       clearInterval(t);
@@ -200,6 +216,7 @@ export default function Pulse({
           ))}
         </div>
         <div className="pulse-tools">
+          <FeedDot />
           <input
             className="input pulse-search"
             placeholder="Search or paste a CA"

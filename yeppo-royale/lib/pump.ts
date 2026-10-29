@@ -47,6 +47,7 @@ export type CoinMeta = {
   x?: string | null;
   tg?: string | null;
   web?: string | null;
+  desc?: string | null;
 };
 
 export class Coin {
@@ -225,6 +226,10 @@ export function loadCoin(mint: string): Promise<Coin> {
 }
 
 // ---------- the live feed ----------
+// One PumpPortal socket per browser. PumpPortal cuts off browsers that open many sockets, so the first
+// tab takes a Web Lock and owns the socket, and every other tab (and the floating tracker window) gets
+// its messages over a BroadcastChannel. A watchdog reopens a socket that went quiet, and the chain
+// ticker reads the bonding curves straight from Solana so prices keep moving even without the socket.
 
 type Msg = Record<string, unknown>;
 const num = (x: unknown) => {
@@ -232,20 +237,104 @@ const num = (x: unknown) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const CHANNEL = "yr-feed-1";
+const PEER_TTL = 13_000;
+const QUIET_MS = 30_000;
+type ChanMsg =
+  | { t: "m"; d: string }
+  | { t: "s"; s: FeedStatus }
+  | { t: "subs"; id: string; mints: string[]; fresh: boolean }
+  | { t: "hello" }
+  | { t: "bye"; id: string };
+
 class Feed {
   status: FeedStatus = "off";
+  /** when the last PumpPortal message arrived, in this tab */
+  lastMsg = 0;
+  private readonly id = Math.random().toString(36).slice(2);
   private ws: WebSocket | null = null;
+  private chan: BroadcastChannel | null = null;
+  private leader = false;
+  private peers = new Map<string, { mints: string[]; fresh: boolean; at: number }>();
+  private subbed = new Set<string>();
+  private subbedNew = false;
   private watched = new Map<string, number>();
+  private liveAt = new Map<string, number>();
   private wantNew = 0;
   private tradeL = new Set<(mint: string, t: Trade) => void>();
   private newL = new Set<(c: NewCoin) => void>();
   private migL = new Set<(mint: string) => void>();
   private statusL = new Set<(s: FeedStatus) => void>();
   private retry = 0;
+  private openAt = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private syncT: ReturnType<typeof setTimeout> | null = null;
+  private started = false;
+  readonly ticker: Ticker;
+
+  constructor() {
+    this.ticker = new Ticker(
+      (mint, t) => this.tradeL.forEach((f) => f(mint, t)),
+      (mint) => Date.now() - (this.liveAt.get(mint) ?? 0) < 6000,
+      () => this.healthy(),
+    );
+  }
+
+  /** the socket is up and talking */
+  healthy() {
+    return this.status === "live" && Date.now() - this.lastMsg < QUIET_MS;
+  }
+
+  private start() {
+    if (this.started || typeof window === "undefined") return;
+    this.started = true;
+    const locks = (navigator as Navigator & { locks?: LockManager }).locks;
+    if (typeof BroadcastChannel !== "undefined" && locks?.request) {
+      this.chan = new BroadcastChannel(CHANNEL);
+      this.chan.onmessage = (e: MessageEvent<ChanMsg>) => this.onChan(e.data);
+      // held until this tab closes; the next tab in line takes over the socket
+      void locks.request(CHANNEL, () => new Promise<void>(() => this.lead())).catch(() => this.lead());
+      window.addEventListener("pagehide", () => this.chan?.postMessage({ t: "bye", id: this.id } satisfies ChanMsg));
+      setInterval(() => this.announce(), 4000);
+      this.chan.postMessage({ t: "hello" } satisfies ChanMsg);
+    } else this.lead();
+    setInterval(() => this.watchdog(), 5000);
+  }
+
+  private lead() {
+    if (this.leader) return;
+    this.leader = true;
+    this.chan?.postMessage({ t: "hello" } satisfies ChanMsg);
+    this.sync();
+  }
+
+  private onChan(m: ChanMsg) {
+    if (!m || typeof m !== "object") return;
+    if (m.t === "m") {
+      if (!this.leader) this.onMessage(m.d);
+    } else if (m.t === "s") {
+      if (!this.leader) this.setStatus(m.s);
+    } else if (m.t === "subs") {
+      if (!this.leader) return;
+      this.peers.set(m.id, { mints: m.mints, fresh: m.fresh, at: Date.now() });
+      this.sync(true);
+    } else if (m.t === "hello") {
+      if (this.leader) this.chan?.postMessage({ t: "s", s: this.status } satisfies ChanMsg);
+      else this.announce();
+    } else if (m.t === "bye" && this.leader) {
+      this.peers.delete(m.id);
+      this.sync(true);
+    }
+  }
+
+  private announce() {
+    if (this.leader || !this.chan) return;
+    this.chan.postMessage({ t: "subs", id: this.id, mints: [...this.watched.keys()], fresh: this.wantNew > 0 } satisfies ChanMsg);
+  }
 
   private setStatus(s: FeedStatus) {
     this.status = s;
+    if (this.leader) this.chan?.postMessage({ t: "s", s } satisfies ChanMsg);
     this.statusL.forEach((f) => f(s));
   }
 
@@ -253,8 +342,58 @@ class Feed {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(o));
   }
 
-  private get needed() {
-    return this.wantNew > 0 || this.watched.size > 0 || this.tradeL.size > 0;
+  /** what this browser wants from PumpPortal: this tab's coins plus every live follower's */
+  private wanted() {
+    const now = Date.now();
+    const mints = new Set(this.watched.keys());
+    let fresh = this.wantNew > 0;
+    for (const [id, p] of this.peers) {
+      if (now - p.at > PEER_TTL) {
+        this.peers.delete(id);
+        continue;
+      }
+      p.mints.forEach((m) => mints.add(m));
+      fresh ||= p.fresh;
+    }
+    return { mints, fresh };
+  }
+
+  /** coalesce subscription changes into one round of messages (now: a background leader's timers can be throttled) */
+  private sync(now = false) {
+    this.start();
+    if (now) {
+      if (this.syncT) clearTimeout(this.syncT);
+      this.syncT = null;
+      return this.flush();
+    }
+    if (this.syncT) return;
+    this.syncT = setTimeout(() => {
+      this.syncT = null;
+      this.flush();
+    }, 250);
+  }
+
+  private flush() {
+    if (!this.leader) return this.announce();
+    const w = this.wanted();
+    if (!w.mints.size && !w.fresh) {
+      if (this.ws) this.ws.close();
+      return;
+    }
+    if (!this.ws && !this.timer) return this.connect();
+    if (this.ws?.readyState !== WebSocket.OPEN) return;
+    const add = [...w.mints].filter((m) => !this.subbed.has(m));
+    const del = [...this.subbed].filter((m) => !w.mints.has(m));
+    for (let i = 0; i < add.length; i += 50) this.send({ method: "subscribeTokenTrade", keys: add.slice(i, i + 50) });
+    if (del.length) this.send({ method: "unsubscribeTokenTrade", keys: del });
+    add.forEach((m) => this.subbed.add(m));
+    del.forEach((m) => this.subbed.delete(m));
+    if (w.fresh !== this.subbedNew) {
+      const verb = w.fresh ? "subscribe" : "unsubscribe";
+      this.send({ method: `${verb}NewToken` });
+      this.send({ method: `${verb}Migration` });
+      this.subbedNew = w.fresh;
+    }
   }
 
   private connect() {
@@ -262,24 +401,28 @@ class Feed {
     this.setStatus("connecting");
     const ws = new WebSocket(WS);
     this.ws = ws;
+    this.subbed = new Set();
+    this.subbedNew = false;
     ws.onopen = () => {
       this.retry = 0;
+      this.openAt = Date.now();
       this.setStatus("live");
-      if (this.wantNew) {
-        this.send({ method: "subscribeNewToken" });
-        this.send({ method: "subscribeMigration" });
-      }
-      if (this.watched.size) this.send({ method: "subscribeTokenTrade", keys: [...this.watched.keys()] });
+      this.sync();
     };
-    ws.onmessage = (m) => this.onMessage(m.data);
+    ws.onmessage = (m) => {
+      const raw = String(m.data);
+      this.onMessage(raw);
+      this.chan?.postMessage({ t: "m", d: raw } satisfies ChanMsg);
+    };
     ws.onclose = () => {
-      this.ws = null;
-      if (!this.needed) {
+      if (this.ws === ws) this.ws = null;
+      const w = this.wanted();
+      if (!w.mints.size && !w.fresh) {
         this.setStatus("off");
         return;
       }
       this.setStatus("connecting");
-      const wait = Math.min(15_000, 800 * 2 ** this.retry++);
+      const wait = Math.min(20_000, 1000 * 2 ** this.retry++) * (0.75 + Math.random() * 0.5);
       this.timer = setTimeout(() => {
         this.timer = null;
         this.connect();
@@ -288,21 +431,24 @@ class Feed {
     ws.onerror = () => ws.close();
   }
 
-  private ensure() {
-    if (!this.ws && !this.timer) this.connect();
+  /** a socket that went silent while launches should be flowing gets reopened */
+  private watchdog() {
+    if (!this.leader || this.ws?.readyState !== WebSocket.OPEN) return;
+    if (this.wanted().fresh && Date.now() - Math.max(this.lastMsg, this.openAt) > QUIET_MS) this.ws.close();
   }
 
-  private onMessage(raw: unknown) {
+  private onMessage(raw: string) {
     let d: Msg;
     try {
-      d = JSON.parse(String(raw));
+      d = JSON.parse(raw);
     } catch {
       return;
     }
+    const now = Date.now();
+    this.lastMsg = now;
     const mint = typeof d.mint === "string" ? d.mint : null;
     if (!mint) return;
     const tx = d.txType;
-    const now = Date.now();
     if (tx === "create") {
       const c: NewCoin = {
         mint,
@@ -332,6 +478,7 @@ class Feed {
         who: String(d.traderPublicKey ?? ""),
       };
       if (!(t.vtok > 0)) return;
+      this.liveAt.set(mint, now);
       if (coinOf(mint).add(t, true)) this.tradeL.forEach((f) => f(mint, t));
     } else if (tx === "migrate" || tx === "migration") {
       coinOf(mint).graduated = true;
@@ -347,46 +494,149 @@ class Feed {
 
   onTrade(f: (mint: string, t: Trade) => void) {
     this.tradeL.add(f);
-    this.ensure();
+    this.start();
     return () => void this.tradeL.delete(f);
   }
 
   onNew(f: (c: NewCoin) => void, onMigrate?: (mint: string) => void) {
     this.newL.add(f);
     if (onMigrate) this.migL.add(onMigrate);
-    if (this.wantNew++ === 0) {
-      this.send({ method: "subscribeNewToken" });
-      this.send({ method: "subscribeMigration" });
-    }
-    this.ensure();
+    this.wantNew++;
+    this.sync();
     return () => {
       this.newL.delete(f);
       if (onMigrate) this.migL.delete(onMigrate);
-      if (--this.wantNew === 0) {
-        this.send({ method: "unsubscribeNewToken" });
-        this.send({ method: "unsubscribeMigration" });
+      this.wantNew--;
+      this.sync();
+    };
+  }
+
+  /** follow every trade of these coins (socket and chain); returns the undo */
+  watch(mints: string[]) {
+    const list = [...new Set(mints)].filter(Boolean);
+    for (const m of list) this.watched.set(m, (this.watched.get(m) ?? 0) + 1);
+    this.sync();
+    const untick = this.ticker.watch(list);
+    return () => {
+      for (const m of list) {
+        const n = (this.watched.get(m) ?? 1) - 1;
+        if (n <= 0) this.watched.delete(m);
+        else this.watched.set(m, n);
+      }
+      untick();
+      this.sync();
+    };
+  }
+}
+
+// ---------- the chain ticker ----------
+const PUMP_PROGRAM = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
+
+function fromB64(s: string) {
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/** reads the bonding curves of followed coins from Solana; a reserve change the socket missed becomes a trade */
+class Ticker {
+  private want = new Map<string, number>();
+  private pdas = new Map<string, string>();
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private busy = false;
+
+  constructor(
+    private emit: (mint: string, t: Trade) => void,
+    private socketHas: (mint: string) => boolean,
+    private socketOk: () => boolean,
+  ) {}
+
+  watch(mints: string[]) {
+    for (const m of mints) this.want.set(m, (this.want.get(m) ?? 0) + 1);
+    if (!this.timer && !this.busy) this.timer = setTimeout(() => void this.run(), 400);
+    return () => {
+      for (const m of mints) {
+        const n = (this.want.get(m) ?? 1) - 1;
+        if (n <= 0) this.want.delete(m);
+        else this.want.set(m, n);
       }
     };
   }
 
-  /** follow every trade of these coins; returns the undo */
-  watch(mints: string[]) {
-    const fresh = [...new Set(mints)].filter((m) => {
-      const n = this.watched.get(m) ?? 0;
-      this.watched.set(m, n + 1);
-      return n === 0;
-    });
-    if (fresh.length) this.send({ method: "subscribeTokenTrade", keys: fresh });
-    this.ensure();
-    return () => {
-      const gone = [...new Set(mints)].filter((m) => {
-        const n = (this.watched.get(m) ?? 1) - 1;
-        if (n <= 0) this.watched.delete(m);
-        else this.watched.set(m, n);
-        return n <= 0;
-      });
-      if (gone.length) this.send({ method: "unsubscribeTokenTrade", keys: gone });
-    };
+  private async pdaOf(mints: string[]) {
+    const missing = mints.filter((m) => !this.pdas.has(m));
+    if (missing.length) {
+      const { PublicKey } = await import("@solana/web3.js");
+      const program = new PublicKey(PUMP_PROGRAM);
+      const seed = new TextEncoder().encode("bonding-curve");
+      for (const m of missing) {
+        try {
+          this.pdas.set(m, PublicKey.findProgramAddressSync([seed, new PublicKey(m).toBytes()], program)[0].toBase58());
+        } catch {
+          this.want.delete(m);
+        }
+      }
+    }
+    return mints.filter((m) => this.pdas.has(m));
+  }
+
+  private async run() {
+    this.timer = null;
+    if (!this.want.size) return;
+    let wait = this.socketOk() ? 4000 : 1200;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") wait = 5000;
+    else {
+      this.busy = true;
+      try {
+        const mints = await this.pdaOf([...this.want.keys()].slice(0, 100));
+        const r = await solRpc<{ value: ({ data: [string, string] } | null)[] }>("getMultipleAccounts", [
+          mints.map((m) => this.pdas.get(m)),
+          { encoding: "base64", commitment: "processed" },
+        ]);
+        const now = Date.now();
+        r.value.forEach((acc, i) => {
+          if (!acc) return;
+          const b = fromB64(acc.data[0]);
+          if (b.length < 49) return;
+          const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+          const vtok = Number(v.getBigUint64(8, true)) / 1e6;
+          const vsol = Number(v.getBigUint64(16, true)) / 1e9;
+          const mint = mints[i];
+          const c = coinOf(mint);
+          if (b[48] === 1) {
+            c.graduated = true;
+            return;
+          }
+          if (!(vtok > 0)) return;
+          if (!(c.vtok > 0)) {
+            c.vsol = vsol;
+            c.vtok = vtok;
+            c.lastT = now;
+            c.version++;
+            return;
+          }
+          if (Math.abs(vtok - c.vtok) < 1 || this.socketHas(mint)) return;
+          const k = vsol > c.vsol ? 1 : 2;
+          const t: Trade = {
+            sig: `rpc:${mint}:${vtok}`,
+            t: now,
+            k,
+            sol: k === 1 ? (vsol - c.vsol) / (1 - FEE) : (c.vsol - vsol) * (1 - FEE),
+            tok: Math.abs(c.vtok - vtok),
+            vsol,
+            vtok,
+            who: "",
+          };
+          if (c.add(t, true)) this.emit(mint, t);
+        });
+      } catch {
+        wait = 5000;
+      } finally {
+        this.busy = false;
+      }
+    }
+    if (this.want.size) this.timer = setTimeout(() => void this.run(), wait);
   }
 }
 
@@ -421,44 +671,68 @@ export function setSolPrice(p: number | null | undefined) {
 
 // ---------- coin images ----------
 
-const imgCache = new Map<string, string | null>();
-const imgWait = new Map<string, Promise<string | null>>();
-let imgActive = 0;
-const imgQueue: (() => void)[] = [];
+export type CoinJson = { image: string | null; twitter: string | null; telegram: string | null; website: string | null; description: string | null };
+const jsonCache = new Map<string, CoinJson | null>();
+const jsonWait = new Map<string, Promise<CoinJson | null>>();
+let jsonActive = 0;
+const jsonQueue: (() => void)[] = [];
 
 const gateway = (u: string) => {
   const cid = u.split("/ipfs/")[1];
   return cid ? `https://pump.mypinata.cloud/ipfs/${cid}` : u;
 };
+const link = (v: unknown, kind: "x" | "tg" | "web") => {
+  if (typeof v !== "string" || !v.trim()) return null;
+  let u = v.trim();
+  if (kind === "x" && /^@?[A-Za-z0-9_]{1,15}$/.test(u)) u = `https://x.com/${u.replace(/^@/, "")}`;
+  if (kind === "tg" && /^@?[A-Za-z0-9_]{4,32}$/.test(u)) u = `https://t.me/${u.replace(/^@/, "")}`;
+  if (!/^https?:\/\//i.test(u)) u = `https://${u}`;
+  try {
+    const url = new URL(u);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+};
 
-/** image url from a coin's metadata json (cached, at most four lookups at a time) */
-export function coinImage(uri: string | null | undefined): Promise<string | null> {
+/** a coin's metadata json: image, socials and description (cached, at most four lookups at a time) */
+export function coinJson(uri: string | null | undefined): Promise<CoinJson | null> {
   if (!uri) return Promise.resolve(null);
-  if (imgCache.has(uri)) return Promise.resolve(imgCache.get(uri)!);
-  const busy = imgWait.get(uri);
+  if (jsonCache.has(uri)) return Promise.resolve(jsonCache.get(uri)!);
+  const busy = jsonWait.get(uri);
   if (busy) return busy;
-  const p = new Promise<string | null>((resolve) => {
+  const p = new Promise<CoinJson | null>((resolve) => {
     const run = async () => {
-      imgActive++;
-      let out: string | null = null;
+      jsonActive++;
+      let out: CoinJson | null = null;
       try {
         const r = await fetch(gateway(uri), { signal: AbortSignal.timeout(6000) });
-        const j = (await r.json()) as { image?: string };
-        out = typeof j.image === "string" && j.image ? gateway(j.image) : null;
+        const j = (await r.json()) as Record<string, unknown>;
+        const ext = (j.extensions ?? {}) as Record<string, unknown>;
+        out = {
+          image: typeof j.image === "string" && j.image ? gateway(j.image) : null,
+          twitter: link(j.twitter ?? ext.twitter, "x"),
+          telegram: link(j.telegram ?? ext.telegram, "tg"),
+          website: link(j.website ?? ext.website, "web"),
+          description: typeof j.description === "string" ? j.description.slice(0, 400) : null,
+        };
       } catch {
         out = null;
       }
-      imgCache.set(uri, out);
-      imgActive--;
-      imgQueue.shift()?.();
+      jsonCache.set(uri, out);
+      jsonActive--;
+      jsonQueue.shift()?.();
       resolve(out);
     };
-    if (imgActive < 4) void run();
-    else imgQueue.push(() => void run());
+    if (jsonActive < 4) void run();
+    else jsonQueue.push(() => void run());
   });
-  imgWait.set(uri, p);
+  jsonWait.set(uri, p);
   return p;
 }
+
+/** image url from a coin's metadata json */
+export const coinImage = (uri: string | null | undefined) => coinJson(uri).then((j) => j?.image ?? null);
 
 // ---------- holders ----------
 

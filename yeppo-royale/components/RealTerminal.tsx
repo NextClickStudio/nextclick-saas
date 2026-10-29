@@ -5,7 +5,7 @@ import { clock, sol } from "@/lib/format";
 import { toast } from "@/lib/fx";
 import { connectWallet, solBalance, swap, tokenBalance } from "@/lib/jup";
 import { coinOf } from "@/lib/pump";
-import { installedWallets, phantomBrowseLink, short, solscanTx } from "@/lib/wallet";
+import { installedWallets, onWalletsChange, phantomBrowseLink, short, solscanTx, walletById } from "@/lib/wallet";
 import type { RealDuel } from "@/lib/types";
 import { useApp } from "./AppProvider";
 import Terminal, { type Bag, type DuelMark, type TermTrade } from "./term/Terminal";
@@ -23,8 +23,16 @@ export default function RealTerminal({ d, sNow, hud, reload }: { d: RealDuel; sN
   const [wallets, setWallets] = useState<ReturnType<typeof installedWallets>>([]);
 
   useEffect(() => {
-    setWallets(installedWallets());
-    void connectWallet(null, false).then((a) => a && setAddr(a));
+    const pick = () => setWallets(installedWallets());
+    pick();
+    const off = onWalletsChange(pick);
+    const w = walletById(null);
+    void connectWallet(w, false).then((a) => {
+      if (!a || !w) return;
+      setAddr(a);
+      setWalletId(w.id);
+    });
+    return off;
   }, []);
 
   const refreshBal = useCallback(() => {
@@ -144,13 +152,17 @@ export default function RealTerminal({ d, sNow, hud, reload }: { d: RealDuel; sN
               key={w.id}
               className="btn btn-primary btn-sm"
               onClick={async () => {
-                const a = await connectWallet(w, true);
-                if (a) {
+                try {
+                  const a = await connectWallet(w, true);
+                  if (!a) throw new Error(`${w.name} did not share an address`);
                   setAddr(a);
                   setWalletId(w.id);
-                } else toast("The wallet did not connect", "down");
+                } catch (e) {
+                  toast(e instanceof Error ? e.message : "The wallet did not connect", "down");
+                }
               }}
             >
+              {w.icon && <img className="wallet-ico" src={w.icon} alt="" />}
               Connect {w.name}
             </button>
           ))}

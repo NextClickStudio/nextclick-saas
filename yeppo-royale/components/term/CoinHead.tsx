@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { age, pct, usd } from "@/lib/format";
-import { type Coin, shortAddr, solPrice } from "@/lib/pump";
+import { type Coin, coinJson, type CoinJson, shortAddr, solPrice } from "@/lib/pump";
 import { toast } from "@/lib/fx";
 import CoinAvatar from "./CoinAvatar";
 import { tinyUsd } from "./TermChart";
@@ -34,6 +34,23 @@ export default function CoinHead({
   onUnit: (u: "mc" | "price") => void;
 }) {
   const su = solPrice();
+  const [info, setInfo] = useState<CoinJson | null>(null);
+  useEffect(() => {
+    let dead = false;
+    setInfo(null);
+    void coinJson(coin.meta.uri).then((j) => {
+      if (dead || !j) return;
+      coin.meta = { ...coin.meta, x: coin.meta.x || j.twitter, tg: coin.meta.tg || j.telegram, web: coin.meta.web || j.website, desc: j.description };
+      setInfo(j);
+    });
+    return () => {
+      dead = true;
+    };
+  }, [coin, coin.meta.uri]);
+  const x = coin.meta.x || info?.twitter;
+  const tg = coin.meta.tg || info?.telegram;
+  const web = coin.meta.web || info?.website;
+  const desc = coin.meta.desc || info?.description;
   const s = useMemo(() => coin.stats(now), [coin, version, Math.floor(now / 2000)]); // eslint-disable-line react-hooks/exhaustive-deps
   const created = coin.meta.created ?? coin.trades[0]?.t ?? null;
   const prog = coin.progress();
@@ -55,23 +72,31 @@ export default function CoinHead({
               {shortAddr(coin.mint)} ⧉
             </button>
             {created && <span className="mono dim">{age(now - created).replace(/ \d+s$/, "")}</span>}
-            {coin.meta.x && (
-              <a className="soc" href={coin.meta.x} target="_blank" rel="noreferrer">
+            {x && (
+              <a className="soc soc-btn" href={x} target="_blank" rel="noreferrer" title={x.includes("/i/communities/") ? "X community" : "The coin on X"}>
                 𝕏
               </a>
             )}
-            {coin.meta.tg && (
-              <a className="soc" href={coin.meta.tg} target="_blank" rel="noreferrer">
-                tg
+            {tg && (
+              <a className="soc soc-btn" href={tg} target="_blank" rel="noreferrer" title="Telegram">
+                TG
               </a>
             )}
-            {coin.meta.web && (
-              <a className="soc" href={coin.meta.web} target="_blank" rel="noreferrer">
-                www
+            {web && (
+              <a className="soc soc-btn" href={web} target="_blank" rel="noreferrer" title="Website">
+                WEB
               </a>
             )}
+            <a className="soc soc-btn" href={`https://x.com/search?q=${coin.mint}&f=live`} target="_blank" rel="noreferrer" title="What people post about this coin on X right now">
+              🔍 X
+            </a>
             {coin.graduated && <span className="chip chip-warn">Graduated</span>}
           </div>
+          {desc && (
+            <p className="thead-desc" title={desc}>
+              {desc}
+            </p>
+          )}
         </div>
       </div>
       <div className="thead-stats">

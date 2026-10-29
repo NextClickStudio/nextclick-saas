@@ -1,5 +1,6 @@
 // yr-real: the on-chain side of real duels.
-//  POST {action: "verify", secret, address, signature}  (public)  checks a wallet signature and links the wallet
+//  POST {action: "verify", secret, address, signature, message?}  (public)  checks a wallet signature and links the wallet
+//       (message: a Sign In With Solana message the wallet built around our nonce, base64)
 //  POST {} with x-ingest-key                             (pg_cron) polls the duelists' wallets for pump.fun trades
 // Trades are read from the public Solana RPC: the pump.fun program logs a TradeEvent for every buy
 // and sell, whatever app sent it. Only trades inside the duel window are stored.
@@ -10,6 +11,8 @@ const TRADE_DISC = [189, 219, 127, 211, 78, 230, 97, 238];
 const RUN_MS = 50_000;
 const POLL_MS = 4_000;
 const MARK_MS = 8_000;
+// sites a Sign In With Solana message may name (the wallet fills in the site the player is on)
+const SIWS_DOMAINS = ["yeppo.it", "www.yeppo.it"];
 
 const CORS = {
   "access-control-allow-origin": "*",
@@ -163,7 +166,23 @@ async function verify(sb: SupabaseClient<any, any, any>, body: Record<string, st
     return json({ error: "Invalid wallet or signature" }, 400);
   }
   if (pk.length !== 32 || sig.length !== 64) return json({ error: "Invalid wallet or signature" }, 400);
-  const ok = await ed25519Verify(new TextEncoder().encode((chk as { message: string }).message), sig, pk);
+  const expected = (chk as { message: string }).message;
+  let signed: Uint8Array = new TextEncoder().encode(expected);
+  if (body.message) {
+    // Sign In With Solana: the wallet wrote the message, so check it is for yeppo, this wallet and this nonce
+    try {
+      signed = b64decode(body.message);
+    } catch {
+      return json({ error: "Invalid wallet or signature" }, 400);
+    }
+    const lines = new TextDecoder().decode(signed).split("\n");
+    const domain = /^(\S+) wants you to sign in with your Solana account:$/.exec(lines[0] ?? "")?.[1];
+    const nonce = /Nonce: ([A-Za-z0-9]+)$/.exec(expected)?.[1];
+    if (!domain || !SIWS_DOMAINS.includes(domain) || lines[1] !== address || !nonce || !lines.includes(`Nonce: ${nonce}`)) {
+      return json({ error: "This sign-in message is not for yeppo. Try again." }, 400);
+    }
+  }
+  const ok = await ed25519Verify(signed, sig, pk);
   if (!ok) return json({ error: "The signature does not match this wallet" }, 400);
   const { error: le } = await sb.rpc("yr_wallet_link", { p_user: (chk as { user_id: string }).user_id, p_address: address });
   if (le) return json({ error: le.message }, 400);

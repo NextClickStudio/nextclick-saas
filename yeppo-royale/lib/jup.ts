@@ -2,7 +2,7 @@
 // pump.fun bonding-curve coins straight through the pump.fun program), the player's own wallet signs
 // and sends it. yeppo never holds keys or funds and adds no fee.
 import { RPC_URL, SOL_MINT, solRpc } from "./pump";
-import { WALLETS, type WalletOption } from "./wallet";
+import { connectWallet, setSender, toBase64, walletById, walletError } from "./wallet";
 
 const JUP = ["https://lite-api.jup.ag/swap/v1", "https://api.jup.ag/swap/v1"];
 
@@ -37,41 +37,16 @@ export async function quote(side: "buy" | "sell", mint: string, amountRaw: bigin
   return jup<Quote>(`/quote?inputMint=${input}&outputMint=${output}&amount=${amountRaw.toString()}&slippageBps=${bps}&restrictIntermediateTokens=true`);
 }
 
-type SolanaProvider = {
-  publicKey?: { toString(): string } | null;
-  isConnected?: boolean;
-  connect(opts?: { onlyIfTrusted?: boolean }): Promise<{ publicKey?: { toString(): string } } | void>;
-  signAndSendTransaction?(tx: unknown, opts?: unknown): Promise<{ signature: string } | string>;
-  signTransaction?(tx: unknown): Promise<{ serialize(): Uint8Array }>;
-};
+export { connectWallet };
 
-export function provider(id: string | null | undefined): SolanaProvider | null {
-  const w = WALLETS.find((x) => x.id === id) ?? WALLETS.find((x) => !!x.get());
-  return (w?.get() as unknown as SolanaProvider) ?? null;
-}
-
-/** silently reconnect a wallet that already trusts yeppo, else ask */
-export async function connectWallet(option: WalletOption | null, ask: boolean): Promise<string | null> {
-  const p = (option?.get() as unknown as SolanaProvider | undefined) ?? provider(null);
-  if (!p) return null;
-  try {
-    const r = await p.connect(ask ? undefined : { onlyIfTrusted: true });
-    return (r && "publicKey" in r && r.publicKey ? r.publicKey : p.publicKey)?.toString() ?? null;
-  } catch {
-    return null;
-  }
-}
+// wallets that only sign (no send) are broadcast through our RPC
+setSender((raw) => solRpc<string>("sendTransaction", [toBase64(raw), { encoding: "base64", skipPreflight: false, maxRetries: 3 }]));
 
 function fromBase64(s: string) {
   const bin = atob(s);
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
-}
-function toBase64(b: Uint8Array) {
-  let s = "";
-  for (const x of b) s += String.fromCharCode(x);
-  return btoa(s);
 }
 
 export type SwapResult = { signature: string; inAmount: number; outAmount: number; route: string };
@@ -87,8 +62,8 @@ export async function swap(opts: {
   walletId: string | null;
   onStage?: (s: "quote" | "sign" | "send" | "confirm") => void;
 }): Promise<SwapResult> {
-  const p = provider(opts.walletId);
-  if (!p) throw new Error("No wallet found. Install Phantom, Solflare or Backpack.");
+  const w = walletById(opts.walletId);
+  if (!w) throw new Error("No wallet found. Install Phantom, Solflare or Backpack.");
   opts.onStage?.("quote");
   const q = await quote(opts.side, opts.mint, opts.amountRaw, opts.slipPct);
   const pr = PRIORITY[opts.priority];
@@ -108,14 +83,11 @@ export async function swap(opts: {
   const tx = VersionedTransaction.deserialize(fromBase64(swapTransaction));
   opts.onStage?.("sign");
   let signature: string;
-  if (p.signAndSendTransaction) {
-    const r = await p.signAndSendTransaction(tx, { skipPreflight: false, maxRetries: 3 });
-    signature = typeof r === "string" ? r : r.signature;
-  } else if (p.signTransaction) {
-    const signed = await p.signTransaction(tx);
-    opts.onStage?.("send");
-    signature = await solRpc<string>("sendTransaction", [toBase64(signed.serialize()), { encoding: "base64", skipPreflight: false, maxRetries: 3 }]);
-  } else throw new Error("This wallet cannot send transactions");
+  try {
+    signature = await w.signAndSend(tx);
+  } catch (e) {
+    throw walletError(e, w.name);
+  }
   opts.onStage?.("confirm");
   await confirm(signature);
   return {
