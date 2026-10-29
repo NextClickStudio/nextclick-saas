@@ -1,4 +1,4 @@
-// Levels from XP, tiers from rank points.
+// Levels from XP, tiers from duel rating.
 
 export function level(xp: number) {
   // each level needs a bit more: 300, 400, 500, ...
@@ -14,19 +14,19 @@ export function level(xp: number) {
 }
 
 export const TIERS = [
-  { name: "Bronze", min: 0, color: "#cd7f32" },
-  { name: "Silver", min: 300, color: "#c0c7d4" },
-  { name: "Gold", min: 800, color: "#ffd400" },
-  { name: "Platinum", min: 1600, color: "#5ee6d1" },
-  { name: "Diamond", min: 3000, color: "#62a8ff" },
-  { name: "Champion", min: 5000, color: "#ff5fa8" },
-  { name: "Legend", min: 8000, color: "#ff8a00" },
+  { name: "Bronze", min: 0, color: "#c98a5a" },
+  { name: "Silver", min: 950, color: "#b9c2cf" },
+  { name: "Gold", min: 1100, color: "#f0b90b" },
+  { name: "Platinum", min: 1250, color: "#4fd1c5" },
+  { name: "Diamond", min: 1400, color: "#5b9dff" },
+  { name: "Master", min: 1600, color: "#b18cff" },
+  { name: "Legend", min: 1800, color: "#ff5c8a" },
 ];
 
-export function tier(rp: number) {
+export function tier(elo: number) {
   let i = 0;
-  while (i + 1 < TIERS.length && rp >= TIERS[i + 1].min) i++;
+  while (i + 1 < TIERS.length && elo >= TIERS[i + 1].min) i++;
   const t = TIERS[i];
   const next = TIERS[i + 1] ?? null;
-  return { ...t, index: i, next, pct: next ? ((rp - t.min) / (next.min - t.min)) * 100 : 100 };
+  return { ...t, index: i, next, pct: next ? Math.max(0, Math.min(100, ((elo - t.min) / (next.min - t.min)) * 100)) : 100 };
 }

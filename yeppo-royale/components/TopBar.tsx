@@ -4,16 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isSoundOn, setSoundOn } from "@/lib/fx";
-import { level, tier } from "@/lib/rank";
+import { tier } from "@/lib/rank";
 import { useApp } from "./AppProvider";
 import Avatar from "./Avatar";
 
 const TABS = [
   { href: "/", label: "Play" },
-  { href: "/locker", label: "Profile" },
-  { href: "/career", label: "Career" },
+  { href: "/real", label: "Real duels", tag: "ON-CHAIN" },
   { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/shop", label: "Shop", soon: true },
+  { href: "/career", label: "Profile" },
 ];
 
 export default function TopBar({ online }: { online?: number }) {
@@ -21,20 +20,22 @@ export default function TopBar({ online }: { online?: number }) {
   const { me, session, openCreator } = useApp();
   const [sound, setSound] = useState(true);
   useEffect(() => setSound(isSoundOn()), []);
-  const lv = level(me?.xp ?? 0);
-  const t = tier(me?.rp ?? 0);
+  const t = tier(me?.elo ?? 1000);
 
   return (
     <header className="topbar">
       <Link href="/" className="logo">
-        yeppo <b>royale</b>
-        <span>trading battle royale</span>
+        <span className="logo-mark" aria-hidden>
+          <i />
+          <i />
+        </span>
+        yeppo<b>1v1</b>
       </Link>
       <nav className="tabs">
         {TABS.map((x) => (
-          <Link key={x.href} href={x.href} className={path === x.href ? "on" : ""}>
+          <Link key={x.href} href={x.href} className={(x.href === "/" ? path === "/" : path.startsWith(x.href)) ? "on" : ""}>
             {x.label}
-            {x.soon && <span className="soon">SOON</span>}
+            {x.tag && <span className="tag">{x.tag}</span>}
           </Link>
         ))}
       </nav>
@@ -45,27 +46,14 @@ export default function TopBar({ online }: { online?: number }) {
           </span>
         )}
         {me ? (
-          <>
-            <span className="tier-pill" title={`${me.rp} rank points`}>
-              <i className="tier-gem" style={{ background: t.color, boxShadow: `0 0 10px ${t.color}` }} />
-              {t.name}
-            </span>
-            <div className="lvl-badge" title={`${lv.into} / ${lv.need} XP`}>
-              <div className="lvl-hex mono">{lv.lvl}</div>
-              <div className="lvl-meta">
-                <span className="lbl">Level {lv.lvl}</span>
-                <div className="bar">
-                  <i style={{ width: `${lv.pct}%` }} />
-                </div>
-              </div>
-            </div>
-            <Link href="/locker" aria-label="Your character">
-              <Avatar look={me.avatar} size={28} />
-            </Link>
-          </>
+          <Link href="/career" className="me-chip" title={`${t.name} · ${me.elo} rating`}>
+            <span className="tier-gem" style={{ background: t.color, boxShadow: `0 0 10px ${t.color}` }} />
+            <span className="mono">{me.elo}</span>
+            <Avatar look={me.avatar} size={24} />
+          </Link>
         ) : (
           !session && (
-            <button className="btn btn-gold btn-sm" onClick={() => openCreator(true)}>
+            <button className="btn btn-primary btn-sm" onClick={() => openCreator(true)}>
               Create profile
             </button>
           )

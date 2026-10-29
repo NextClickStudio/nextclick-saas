@@ -15,26 +15,24 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { clock, usd } from "@/lib/format";
-import type { CoinState } from "@/lib/coin";
+import { CANDLE_MS, type RoundCoin } from "@/lib/duel";
 
-/** Market cap candles (in USD) for one coin, with the player's own buys and sells marked. */
-export default function CoinChart({
-  coin,
-  version,
-  fills,
-  entryUsd,
-}: {
-  coin: CoinState;
-  version: number;
-  fills: { ms: number; k: number }[];
-  entryUsd: number | null;
-}) {
+export type Mark = { t: number; k: number; who: "me" | "opp" };
+
+const UP = "#10d48e";
+const DOWN = "#f6465d";
+const ME = "#f0b90b";
+const OPP = "#b18cff";
+const bucket = (t: number) => (Math.floor(t / CANDLE_MS) * (CANDLE_MS / 1000)) as UTCTimestamp;
+
+/** Market cap candles (USD) of the round's coin, x axis = coin age. Both players' trades are marked. */
+export default function DuelChart({ coin, version, marks, entryUsd }: { coin: RoundCoin; version: number; marks: Mark[]; entryUsd: number | null }) {
   const box = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
   const candles = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const vol = useRef<ISeriesApi<"Histogram"> | null>(null);
   const markers = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
-  const shown = useRef<{ ci: number; n: number }>({ ci: -1, n: 0 });
+  const shown = useRef<{ coin: RoundCoin | null; n: number }>({ coin: null, n: 0 });
   const entryLine = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]> | null>(null);
 
   useEffect(() => {
@@ -42,31 +40,30 @@ export default function CoinChart({
     const c = createChart(box.current, {
       autoSize: true,
       layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#8d929c", fontSize: 11, attributionLogo: false },
-      grid: { vertLines: { color: "rgba(255,255,255,0.04)" }, horzLines: { color: "rgba(255,255,255,0.04)" } },
-      rightPriceScale: { borderColor: "rgba(255,255,255,0.08)", scaleMargins: { top: 0.1, bottom: 0.22 } },
+      grid: { vertLines: { color: "rgba(255,255,255,0.035)" }, horzLines: { color: "rgba(255,255,255,0.035)" } },
+      rightPriceScale: { borderColor: "rgba(255,255,255,0.08)", scaleMargins: { top: 0.12, bottom: 0.2 } },
       timeScale: {
         borderColor: "rgba(255,255,255,0.08)",
         timeVisible: true,
         secondsVisible: true,
-        rightOffset: 4,
-        barSpacing: 9,
-        // candle times are match seconds: show them as a match clock
+        rightOffset: 6,
+        barSpacing: 8,
         tickMarkFormatter: (t: Time) => clock(Number(t) * 1000),
       },
       crosshair: { mode: 0 },
-      localization: { priceFormatter: (p: number) => usd(p), timeFormatter: (t: Time) => clock(Number(t) * 1000) },
+      localization: { priceFormatter: (p: number) => (p < 0 ? "" : usd(p)), timeFormatter: (t: Time) => `age ${clock(Number(t) * 1000)}` },
     });
     candles.current = c.addSeries(CandlestickSeries, {
-      upColor: "#10d48e",
-      downColor: "#f6465d",
-      borderUpColor: "#10d48e",
-      borderDownColor: "#f6465d",
-      wickUpColor: "#10d48e",
-      wickDownColor: "#f6465d",
-      priceFormat: { type: "custom", formatter: (p: number) => usd(p), minMove: 0.01 },
+      upColor: UP,
+      downColor: DOWN,
+      borderUpColor: UP,
+      borderDownColor: DOWN,
+      wickUpColor: UP,
+      wickDownColor: DOWN,
+      priceFormat: { type: "custom", formatter: (p: number) => (p < 0 ? "" : usd(p)), minMove: 0.01 },
     });
     vol.current = c.addSeries(HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
-    c.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+    c.priceScale("vol").applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
     markers.current = createSeriesMarkers(candles.current, []);
     chart.current = c;
     return () => {
@@ -80,32 +77,42 @@ export default function CoinChart({
     const vs = vol.current;
     if (!cs || !vs) return;
     const data = coin.candles;
-    const fresh = shown.current.ci !== coin.ci;
-    if (fresh || data.length < shown.current.n) {
+    const volOf = (d: (typeof data)[number]) => ({
+      time: d.time as UTCTimestamp,
+      value: d.buy + d.sell,
+      color: d.buy >= d.sell ? "rgba(16,212,142,0.32)" : "rgba(246,70,93,0.32)",
+    });
+    if (shown.current.coin !== coin || data.length < shown.current.n) {
       cs.setData(data.map((d) => ({ time: d.time as UTCTimestamp, open: d.open, high: d.high, low: d.low, close: d.close })));
-      vs.setData(data.map((d) => ({ time: d.time as UTCTimestamp, value: d.buy + d.sell, color: d.buy >= d.sell ? "rgba(16,212,142,0.35)" : "rgba(246,70,93,0.35)" })));
+      vs.setData(data.map(volOf));
       chart.current?.timeScale().scrollToRealTime();
     } else {
       for (let i = Math.max(0, shown.current.n - 1); i < data.length; i++) {
         const d = data[i];
         cs.update({ time: d.time as UTCTimestamp, open: d.open, high: d.high, low: d.low, close: d.close });
-        vs.update({ time: d.time as UTCTimestamp, value: d.buy + d.sell, color: d.buy >= d.sell ? "rgba(16,212,142,0.35)" : "rgba(246,70,93,0.35)" });
+        vs.update(volOf(d));
       }
     }
-    shown.current = { ci: coin.ci, n: data.length };
+    shown.current = { coin, n: data.length };
   }, [coin, version]);
 
   useEffect(() => {
-    const m: SeriesMarker<Time>[] = fills.map((f) => ({
-      time: (Math.floor(f.ms / 3000) * 3) as UTCTimestamp,
-      position: f.k === 1 ? "belowBar" : "aboveBar",
-      shape: f.k === 1 ? "arrowUp" : "arrowDown",
-      color: f.k === 1 ? "#f0b90b" : "#3d8bff",
-      text: f.k === 1 ? "BUY" : "SELL",
-    }));
+    const m: SeriesMarker<Time>[] = [];
+    const first = coin.candles.find((c) => c.time * 1000 >= coin.off);
+    if (coin.off > 0 && first) m.push({ time: first.time as UTCTimestamp, position: "aboveBar", shape: "circle", color: "#5c616b", text: "ROUND START" });
+    for (const x of marks) {
+      m.push({
+        time: bucket(x.t),
+        position: x.k === 1 ? "belowBar" : "aboveBar",
+        shape: x.k === 1 ? "arrowUp" : "arrowDown",
+        color: x.who === "me" ? ME : OPP,
+        text: x.who === "me" ? "YOU" : "",
+        size: x.who === "me" ? 1.4 : 0.9,
+      });
+    }
     m.sort((a, b) => Number(a.time) - Number(b.time));
     markers.current?.setMarkers(m);
-  }, [fills, coin.ci]);
+  }, [marks, coin, version]);
 
   useEffect(() => {
     const cs = candles.current;
@@ -114,8 +121,8 @@ export default function CoinChart({
       cs.removePriceLine(entryLine.current);
       entryLine.current = null;
     }
-    if (entryUsd) entryLine.current = cs.createPriceLine({ price: entryUsd, color: "#f0b90b", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "YOUR ENTRY" });
-  }, [entryUsd, coin.ci]);
+    if (entryUsd) entryLine.current = cs.createPriceLine({ price: entryUsd, color: ME, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "YOUR ENTRY" });
+  }, [entryUsd, coin]);
 
   return (
     <div className="chart-box">

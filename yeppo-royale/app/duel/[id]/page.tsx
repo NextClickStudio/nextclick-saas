@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Match from "@/components/Match";
+import Duel from "@/components/Duel";
 
-export const metadata: Metadata = { title: "In match · yeppo royale" };
+export const metadata: Metadata = { title: "Duel · yeppo 1v1" };
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <Match id={id} />;
+  return <Duel id={id} />;
 }

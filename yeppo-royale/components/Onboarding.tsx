@@ -63,18 +63,18 @@ export default function Onboarding() {
                   autoFocus
                   onChange={(e) => setHandle(e.target.value.replace(/[^A-Za-z0-9_]/g, ""))}
                 />
-                <button className="btn btn-gold" disabled={busy || handle.trim().length < 3}>
+                <button className="btn btn-primary" disabled={busy || handle.trim().length < 3}>
                   {busy ? "…" : "Create profile"}
                 </button>
               </div>
               <p className="muted small" style={{ marginTop: 10 }}>
-                No email, no wallet. Every match starts with 10 play SOL. You can change your picture any time.
+                No email, no wallet. Every duel round starts with 10 play SOL. You can change your picture any time.
               </p>
             </>
           ) : (
             <div style={{ display: "grid", gap: 10 }}>
               <input className="input mono" placeholder="Paste your account key" value={key} onChange={(e) => setKey(e.target.value)} autoFocus />
-              <button className="btn btn-gold" disabled={busy || key.trim().length < 20}>
+              <button className="btn btn-primary" disabled={busy || key.trim().length < 20}>
                 {busy ? "…" : "Log in"}
               </button>
             </div>

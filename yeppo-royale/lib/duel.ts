@@ -1,19 +1,17 @@
-// Client-side view of one coin in a match, rebuilt from the replayed trades.
-// The intel panel (holders, dev, snipers, flow) is what separates a rug from a runner.
+// One round of a duel, rebuilt on the client from the replayed trades.
+// Times are coin age in ms (0 = launch). The intel panel is what separates a rug from a runner.
 import { FEE } from "./config";
-import type { FeedEv } from "./types";
+import type { DuelFill, FeedRow } from "./types";
 
 export const SUPPLY = 1e9;
-export const CANDLE_MS = 3000;
+export const CANDLE_MS = 5000;
 const DUST = 1;
 
 export type Candle = { time: number; open: number; high: number; low: number; close: number; buy: number; sell: number };
-export type Trade = { ms: number; w: number; k: number; sol: number; tok: number; mc: number; vsol: number | null };
+export type Tr = { t: number; seq: number; w: number; k: number; sol: number; tok: number; mc: number; vsol: number | null };
 
 export type Intel = {
-  mc: number;
   mcUsd: number;
-  launchUsd: number;
   athUsd: number;
   chg: number;
   holders: number;
@@ -27,71 +25,62 @@ export type Intel = {
   buyVol: number;
   sellVol: number;
   txs: number;
-  traders: number;
-  ageMs: number;
   progress: number;
   graduated: boolean;
   dead: boolean;
 };
 
-export class CoinState {
-  readonly ci: number;
-  readonly at: number;
+export class RoundCoin {
+  readonly off: number;
   readonly solUsd: number;
-  readonly speed: number;
-  trades: Trade[] = [];
+  trades: Tr[] = [];
   candles: Candle[] = [];
   private seen = new Set<number>();
   private bal = new Map<number, number>();
   private early = new Set<number>();
-  creator: number | null = null;
   devBought = 0;
   devSoldTok = 0;
   athMc = 0;
   launchMc = 0;
-  version = 0;
 
-  constructor(ci: number, at: number, solUsd: number | null, speed: number) {
-    this.ci = ci;
-    this.at = at;
-    this.solUsd = solUsd ?? 180;
-    this.speed = speed;
+  constructor(off: number, solUsd: number | null) {
+    this.off = off;
+    this.solUsd = solUsd ?? 150;
   }
 
-  /** coin age (in the coin's own time) at a given match time */
-  coinMs(matchMs: number) {
-    return Math.max(0, (matchMs - this.at) * this.speed);
+  get lastT() {
+    return this.trades.length ? this.trades[this.trades.length - 1].t : -1;
   }
 
-  add(e: FeedEv) {
-    const [, ms, seq, w, k, solAmt, tok, , mc, vsol] = e;
-    if (this.seen.has(seq)) return;
-    this.seen.add(seq);
-    const t: Trade = { ms, w, k, sol: +solAmt, tok: +tok, mc: +mc, vsol: vsol == null ? null : +vsol };
-    if (!this.trades.length || ms >= this.trades[this.trades.length - 1].ms) this.trades.push(t);
-    else {
-      let i = this.trades.length;
-      while (i > 0 && this.trades[i - 1].ms > ms) i--;
-      this.trades.splice(i, 0, t);
+  /** returns the trades that were new */
+  add(rows: FeedRow[]): Tr[] {
+    const fresh: Tr[] = [];
+    for (const [t, seq, w, k, sol, tok, , mc, vsol] of rows) {
+      if (this.seen.has(seq)) continue;
+      this.seen.add(seq);
+      const tr: Tr = { t, seq, w, k, sol: +sol, tok: +tok, mc: +mc, vsol: vsol == null ? null : +vsol };
+      if (!this.trades.length || t >= this.lastT) this.trades.push(tr);
+      else {
+        let i = this.trades.length;
+        while (i > 0 && this.trades[i - 1].t > t) i--;
+        this.trades.splice(i, 0, tr);
+      }
+      if (w === 0 && k !== 2) this.devBought += tr.tok;
+      if (!this.launchMc) this.launchMc = tr.mc;
+      const prev = this.bal.get(w) ?? 0;
+      this.bal.set(w, k === 2 ? Math.max(0, prev - tr.tok) : prev + tr.tok);
+      if (k === 2 && w === 0) this.devSoldTok += tr.tok;
+      if (k === 1 && w !== 0 && t <= 3000) this.early.add(w);
+      if (tr.mc > this.athMc) this.athMc = tr.mc;
+      this.candle(tr);
+      fresh.push(tr);
     }
-    if (k === 0) {
-      this.creator = w;
-      this.devBought += t.tok;
-      this.launchMc = this.launchMc || t.mc;
-    } else if (!this.launchMc) this.launchMc = t.mc;
-    const prev = this.bal.get(w) ?? 0;
-    const next = k === 2 ? Math.max(0, prev - t.tok) : prev + t.tok;
-    this.bal.set(w, next);
-    if (k === 2 && w === this.creator) this.devSoldTok += t.tok;
-    if (k === 1 && w !== this.creator && this.coinMs(ms) <= 3000) this.early.add(w);
-    if (t.mc > this.athMc) this.athMc = t.mc;
-    this.candle(t);
-    this.version++;
+    return fresh;
   }
 
-  private candle(t: Trade) {
+  private candle(t: Tr) {
     const usd = t.mc * this.solUsd;
-    const time = Math.floor(t.ms / CANDLE_MS) * (CANDLE_MS / 1000);
+    const time = Math.floor(t.t / CANDLE_MS) * (CANDLE_MS / 1000);
     const last = this.candles[this.candles.length - 1];
     if (last && last.time === time) {
       last.high = Math.max(last.high, usd);
@@ -105,12 +94,8 @@ export class CoinState {
     }
   }
 
-  get last(): Trade | null {
+  get last(): Tr | null {
     return this.trades[this.trades.length - 1] ?? null;
-  }
-
-  launched(matchMs: number) {
-    return matchMs >= this.at && this.trades.length > 0;
   }
 
   /** SOL per token */
@@ -118,30 +103,27 @@ export class CoinState {
     return (this.last?.mc ?? 0) / SUPPLY;
   }
 
-  intel(matchMs: number): Intel {
+  intel(ct: number): Intel {
     const last = this.last;
     const mc = last?.mc ?? 0;
     let holders = 0;
     const balances: number[] = [];
-    for (const [w, b] of this.bal) {
+    for (const b of this.bal.values()) {
       if (b > DUST) {
         holders++;
         balances.push(b);
       }
-      void w;
     }
     balances.sort((a, b) => b - a);
     let top = 0;
     for (let i = 0; i < Math.min(10, balances.length); i++) top += balances[i];
     let sn = 0;
     for (const w of this.early) sn += this.bal.get(w) ?? 0;
-    // flow over the last 60s of the coin's life
-    const from = matchMs - 60_000 / this.speed;
     let buys = 0;
     let sells = 0;
     let buyVol = 0;
     let sellVol = 0;
-    for (let i = this.trades.length - 1; i >= 0 && this.trades[i].ms >= from; i--) {
+    for (let i = this.trades.length - 1; i >= 0 && this.trades[i].t >= ct - 60_000; i--) {
       const t = this.trades[i];
       if (t.k === 2) {
         sells++;
@@ -153,17 +135,13 @@ export class CoinState {
     }
     const vs = last?.vsol ?? null;
     const progress = vs == null ? 100 : Math.max(0, Math.min(100, ((vs - 30) / 85) * 100));
-    const devNow = this.creator == null ? 0 : (this.bal.get(this.creator) ?? 0);
-    const lastAge = last ? matchMs - last.ms : 0;
     return {
-      mc,
       mcUsd: mc * this.solUsd,
-      launchUsd: this.launchMc * this.solUsd,
       athUsd: this.athMc * this.solUsd,
       chg: this.launchMc ? (mc / this.launchMc - 1) * 100 : 0,
       holders,
       top10: Math.min(100, (top / SUPPLY) * 100),
-      dev: Math.min(100, (devNow / SUPPLY) * 100),
+      dev: Math.min(100, ((this.bal.get(0) ?? 0) / SUPPLY) * 100),
       devSoldPct: this.devBought ? Math.min(100, (this.devSoldTok / this.devBought) * 100) : 0,
       devSold: this.devSoldTok > 0,
       snipers: Math.min(100, (sn / SUPPLY) * 100),
@@ -172,11 +150,9 @@ export class CoinState {
       buyVol,
       sellVol,
       txs: this.trades.length,
-      traders: this.bal.size,
-      ageMs: this.coinMs(matchMs),
       progress,
       graduated: progress >= 99.5,
-      dead: lastAge * this.speed > 120_000,
+      dead: last ? ct - last.t > 120_000 : false,
     };
   }
 
@@ -197,6 +173,54 @@ export class CoinState {
   }
 }
 
+/** a player's bag in one round from their fills */
+export function bag(fills: DuelFill[], slot: number, r: number, price: number) {
+  let cash = 10;
+  let held = 0;
+  let n = 0;
+  let spent = 0;
+  let got = 0;
+  for (const f of fills) {
+    if (f[0] !== slot || f[1] !== r) continue;
+    n++;
+    if (f[3] === 1) {
+      cash -= f[4];
+      held += f[5];
+      spent += f[4];
+      got += f[5];
+    } else {
+      cash += f[4];
+      held -= f[5];
+    }
+  }
+  held = Math.max(0, held);
+  return { cash, held, eq: cash + held * price, n, avgPx: got > 0 ? spent / got : null };
+}
+
+/** the ghost's bag: the same loop as yr_ghost_eq on the server */
+export function ghostBag(coin: RoundCoin, gw: number, scale: number, price: number) {
+  let cash = 0;
+  let held = 0;
+  let n = 0;
+  const trades: Tr[] = [];
+  for (const t of coin.trades) {
+    if (t.w !== gw || t.t <= coin.off) continue;
+    if (t.k === 1) {
+      cash -= t.sol * scale;
+      held += t.tok * scale;
+      n++;
+      trades.push(t);
+    } else if (t.k === 2 && t.tok > 0) {
+      const q = Math.min(t.tok * scale, held);
+      cash += (t.sol * scale * q) / (t.tok * scale);
+      held -= q;
+      n++;
+      trades.push(t);
+    }
+  }
+  return { cash: 10 + cash, held, eq: 10 + cash + held * price, n, trades };
+}
+
 export type Flag = { tone: "up" | "down" | "warn"; text: string };
 
 /** the red and green flags a good trencher reads before aping */
@@ -207,7 +231,7 @@ export function flags(i: Intel): Flag[] {
   else out.push({ tone: "up", text: "Dev hasn't sold" });
   if (i.top10 >= 45) out.push({ tone: "down", text: `Top 10 own ${i.top10.toFixed(0)}%` });
   else if (i.top10 >= 30) out.push({ tone: "warn", text: `Top 10 own ${i.top10.toFixed(0)}%` });
-  else out.push({ tone: "up", text: `Spread out: top 10 own ${i.top10.toFixed(0)}%` });
+  else out.push({ tone: "up", text: `Top 10 own ${i.top10.toFixed(0)}%` });
   if (i.snipers >= 25) out.push({ tone: "down", text: `Snipers hold ${i.snipers.toFixed(0)}%` });
   else if (i.snipers >= 12) out.push({ tone: "warn", text: `Snipers hold ${i.snipers.toFixed(0)}%` });
   const flow = i.buyVol + i.sellVol;
@@ -216,8 +240,17 @@ export function flags(i: Intel): Flag[] {
     if (r >= 0.65) out.push({ tone: "up", text: "Buyers in control" });
     else if (r <= 0.35) out.push({ tone: "down", text: "Heavy selling" });
   }
-  if (i.holders >= 60) out.push({ tone: "up", text: `${i.holders} holders` });
   if (i.dead) out.push({ tone: "down", text: "No trades lately" });
   if (i.graduated) out.push({ tone: "up", text: "Graduated" });
   return out;
 }
+
+export const OUTCOME: Record<string, { label: string; cls: string }> = {
+  runner: { label: "Runner", cls: "t-up" },
+  rug: { label: "Rug pull", cls: "t-down" },
+  pump: { label: "Pump & dump", cls: "t-warn" },
+  bleed: { label: "Bled out", cls: "t-down" },
+  mid: { label: "Chop", cls: "muted" },
+};
+
+export const EMOTES = ["GG", "LFG", "NGMI", "WAGMI", "Rugged", "Lucky", "🔥", "💀", "🫡", "🤡", "📉", "🚀"];

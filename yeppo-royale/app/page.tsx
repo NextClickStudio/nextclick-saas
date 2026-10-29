@@ -1,5 +1,5 @@
-import Lobby from "@/components/Lobby";
+import Arena from "@/components/Arena";
 
 export default function Page() {
-  return <Lobby />;
+  return <Arena />;
 }

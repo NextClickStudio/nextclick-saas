@@ -3,107 +3,134 @@ export type User = {
   handle: string;
   avatar: unknown;
   xp: number;
-  rp: number;
-  matches: number;
-  wins: number;
-  top5: number;
-  cuts_survived: number;
-  best_pnl: number;
+  elo: number;
+  d_played: number;
+  d_won: number;
+  d_lost: number;
+  streak: number;
+  best_streak: number;
+  r_played: number;
+  r_won: number;
+  best_roi: number | null;
+  wallet: string | null;
   created_at: string;
   last_seen: string;
 };
 
 export type Session = { secret: string; userId: string; handle: string };
 
-export type Mode = {
-  id: string;
-  name: string;
-  tagline: string;
-  size: number;
-  dur_ms: number;
-  cuts: number;
-  next_start: number;
-  queued: number;
-  live: number;
+// ---------- practice duels ----------
+
+export type DuelPlayer = { name: string; avatar: unknown; elo: number; w?: number; l?: number; streak?: number; verified?: boolean };
+
+export type RoundReveal = { name: string | null; symbol: string | null; outcome: string | null; note: string | null; x_peak: number | null; mint: string };
+
+export type DuelRound = {
+  r: number;
+  off: number;
+  sol_usd: number | null;
+  x: boolean;
+  tg: boolean;
+  web: boolean;
+  /** wallet index of the real trader the ghost replays */
+  gw: number | null;
+  gs: number | null;
+  eq1: number | null;
+  eq2: number | null;
+  n1: number | null;
+  n2: number | null;
+  win: number | null;
+  reveal: RoundReveal | null;
 };
 
-export type Lobby = {
+/** [slot, round, msIntoRound, kind(1 buy, 2 sell), sol, tokens] */
+export type DuelFill = [number, number, number, number, number, number];
+
+export type DuelState = {
+  id: string;
+  status: "queue" | "live" | "done" | "cancelled";
   now: number;
-  arenas: number;
-  online: number;
-  active: { id: string; mode: string; start_at: string } | null;
-  modes: Mode[];
-};
-
-export type Cut = { at: number; keep: number };
-
-export type MatchCoin = { ci: number; at: number; sol_usd: number | null; x: boolean; tg: boolean; web: boolean };
-
-/** [slot, name, avatar, isBot] */
-export type RosterRow = [number, string, unknown, boolean];
-
-export type MatchInfo = {
-  id: string;
-  mode: string;
-  mode_name: string;
-  start_at: number;
-  server_now: number;
+  created: number;
+  start: number | null;
+  round_ms: number;
+  gap_ms: number;
   speed: number;
-  size: number;
-  dur_ms: number;
-  cuts: Cut[];
-  start_sol: number;
-  me: number | null;
-  coins: MatchCoin[];
-  roster: RosterRow[] | null;
+  rounds: number;
+  me: 1 | 2 | null;
+  ghost: boolean;
+  p1: DuelPlayer;
+  p2: DuelPlayer | null;
+  score: [number | null, number | null];
+  winner: number | null;
+  elo: [number | null, number | null];
+  rs: DuelRound[];
+  fills: DuelFill[];
+  /** [slot, emote, atMs] */
+  emotes: [number, number, number][];
 };
 
-/** [ci, matchMs, seq, wallet, kind(0 create,1 buy,2 sell), sol, tokens, balance, mcSol, vSol] */
-export type FeedEv = [number, number, number, number, number, number, number, number | null, number, number | null];
+/** [coinMs, seq, wallet, kind(0 create, 1 buy, 2 sell), sol, tokens, balance, mcSol, vSol] */
+export type FeedRow = [number, number, number, number, number, number, number | null, number, number | null];
 
-/** [slot, equity, trades, elimCut, place] */
-export type BoardRow = [number, number, number, number | null, number | null];
-/** [slot, ci, kind, sol, matchMs] */
-export type BoardFeed = [number, number, number, number, number];
+export type RecentDuel = {
+  id: string;
+  ended: number;
+  s1: number | null;
+  s2: number | null;
+  winner: number | null;
+  elo1: number | null;
+  elo2: number | null;
+  n1: string;
+  a1: unknown;
+  n2: string;
+  a2: unknown;
+  ghost: boolean;
+};
 
-export type Board = {
+export type Arena = {
   now: number;
-  resolved: number;
-  finished: boolean;
-  alive: number;
-  rows: BoardRow[] | null;
-  feed: BoardFeed[] | null;
-  me?: {
-    slot: number;
-    cash: number;
-    pos: Record<string, number>;
-    /** [ci, kind, sol, tokens, matchMs] */
-    fills: [number, number, number, number, number][];
-  };
+  online: number;
+  queue: number;
+  live: number;
+  today: number;
+  pool: number;
+  active: { id: string; status: string } | null;
+  recent: RecentDuel[];
+  top: { name: string; avatar: unknown; elo: number; w: number; l: number }[];
+  /** coins: [name, symbol, ageMs, mcUsd, events] */
+  pulse: { launches: number; trades: number; coins: [string, string, number, number, number][] };
 };
 
-export type RevealCoin = {
-  ci: number;
-  name: string | null;
-  symbol: string | null;
-  mint: string | null;
-  outcome: string | null;
-  stats: { x_peak?: number; x_final?: number; dev_sold?: number; graduated?: boolean; note?: string } | null;
+// ---------- real duels ----------
+
+export type RealPlayer = { name: string; avatar: unknown; elo: number; wallet: string; rw: number; rp: number };
+export type RealScore = { vol: number; pnl: number; roi: number | null; n: number };
+
+export type RealDuel = {
+  id: string;
+  code: string;
+  status: "open" | "live" | "done" | "cancelled" | "expired";
+  now: number;
+  created: number;
+  start: number | null;
+  end: number | null;
+  dur_ms: number;
+  me: 1 | 2 | null;
+  winner: number | null;
+  elo: [number | null, number | null];
+  p1: RealPlayer;
+  p2: RealPlayer | null;
+  score: [RealScore | null, RealScore | null] | null;
+  polled: Record<string, number> | null;
+  /** [slot, mint, kind, sol, tokens, atMs, signature] */
+  trades: [number, string, number, number, number, number, string][];
+  mints: Record<string, { px: number | null; name: string | null; symbol: string | null }>;
 };
 
-export type Results = {
-  pending?: boolean;
-  place: number;
-  size: number;
-  final_eq: number | null;
-  survived: number;
-  cuts: number;
-  xp_gain: number;
-  rp_gain: number;
-  trades: number;
-  finished: boolean;
-  user: User;
-  coins: RevealCoin[];
-  /** [place, name, avatar, isBot, equity] */
-  top: [number, string, unknown, boolean, number][] | null;
+export type RealBoard = {
+  now: number;
+  mine: { code: string; status: string } | null;
+  open: { code: string; name: string; avatar: unknown; elo: number; rw: number; rp: number; dur_ms: number; created: number }[];
+  live: { code: string; n1: string; a1: unknown; n2: string; a2: unknown; start: number; end: number }[];
+  recent: { code: string; n1: string; a1: unknown; n2: string; a2: unknown; winner: number; r1: number | null; r2: number | null; end_ms: number }[];
 };
