@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { rpc } from "@/lib/supabase";
 import { age, clock, pct, signed, sol } from "@/lib/format";
 import { confetti, sfx, toast } from "@/lib/fx";
@@ -11,7 +12,10 @@ import { short, solscanAccount, solscanTx } from "@/lib/wallet";
 import type { RealDuel as RealDuelT, RealPlayer, RealScore } from "@/lib/types";
 import { useApp } from "./AppProvider";
 import Avatar from "./Avatar";
+import PlatformPicker, { openPlatform, platformById, type Platform, savedPlatform, savePlatform } from "./PlatformPicker";
+import RealTerminal from "./RealTerminal";
 import TopBar from "./TopBar";
+import { MiniTracker, openPip } from "./Tracker";
 import WalletConnect from "./WalletConnect";
 
 export default function RealDuel({ code }: { code: string }) {
@@ -21,6 +25,21 @@ export default function RealDuel({ code }: { code: string }) {
   const skew = useRef(0);
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
+  const [plat, setPlat] = useState<string | null>(null);
+  const [pip, setPip] = useState<Window | null>(null);
+  const [mini, setMini] = useState(false);
+
+  useEffect(() => {
+    setPlat(savedPlatform(code));
+    setMini(new URLSearchParams(window.location.search).get("mini") === "1");
+  }, [code]);
+  useEffect(() => {
+    if (!pip) return;
+    const onHide = () => setPip(null);
+    pip.addEventListener("pagehide", onHide);
+    return () => pip.removeEventListener("pagehide", onHide);
+  }, [pip]);
+  useEffect(() => () => pip?.close(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(async () => {
     const t0 = Date.now();
@@ -37,7 +56,7 @@ export default function RealDuel({ code }: { code: string }) {
     void load();
   }, [load]);
   useEffect(() => {
-    const ms = d?.status === "live" ? 3000 : d?.status === "open" ? 4000 : 15000;
+    const ms = d?.status === "live" ? 2500 : d?.status === "open" ? 4000 : 15000;
     const t = setInterval(load, ms);
     const c = setInterval(() => setNow(Date.now()), 500);
     return () => {
@@ -85,6 +104,13 @@ export default function RealDuel({ code }: { code: string }) {
 
   const sNow = now + skew.current;
   const link = `${SITE_URL}/real/${d.code}`;
+  if (mini) {
+    return (
+      <main className="mini-page">
+        <MiniTracker d={d} sNow={sNow} pop />
+      </main>
+    );
+  }
   const accept = async () => {
     if (!session) return;
     setBusy(true);
@@ -198,6 +224,83 @@ export default function RealDuel({ code }: { code: string }) {
   const freshest = Math.max(0, ...Object.values(d.polled ?? {}));
   const youWon = d.status === "done" && d.me != null && d.winner === d.me;
 
+  const player = d.me != null;
+  const live = d.status === "live" && !ended;
+  const chosen = platformById(plat);
+  const pick = (p: Platform) => {
+    savePlatform(d.code, p.id);
+    setPlat(p.id);
+    if (p.url) openPlatform(p);
+  };
+  const floatScore = async () => {
+    try {
+      const w = await openPip();
+      if (w) {
+        setPip(w);
+        return;
+      }
+    } catch {
+      /* fall back to a small window */
+    }
+    window.open(`/real/${d.code}?mini=1`, "yeppo-score", "popup=yes,width=380,height=270");
+  };
+  const meSlot = d.me ?? 1;
+  const hud = (
+    <header className="lhud real">
+      <HudRoi p={meSlot === 1 ? d.p1 : d.p2} s={meSlot === 1 ? s1 : s2} you={player} side="left" />
+      <div className="lhud-mid">
+        <span className="lbl">
+          <span className="chain-dot" /> Real duel · {d.dur_ms / 60000} min
+        </span>
+        <div className={`lhud-clock mono ${!pre && live && left < 60_000 ? "hot" : ""}`}>{pre ? clock(d.start! - sNow) : live ? clock(left) : "0:00"}</div>
+        <span className="small dim">
+          {pre ? "Starts soon · trades before the start do not count" : freshest ? `On-chain sync ${age(sNow - freshest)} ago` : "Waiting for the first chain sync"}
+        </span>
+      </div>
+      <HudRoi p={meSlot === 1 ? d.p2 : d.p1} s={meSlot === 1 ? s2 : s1} you={false} side="right" />
+      <div className="lhud-tug">
+        <RoiTug a={meSlot === 1 ? r1 : r2} b={meSlot === 1 ? r2 : r1} />
+      </div>
+    </header>
+  );
+  const pipPortal = pip ? createPortal(<MiniTracker d={d} sNow={sNow} pop />, pip.document.body) : null;
+
+  if (player && live && chosen?.id === "yeppo") {
+    return (
+      <>
+        <TopBar />
+        <main className="live-duel">
+          <div className="plat-bar">
+            <span className="small muted">
+              Trading on <b>yeppo terminal</b>
+            </span>
+            <button className="btn btn-sm btn-ghost" onClick={() => setPlat(null)}>
+              Switch platform
+            </button>
+            <button className="btn btn-sm" onClick={floatScore}>
+              Float the scoreboard
+            </button>
+          </div>
+          <RealTerminal d={d} sNow={sNow} hud={hud} reload={load} />
+        </main>
+        {pipPortal}
+      </>
+    );
+  }
+
+  if (player && live && !chosen) {
+    return (
+      <>
+        <div className="world" />
+        <TopBar />
+        <main className="page real-live">
+          {hud}
+          <PlatformPicker onPick={pick} current={plat} walletShort={short(me?.wallet ?? (meSlot === 1 ? d.p1.wallet : d.p2?.wallet))} />
+        </main>
+      </>
+    );
+  }
+
   return (
     <>
       <div className="world" />
@@ -232,6 +335,29 @@ export default function RealDuel({ code }: { code: string }) {
           </div>
         )}
 
+        {player && live && chosen && chosen.url && (
+          <div className="ext-card panel">
+            <div>
+              <span className="lbl">Trading on</span>
+              <b className="display">{chosen.name}</b>
+              <p className="small muted">
+                Use your usual settings there. Every pump.fun trade from your verified wallet is read from the chain and lands on this board within seconds.
+              </p>
+            </div>
+            <div className="ext-btns">
+              <button className="btn btn-primary" onClick={() => openPlatform(chosen)}>
+                Open {chosen.name} ↗
+              </button>
+              <button className="btn" onClick={floatScore}>
+                {pip ? "Scoreboard is floating" : "Float the scoreboard"}
+              </button>
+              <button className="btn btn-ghost" onClick={() => setPlat(null)}>
+                Switch platform
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="rl-tug">
           <RoiTug a={r1} b={r2} />
         </div>
@@ -245,7 +371,31 @@ export default function RealDuel({ code }: { code: string }) {
           qualify.
         </p>
       </main>
+      {pipPortal}
     </>
+  );
+}
+
+function HudRoi({ p, s, you, side }: { p: RealPlayer | null; s: RealScore | null; you: boolean; side: "left" | "right" }) {
+  const t = tier(p?.elo ?? 1000);
+  const roi = s?.roi ?? null;
+  return (
+    <div className={`lhud-side ${side}`}>
+      <Avatar look={p?.avatar} size={38} />
+      <div className="lhud-who">
+        <b>
+          {p?.name ?? "…"}
+          {you && <span className="chip chip-you">YOU</span>}
+        </b>
+        <span className="mono small" style={{ color: t.color }}>
+          {t.name} · {p?.elo ?? "—"}
+        </span>
+      </div>
+      <div className="lhud-eq">
+        <b className={`mono ${(roi ?? 0) >= 0 ? "t-up" : "t-down"}`}>{roi != null ? pct(roi * 100, 1) : "—"}</b>
+        <span className="mono small dim">{s ? `${sol(s.vol, 2)} SOL in · ${s.n} tx` : "no trades"}</span>
+      </div>
+    </div>
   );
 }
 

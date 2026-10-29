@@ -11,7 +11,19 @@ import Avatar from "./Avatar";
 import TopBar from "./TopBar";
 import WalletConnect from "./WalletConnect";
 
-type MyDuel = { id: string; ended: number; me: number; s1: number; s2: number; winner: number; delta: number | null; opp: string; opp_avatar: unknown; ghost: boolean };
+type MyDuel = {
+  id: string;
+  kind?: "replay" | "live";
+  ended: number;
+  me: number;
+  s1: number;
+  s2: number;
+  winner: number;
+  delta: number | null;
+  opp: string;
+  opp_avatar: unknown;
+  ghost: boolean;
+};
 
 export default function Career() {
   const { me, session, logout, openCreator, ready } = useApp();
@@ -106,16 +118,14 @@ export default function Career() {
               const mine = x.me === 1 ? x.s1 : x.s2;
               const theirs = x.me === 1 ? x.s2 : x.s1;
               return (
-                <Link key={x.id} href={`/duel/${x.id}`} className="hist-row">
+                <Link key={x.id} href={x.kind === "live" ? `/live/${x.id}` : `/duel/${x.id}`} className="hist-row">
                   <span className={`res ${won ? "won" : x.winner === 0 ? "draw" : "lost"}`}>{won ? "W" : x.winner === 0 ? "D" : "L"}</span>
                   <Avatar look={x.opp_avatar} size={22} />
                   <span className="nm">
                     {x.opp}
                     {x.ghost && <span className="chip chip-ghost">GHOST</span>}
                   </span>
-                  <span className="mono">
-                    {mine}–{theirs}
-                  </span>
+                  <span className="mono">{x.kind === "live" ? `${pct(mine, 0)} / ${pct(theirs, 0)}` : `${mine}–${theirs}`}</span>
                   <span className={`mono small ${(x.delta ?? 0) >= 0 ? "t-up" : "t-down"}`}>{x.delta != null ? signed(x.delta, 0) : ""}</span>
                   <span className="small dim">{age(Date.now() - x.ended)}</span>
                 </Link>

@@ -4,24 +4,26 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { rpc } from "@/lib/supabase";
-import { age, compact, usd } from "@/lib/format";
+import { age, compact, pct, usd } from "@/lib/format";
 import { sfx, toast } from "@/lib/fx";
 import { tier } from "@/lib/rank";
-import type { Arena as ArenaT, DuelState } from "@/lib/types";
+import type { Arena as ArenaT, DuelPlayer } from "@/lib/types";
 import { useApp } from "./AppProvider";
 import Avatar from "./Avatar";
 import Radar, { type Blip } from "./Radar";
 import TopBar from "./TopBar";
 
-type Mode = "practice" | "real";
+type Mode = "live" | "real" | "replay";
+type Found = { id: string; status: string; me: 1 | 2 | null; ghost: boolean; p1: DuelPlayer; p2: DuelPlayer | null };
+const missing = (e: unknown) => e instanceof Error && /function|schema cache|does not exist/i.test(e.message);
 
 export default function Arena() {
   const router = useRouter();
   const { me, session, openCreator, ready } = useApp();
   const [arena, setArena] = useState<ArenaT | null>(null);
-  const [mode, setMode] = useState<Mode>("practice");
-  const [search, setSearch] = useState<{ id: string; t0: number } | null>(null);
-  const [found, setFound] = useState<DuelState | null>(null);
+  const [mode, setMode] = useState<Mode>("live");
+  const [search, setSearch] = useState<{ id: string; t0: number; kind: "live" | "replay" } | null>(null);
+  const [found, setFound] = useState<Found | null>(null);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
   const [wide, setWide] = useState(true);
@@ -65,14 +67,24 @@ export default function Arena() {
     if (busy || search) return;
     setBusy(true);
     try {
-      const r = await rpc<{ id: string; status: string }>("yr_duel_find", { p_secret: session.secret });
+      let kind: "live" | "replay" = mode === "live" ? "live" : "replay";
+      let r: { id: string; status: string };
+      try {
+        r = await rpc<{ id: string; status: string }>(kind === "live" ? "yr_lduel_find" : "yr_duel_find", { p_secret: session.secret });
+      } catch (e) {
+        if (kind !== "live" || !missing(e)) throw e;
+        // live duels are not switched on yet: fall back to a replay duel
+        toast("Live duels are switching on. Starting a replay duel.", "info");
+        kind = "replay";
+        r = await rpc<{ id: string; status: string }>("yr_duel_find", { p_secret: session.secret });
+      }
       if (r.status === "live") {
         sfx.go();
-        router.push(`/duel/${r.id}`);
+        router.push(kind === "live" ? `/live/${r.id}` : `/duel/${r.id}`);
         return;
       }
       sfx.tick();
-      setSearch({ id: r.id, t0: Date.now() });
+      setSearch({ id: r.id, t0: Date.now(), kind });
     } catch (e) {
       sfx.error();
       toast(e instanceof Error ? e.message : "Could not find a match", "down");
@@ -86,7 +98,7 @@ export default function Arena() {
     const id = search.id;
     setSearch(null);
     try {
-      await rpc("yr_duel_cancel", { p_secret: session.secret, p_duel: id });
+      await rpc(search.kind === "live" ? "yr_lduel_cancel" : "yr_duel_cancel", { p_secret: session.secret, p_duel: id });
     } catch {
       /* the sweeper drops stale queue entries anyway */
     }
@@ -94,9 +106,13 @@ export default function Arena() {
 
   // "Play again" from a finished duel lands here already queued
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get("find");
-    if (q && /^[0-9a-f-]{36}$/.test(q)) {
-      setSearch({ id: q, t0: Date.now() });
+    const qs = new URLSearchParams(window.location.search);
+    const live = qs.get("live");
+    const replay = qs.get("find");
+    const id = live ?? replay;
+    if (id && /^[0-9a-f-]{36}$/.test(id)) {
+      setMode(live ? "live" : "replay");
+      setSearch({ id, t0: Date.now(), kind: live ? "live" : "replay" });
       window.history.replaceState(null, "", "/");
     }
   }, []);
@@ -115,13 +131,13 @@ export default function Arena() {
     let dead = false;
     const t = setInterval(async () => {
       try {
-        const d = await rpc<DuelState>("yr_duel", { p_duel: search.id, p_secret: session.secret });
+        const d = await rpc<Found>(search.kind === "live" ? "yr_lduel" : "yr_duel", { p_duel: search.id, p_secret: session.secret });
         if (dead) return;
         if (d.status === "live" || d.status === "done") {
           clearInterval(t);
           setFound(d);
           sfx.go();
-          setTimeout(() => router.push(`/duel/${d.id}`), 1300);
+          setTimeout(() => router.push(search.kind === "live" ? `/live/${d.id}` : `/duel/${d.id}`), 1300);
         } else if (d.status === "cancelled") {
           clearInterval(t);
           setSearch(null);
@@ -182,16 +198,17 @@ export default function Arena() {
               1v1 me<span>.</span>
             </h1>
             <p className="hero-sub">
-              Trading duels on real pump.fun launches. Same coin, same bag, one winner. Read the chart, dodge the rug, out-trade the trader in front of
-              you.
+              {mode === "replay"
+                ? "Best of 3 on replayed pump.fun launches. Same coin, same bag, one winner. Read the chart, dodge the rug, out-trade the trader in front of you."
+                : "3 minutes. Every live pump.fun coin. A full trading terminal and a real trader in front of you. Biggest bag when the clock hits zero wins."}
             </p>
 
-            <div className="mode-switch" role="tablist">
-              <button role="tab" aria-selected={mode === "practice"} className={mode === "practice" ? "on" : ""} onClick={() => setMode("practice")}>
+            <div className="mode-switch three" role="tablist">
+              <button role="tab" aria-selected={mode === "live"} className={mode === "live" ? "on" : ""} onClick={() => setMode("live")}>
                 <span className="mode-ico">⚡</span>
                 <span>
-                  <b>Practice duel</b>
-                  <small>Instant · best of 3 · 10 play SOL</small>
+                  <b>Live duel</b>
+                  <small>3 min · any live coin · play SOL</small>
                 </span>
               </button>
               <button role="tab" aria-selected={mode === "real"} className={mode === "real" ? "on" : ""} onClick={() => setMode("real")}>
@@ -199,6 +216,13 @@ export default function Arena() {
                 <span>
                   <b>Real duel</b>
                   <small>Your wallet · verified on-chain</small>
+                </span>
+              </button>
+              <button role="tab" aria-selected={mode === "replay"} className={mode === "replay" ? "on" : ""} onClick={() => setMode("replay")}>
+                <span className="mode-ico">↺</span>
+                <span>
+                  <b>Replay blitz</b>
+                  <small>Best of 3 · replayed launches</small>
                 </span>
               </button>
             </div>
@@ -210,13 +234,19 @@ export default function Arena() {
                   Searching… {waited}s<kbd>Esc</kbd>
                 </button>
               ) : (
-                <button className="find-btn" onClick={find} disabled={busy || !!found || (mode === "practice" && arena != null && arena.pool < 6)}>
+                <button className="find-btn" onClick={find} disabled={busy || !!found || (mode !== "real" && arena != null && arena.pool < 6)}>
                   {found ? "Opponent found" : mode === "real" ? "Open real duels" : arena && arena.pool < 6 ? "Warming up" : "Find match"}
                   <kbd>Space</kbd>
                 </button>
               )}
               <div className="cta-meta">
-                {mode === "practice" ? (
+                {mode === "live" ? (
+                  <>
+                    <b>Ranked</b> · pick any coin, presets, slippage, hotkeys
+                    <br />
+                    Fills on the real bonding curve. No one online? A <b>ghost</b> of a real wallet.
+                  </>
+                ) : mode === "replay" ? (
                   <>
                     <b>Ranked</b> · 3 rounds of 75 s on real launches
                     <br />
@@ -237,7 +267,7 @@ export default function Arena() {
                 <span>
                   <b>You are in a live duel.</b> <span className="muted">Your opponent is waiting.</span>
                 </span>
-                <button className="btn btn-primary btn-sm" onClick={() => router.push(`/duel/${arena.active!.id}`)}>
+                <button className="btn btn-primary btn-sm" onClick={() => router.push(arena.active!.kind === "live" ? `/live/${arena.active!.id}` : `/duel/${arena.active!.id}`)}>
                   Rejoin
                 </button>
               </div>
@@ -363,16 +393,24 @@ export default function Arena() {
             </div>
             <div className="recent">
               {(arena?.recent ?? []).slice(0, 7).map((d) => (
-                <Link key={d.id} href={`/duel/${d.id}`} className="recent-row">
+                <Link key={d.id} href={d.kind === "live" ? `/live/${d.id}` : `/duel/${d.id}`} className="recent-row">
                   <span className={`who ${d.winner === 1 ? "won" : ""}`}>
                     <Avatar look={d.a1} size={20} />
                     <span className="nm">{d.n1}</span>
                   </span>
-                  <span className="score mono">
-                    <b className={d.winner === 1 ? "t-up" : ""}>{d.s1 ?? 0}</b>
-                    <i>–</i>
-                    <b className={d.winner === 2 ? "t-up" : ""}>{d.s2 ?? 0}</b>
-                  </span>
+                  {d.kind === "live" ? (
+                    <span className="score mono pctscore">
+                      <b className={d.winner === 1 ? "t-up" : ""}>{pct(d.s1 ?? 0, 0)}</b>
+                      <i>⚡</i>
+                      <b className={d.winner === 2 ? "t-up" : ""}>{pct(d.s2 ?? 0, 0)}</b>
+                    </span>
+                  ) : (
+                    <span className="score mono">
+                      <b className={d.winner === 1 ? "t-up" : ""}>{d.s1 ?? 0}</b>
+                      <i>–</i>
+                      <b className={d.winner === 2 ? "t-up" : ""}>{d.s2 ?? 0}</b>
+                    </span>
+                  )}
                   <span className={`who right ${d.winner === 2 ? "won" : ""}`}>
                     <span className={`nm ${d.ghost ? "ghost-name" : ""}`} title={d.ghost ? "Ghost: replays a real wallet" : undefined}>
                       {d.n2}
@@ -417,16 +455,16 @@ export default function Arena() {
             </div>
             <ol className="steps">
               <li>
-                <b>Same coin, same bag.</b> Each round drops you both on a real pump.fun launch, replayed at 4x, with 10 play SOL.
+                <b>A full terminal.</b> Live pump.fun launches, real-time charts, presets, slippage and hotkeys, like the apps you already use.
               </li>
               <li>
-                <b>Trade it live.</b> You see the dev wallet, holders, snipers and every move your opponent makes.
+                <b>Real prices, play money.</b> You both get 10 SOL. Every fill is priced on the coin&apos;s bonding curve, read from the chain at that moment.
               </li>
               <li>
-                <b>Bigger bag takes the round.</b> Sitting out loses it. Best of 3 wins the duel and the rating.
+                <b>See your opponent.</b> Their bags and every trade show up live. Copy them or fade them.
               </li>
               <li>
-                <b>The reveal.</b> After each round you find out which real coin it was, and how it ended.
+                <b>3 minutes, one winner.</b> The biggest bag at zero takes the duel and the rating. Sitting out loses.
               </li>
             </ol>
           </div>

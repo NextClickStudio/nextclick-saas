@@ -74,6 +74,8 @@ export type FeedRow = [number, number, number, number, number, number, number | 
 
 export type RecentDuel = {
   id: string;
+  /** "replay" = best of 3 on replayed coins (s1/s2 are rounds won); "live" = terminal duel (s1/s2 are PnL %) */
+  kind?: "replay" | "live";
   ended: number;
   s1: number | null;
   s2: number | null;
@@ -94,7 +96,7 @@ export type Arena = {
   live: number;
   today: number;
   pool: number;
-  active: { id: string; status: string } | null;
+  active: { id: string; status: string; kind?: "replay" | "live" } | null;
   recent: RecentDuel[];
   top: { name: string; avatar: unknown; elo: number; w: number; l: number }[];
   /** coins: [name, symbol, ageMs, mcUsd, events] */
@@ -133,4 +135,39 @@ export type RealBoard = {
   open: { code: string; name: string; avatar: unknown; elo: number; rw: number; rp: number; dur_ms: number; created: number }[];
   live: { code: string; n1: string; a1: unknown; n2: string; a2: unknown; start: number; end: number }[];
   recent: { code: string; n1: string; a1: unknown; n2: string; a2: unknown; winner: number; r1: number | null; r2: number | null; end_ms: number }[];
+};
+
+// ---------- live duels (yeppo terminal) ----------
+
+/** [slot, atMs, mint, symbol, kind(1 buy, 2 sell), sol, tokens, priceSol] */
+export type LiveFill = [number, number, string, string | null, number, number, number, number];
+
+export type LiveGhost = {
+  eq: number;
+  n: number;
+  px: number | null;
+  sol_usd: number | null;
+  /** [msIntoDuel, kind, sol, tokens, mcSol] */
+  tr: [number, number, number, number, number][];
+  reveal: { name: string | null; symbol: string | null; mint: string; outcome: string | null } | null;
+};
+
+export type LiveDuelState = {
+  id: string;
+  status: "queue" | "live" | "done" | "cancelled";
+  now: number;
+  created: number;
+  start: number | null;
+  dur_ms: number;
+  me: 1 | 2 | null;
+  ghost: boolean;
+  p1: DuelPlayer;
+  p2: (DuelPlayer & { sym?: string }) | null;
+  winner: number | null;
+  eq: [number | null, number | null];
+  n: [number | null, number | null];
+  elo: [number | null, number | null];
+  fills: LiveFill[];
+  marks: Record<string, number | null>;
+  g: LiveGhost | null;
 };
