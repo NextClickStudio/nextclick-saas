@@ -267,7 +267,7 @@ async function checkTwallet(sb: SupabaseClient<any, any, any>, t: TWallet): Prom
   for (const s of sigs) {
     if (s.err || seen.has(s.signature)) continue;
     if (s.blockTime != null && s.blockTime * 1000 < t.since - 120_000) break;
-    const tx = await rpc<ParsedTx>("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }]);
+    const tx = await rpc<ParsedTx>("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 1, commitment: "confirmed" }]).catch(() => null);
     seen.add(s.signature);
     if (!tx || tx.meta?.err) continue;
     const ixs = [...tx.transaction.message.instructions, ...(tx.meta?.innerInstructions ?? []).flatMap((x) => x.instructions)];
@@ -306,7 +306,7 @@ async function fundedBy(address: string, main: string): Promise<boolean> {
     if (i >= 24) return false;
   }
   for (const s of page.slice(-5).reverse()) {
-    const tx = await rpc<ParsedTx>("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }]);
+    const tx = await rpc<ParsedTx>("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 1, commitment: "confirmed" }]).catch(() => null);
     if (!tx || tx.meta?.err) continue;
     const ixs = [...tx.transaction.message.instructions, ...(tx.meta?.innerInstructions ?? []).flatMap((x) => x.instructions)];
     const funding = ixs.filter((ix) => ix.program === "system" && ix.parsed?.info?.destination === address && Number(ix.parsed.info?.lamports) > 0);
