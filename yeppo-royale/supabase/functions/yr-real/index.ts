@@ -1,7 +1,10 @@
 // yr-real: the on-chain side of real duels.
 //  POST {action: "verify", secret, address, signature, message?}  (public)  checks a wallet signature and links the wallet
 //       (message: a Sign In With Solana message the wallet built around our nonce, base64)
-//  POST {action: "twallet_check", secret}                (public)  looks for a trading wallet's proof transfer right now
+//  POST {action: "twallet_check", secret}                (public)  links a pending trading wallet if its first funding came
+//       from the verified wallet, or the proof transfer landed
+//  POST {action: "twallet_sign", secret, address, signature, message?, label?}  (public)  links a trading wallet that
+//       signed our message itself
 //  POST {} with x-ingest-key                             (pg_cron) polls the duelists' wallets for pump.fun trades
 //       and checks trading wallets waiting for their proof
 // Trades are read from the public Solana RPC: the pump.fun program logs a TradeEvent for every buy
@@ -154,39 +157,57 @@ async function ed25519Verify(msg: Uint8Array, sig: Uint8Array, pk: Uint8Array): 
   }
 }
 
-async function verify(sb: SupabaseClient<any, any, any>, body: Record<string, string>) {
-  const { secret, address, signature } = body;
-  if (!secret || !address || !signature) return json({ error: "Missing fields" }, 400);
-  const { data: chk, error } = await sb.rpc("yr_wallet_check", { p_secret: secret });
-  if (error) return json({ error: error.message }, 400);
+/** checks that `address` signed our nonce message (plain, or inside a Sign In With Solana message); null when it did */
+async function checkSigned(expected: string, address: string, signature: string, message?: string): Promise<string | null> {
   let pk: Uint8Array;
   let sig: Uint8Array;
   try {
     pk = b58decode(address);
     sig = b64decode(signature);
   } catch {
-    return json({ error: "Invalid wallet or signature" }, 400);
+    return "Invalid wallet or signature";
   }
-  if (pk.length !== 32 || sig.length !== 64) return json({ error: "Invalid wallet or signature" }, 400);
-  const expected = (chk as { message: string }).message;
+  if (pk.length !== 32 || sig.length !== 64) return "Invalid wallet or signature";
   let signed: Uint8Array = new TextEncoder().encode(expected);
-  if (body.message) {
+  if (message) {
     // Sign In With Solana: the wallet wrote the message, so check it is for yeppo, this wallet and this nonce
     try {
-      signed = b64decode(body.message);
+      signed = b64decode(message);
     } catch {
-      return json({ error: "Invalid wallet or signature" }, 400);
+      return "Invalid wallet or signature";
     }
     const lines = new TextDecoder().decode(signed).split("\n");
     const domain = /^(\S+) wants you to sign in with your Solana account:$/.exec(lines[0] ?? "")?.[1];
     const nonce = /Nonce: ([A-Za-z0-9]+)$/.exec(expected)?.[1];
     if (!domain || !SIWS_DOMAINS.includes(domain) || lines[1] !== address || !nonce || !lines.includes(`Nonce: ${nonce}`)) {
-      return json({ error: "This sign-in message is not for yeppo. Try again." }, 400);
+      return "This sign-in message is not for yeppo. Try again.";
     }
   }
   const ok = await ed25519Verify(signed, sig, pk);
-  if (!ok) return json({ error: "The signature does not match this wallet" }, 400);
+  return ok ? null : "The signature does not match this wallet";
+}
+
+async function verify(sb: SupabaseClient<any, any, any>, body: Record<string, string>) {
+  const { secret, address, signature } = body;
+  if (!secret || !address || !signature) return json({ error: "Missing fields" }, 400);
+  const { data: chk, error } = await sb.rpc("yr_wallet_check", { p_secret: secret });
+  if (error) return json({ error: error.message }, 400);
+  const bad = await checkSigned((chk as { message: string }).message, address, signature, body.message);
+  if (bad) return json({ error: bad }, 400);
   const { error: le } = await sb.rpc("yr_wallet_link", { p_user: (chk as { user_id: string }).user_id, p_address: address });
+  if (le) return json({ error: le.message }, 400);
+  return json({ ok: true, wallet: address });
+}
+
+/** a trading wallet imported into a browser wallet signs for itself: linked on the spot */
+async function twalletSign(sb: SupabaseClient<any, any, any>, body: Record<string, string>) {
+  const { secret, address, signature } = body;
+  if (!secret || !address || !signature) return json({ error: "Missing fields" }, 400);
+  const { data: chk, error } = await sb.rpc("yr_wallet_check", { p_secret: secret });
+  if (error) return json({ error: error.message }, 400);
+  const bad = await checkSigned((chk as { message: string }).message, address, signature, body.message);
+  if (bad) return json({ error: bad }, 400);
+  const { error: le } = await sb.rpc("yr_twallet_signed", { p_user: (chk as { user_id: string }).user_id, p_address: address, p_label: body.label ?? null });
   if (le) return json({ error: le.message }, 400);
   return json({ ok: true, wallet: address });
 }
@@ -267,19 +288,58 @@ async function checkTwallet(sb: SupabaseClient<any, any, any>, t: TWallet): Prom
   return false;
 }
 
+/**
+ * the trading wallet's very first funding came from the verified wallet: true. History cannot be rewritten,
+ * so nobody can claim a wallet somebody else funded. Reads the history back to its start (25k transactions max).
+ */
+async function fundedBy(address: string, main: string): Promise<boolean> {
+  let before: string | undefined;
+  let page: Sig[] = [];
+  for (let i = 0; ; i++) {
+    const opts: Record<string, unknown> = { limit: 1000, commitment: "confirmed" };
+    if (before) opts.before = before;
+    const sigs = await rpc<Sig[]>("getSignaturesForAddress", [address, opts]);
+    if (!sigs.length) break;
+    page = sigs;
+    before = sigs[sigs.length - 1].signature;
+    if (sigs.length < 1000) break;
+    if (i >= 24) return false;
+  }
+  for (const s of page.slice(-5).reverse()) {
+    const tx = await rpc<ParsedTx>("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }]);
+    if (!tx || tx.meta?.err) continue;
+    const ixs = [...tx.transaction.message.instructions, ...(tx.meta?.innerInstructions ?? []).flatMap((x) => x.instructions)];
+    const funding = ixs.filter((ix) => ix.program === "system" && ix.parsed?.info?.destination === address && Number(ix.parsed.info?.lamports) > 0);
+    if (funding.length) return funding.some((ix) => ix.parsed?.info?.source === main);
+  }
+  return false;
+}
+
 async function twalletCheck(sb: SupabaseClient<any, any, any>, body: Record<string, string>) {
   if (!body.secret) return json({ error: "Missing fields" }, 400);
   const { data, error } = await sb.rpc("yr_twallet_pending", { p_secret: body.secret });
   if (error) return json({ error: error.message }, 400);
   const ok: string[] = [];
-  for (const t of (data as TWallet[]) ?? []) {
+  const funded: Record<string, boolean> = {};
+  for (const t of (data as (TWallet & { funding_at: number | null })[]) ?? []) {
     try {
+      // the free way first: was it funded from the verified wallet? (read at most every 5 minutes)
+      if (!t.funding_at || Date.now() - t.funding_at > 5 * 60_000) {
+        await sb.rpc("yr_twallet_funding", { p_user: t.user_id, p_address: t.address });
+        funded[t.address] = await fundedBy(t.address, t.to);
+        if (funded[t.address]) {
+          const { error: e2 } = await sb.rpc("yr_twallet_signed", { p_user: t.user_id, p_address: t.address, p_label: null });
+          if (e2) throw new Error(e2.message);
+          ok.push(t.address);
+          continue;
+        }
+      }
       if (await checkTwallet(sb, t)) ok.push(t.address);
     } catch (e) {
       return json({ error: e instanceof Error ? e.message : "Could not check the chain" }, 400);
     }
   }
-  return json({ ok: true, verified: ok, pending: ((data as TWallet[]) ?? []).length - ok.length });
+  return json({ ok: true, verified: ok, funded, pending: ((data as TWallet[]) ?? []).length - ok.length });
 }
 
 /** latest bonding-curve reserves of a coin, from its newest trade */
@@ -351,6 +411,7 @@ Deno.serve(async (req) => {
   const body = (await req.json().catch(() => ({}))) as Record<string, string>;
   if (body.action === "verify") return verify(sb, body);
   if (body.action === "twallet_check") return twalletCheck(sb, body);
+  if (body.action === "twallet_sign") return twalletSign(sb, body);
   const { data: keyRow } = await sb.from("yr_config").select("value").eq("key", "ingest_key").maybeSingle();
   if (!keyRow || req.headers.get("x-ingest-key") !== keyRow.value) return json({ error: "forbidden" }, 403);
   return poll(sb);

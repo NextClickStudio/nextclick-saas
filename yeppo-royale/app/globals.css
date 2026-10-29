@@ -4374,3 +4374,20 @@ a.soc:hover {
   border-color: var(--line);
   background: transparent;
 }
+.chip-hot {
+  color: #ff8a3d;
+  background: rgba(255, 138, 61, 0.12);
+  border: 1px solid rgba(255, 138, 61, 0.35);
+  font-size: 9px;
+  padding: 0 5px;
+}
+.tw-ways {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tw-ways li.off {
+  opacity: 0.55;
+}

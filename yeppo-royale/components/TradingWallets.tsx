@@ -6,7 +6,7 @@ import { clock } from "@/lib/format";
 import { sfx, toast } from "@/lib/fx";
 import { rpc } from "@/lib/supabase";
 import type { TradingWallet } from "@/lib/types";
-import { short, solscanAccount } from "@/lib/wallet";
+import { installedWallets, short, signTradingWallet, solscanAccount } from "@/lib/wallet";
 import { useApp } from "./AppProvider";
 
 const APPS = ["Axiom", "GMGN", "Photon", "BullX", "Padre", "pump.fun", "Other"];
@@ -18,15 +18,18 @@ async function checkNow(secret: string) {
     headers: { "content-type": "application/json", apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}` },
     body: JSON.stringify({ action: "twallet_check", secret }),
   });
-  const j = (await r.json().catch(() => ({}))) as { verified?: string[]; error?: string };
+  const j = (await r.json().catch(() => ({}))) as { verified?: string[]; funded?: Record<string, boolean>; error?: string };
   if (!r.ok) throw new Error(j.error || "Could not check the chain");
-  return j.verified ?? [];
+  return { verified: j.verified ?? [], funded: j.funded ?? {} };
 }
 
 /**
  * Trading apps like Axiom, GMGN or Photon trade from a wallet they made for you, not from Phantom.
- * Link it once: send a tiny, exact amount from it to your verified wallet (your own money, it lands
- * in your own wallet) and its trades count in every real duel.
+ * Link it once and its trades count in every real duel. Pasting an address is not enough (anyone could
+ * paste a famous trader's wallet), so one of these has to be true:
+ *  - its first funding came from your verified wallet (checked on the chain, nothing to do), or
+ *  - you sign with it (if you imported it into Phantom or another wallet), or
+ *  - you send a tiny exact amount from it to your verified wallet (your own SOL, it comes straight back).
  */
 export default function TradingWallets({ suggest, compact }: { suggest?: string | null; compact?: boolean }) {
   const { me, session } = useApp();
@@ -37,6 +40,8 @@ export default function TradingWallets({ suggest, compact }: { suggest?: string 
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [funding, setFunding] = useState<Record<string, "checking" | "no">>({});
+  const [signing, setSigning] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!session) return;
@@ -67,7 +72,8 @@ export default function TradingWallets({ suggest, compact }: { suggest?: string 
     if (!hasPending || !session) return;
     const t = setInterval(async () => {
       try {
-        const ok = await checkNow(session.secret);
+        const { verified: ok, funded } = await checkNow(session.secret);
+        setFunding((f) => ({ ...f, ...Object.fromEntries(Object.entries(funded).filter(([, v]) => !v).map(([a]) => [a, "no" as const])) }));
         if (ok.length) {
           sfx.win();
           toast("Trading wallet linked. Its trades count now.", "up");
@@ -88,11 +94,23 @@ export default function TradingWallets({ suggest, compact }: { suggest?: string 
       return;
     }
     setBusy(true);
+    const a = addr.trim();
     try {
-      setList(await rpc<TradingWallet[]>("yr_twallet_add", { p_secret: session.secret, p_address: addr.trim(), p_label: app }));
+      setList(await rpc<TradingWallet[]>("yr_twallet_add", { p_secret: session.secret, p_address: a, p_label: app }));
       setAddr("");
       setOpen(false);
       sfx.go();
+      // the free way first: was it funded from the verified wallet?
+      setFunding((f) => ({ ...f, [a]: "checking" }));
+      void checkNow(session.secret)
+        .then(async ({ verified, funded }) => {
+          if (verified.includes(a)) {
+            sfx.win();
+            toast("Linked: it was funded from your verified wallet", "up");
+            await load();
+          } else if (funded[a] === false) setFunding((f) => ({ ...f, [a]: "no" }));
+        })
+        .catch(() => setFunding((f) => ({ ...f, [a]: "no" })));
     } catch (e) {
       sfx.error();
       toast(e instanceof Error ? e.message : "Could not add the wallet", "down");
@@ -109,10 +127,30 @@ export default function TradingWallets({ suggest, compact }: { suggest?: string 
     }
   };
 
+  const sign = async (w: TradingWallet) => {
+    const wallet = installedWallets()[0];
+    if (!wallet) {
+      toast("No wallet in this browser. Import the trading wallet into Phantom first.", "down");
+      return;
+    }
+    setSigning(w.address);
+    try {
+      await signTradingWallet(session.secret, wallet, w.address, w.label);
+      sfx.win();
+      toast("Trading wallet linked. Its trades count now.", "up");
+      await load();
+    } catch (e) {
+      sfx.error();
+      toast(e instanceof Error ? e.message : "Could not sign", "down");
+    } finally {
+      setSigning(null);
+    }
+  };
+
   const check = async () => {
     setChecking(true);
     try {
-      const ok = await checkNow(session.secret);
+      const { verified: ok } = await checkNow(session.secret);
       if (ok.length) {
         sfx.win();
         toast("Trading wallet linked. Its trades count now.", "up");
@@ -167,17 +205,37 @@ export default function TradingWallets({ suggest, compact }: { suggest?: string 
               ×
             </button>
           </div>
-          <p className="small">
-            From this wallet in {w.label ?? "your app"}, withdraw exactly{" "}
-            <button className="tw-copy mono" onClick={() => copy(w.sol.toFixed(5), "Amount")}>
-              {w.sol.toFixed(5)} SOL ⧉
-            </button>{" "}
-            to your verified wallet{" "}
-            <button className="tw-copy mono" onClick={() => copy(me.wallet!, "Address")}>
-              {short(me.wallet)} ⧉
-            </button>
-          </p>
-          <p className="small dim">It is your own SOL and lands in your own wallet. Only the owner of a wallet can send from it, so this proves it is yours.</p>
+          <ol className="tw-ways small">
+            <li className={funding[w.address] === "no" ? "off" : ""}>
+              <b>Nothing to do</b> if this wallet was first funded from your verified wallet {short(me.wallet)}.{" "}
+              {funding[w.address] === "checking" ? (
+                <span className="dim">
+                  <i className="spinner sm" />
+                  reading its history…
+                </span>
+              ) : funding[w.address] === "no" ? (
+                <span className="dim">It was funded from somewhere else.</span>
+              ) : null}
+            </li>
+            <li>
+              <b>Sign with it</b> if you imported it into Phantom or another wallet.{" "}
+              <button className="tw-copy" onClick={() => sign(w)} disabled={signing === w.address}>
+                {signing === w.address ? "Check your wallet…" : "Sign now"}
+              </button>
+            </li>
+            <li>
+              <b>Or send a tiny proof:</b> from it in {w.label ?? "your app"}, withdraw exactly{" "}
+              <button className="tw-copy mono" onClick={() => copy(w.sol.toFixed(5), "Amount")}>
+                {w.sol.toFixed(5)} SOL ⧉
+              </button>{" "}
+              to{" "}
+              <button className="tw-copy mono" onClick={() => copy(me.wallet!, "Address")}>
+                {short(me.wallet)} ⧉
+              </button>
+              . It is your own SOL and lands in your own wallet.
+            </li>
+          </ol>
+          <p className="small dim">Pasting an address is not enough: anyone could paste a famous trader&apos;s wallet.</p>
           <div className="row-btns">
             <button className="btn btn-sm" onClick={check} disabled={checking}>
               {checking ? "Checking…" : "I sent it, check now"}

@@ -3,6 +3,7 @@
 //       bonding curve as it is on-chain right now
 //  POST {action: "settle", duel}   (public)   refreshes the marks of the duel's open bags and settles it once the clock ran out
 //  POST {action: "coin", mint}     (public)   curve, name and latest trades of any pump.fun coin, read from the chain
+//  POST {action: "meta", mints}    (public)   names of up to 20 coins from their on-chain metadata, kept in yr_tmeta
 //  POST {} with x-ingest-key       (pg_cron)  keeps the marks of open bags fresh and settles finished duels
 // Everything comes from the public Solana RPC. No API keys.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.118.0";
@@ -294,6 +295,29 @@ async function coin(sb: Sb, mint: string) {
   return data;
 }
 
+/** names of coins yeppo never captured (Trending covers every pump.fun coin), read once and kept */
+async function metas(sb: Sb, mints: unknown) {
+  const list = [...new Set(Array.isArray(mints) ? mints : [])].filter(isMint).slice(0, 20);
+  if (!list.length) return { metas: [] };
+  const { data: have } = await sb.from("yr_tmeta").select("mint,name,symbol,uri").in("mint", list);
+  const known = new Map<string, { mint: string; name: string | null; symbol: string | null; uri: string | null }>((have ?? []).map((r) => [r.mint, r]));
+  const todo = list.filter((m) => !known.has(m));
+  if (todo.length) {
+    const pdas = await Promise.all(todo.map((m) => findPda([new TextEncoder().encode("metadata"), b58decode(METAPLEX), b58decode(m)], METAPLEX)));
+    const accs = await rpc<{ value: Acc[] }>("getMultipleAccounts", [[...todo, ...pdas], { encoding: "base64", commitment: "confirmed" }]);
+    const rows = todo.map((m, i) => {
+      const mintAcc = accs.value[i];
+      const mpAcc = accs.value[todo.length + i];
+      let meta = mintAcc && mintAcc.owner === TOKEN_2022 ? token2022Meta(b64decode(mintAcc.data[0])) : null;
+      if (!meta && mpAcc) meta = metaplexMeta(b64decode(mpAcc.data[0]));
+      return { mint: m, name: meta?.name?.slice(0, 64) || null, symbol: meta?.symbol?.slice(0, 24) || null, uri: meta?.uri?.slice(0, 300) || null };
+    });
+    await sb.from("yr_tmeta").upsert(rows.map((r) => ({ ...r, at: new Date().toISOString() })));
+    for (const r of rows) known.set(r.mint, r);
+  }
+  return { metas: list.map((m) => known.get(m)).filter(Boolean) };
+}
+
 // ---------- actions ----------
 async function trade(sb: Sb, b: Record<string, unknown>) {
   const { secret, duel, mint, sym, side } = b;
@@ -361,6 +385,7 @@ Deno.serve(async (req) => {
       if (!isMint(body.mint)) return fail("Paste a coin address");
       return json(await coin(sb, body.mint));
     }
+    if (body.action === "meta") return json(await metas(sb, body.mints));
   } catch (e) {
     return fail(e instanceof Error ? e.message : "Something went wrong", 502);
   }

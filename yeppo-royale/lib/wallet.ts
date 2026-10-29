@@ -360,6 +360,29 @@ export async function verifyWallet(secret: string, w: Wallet): Promise<string> {
   return address;
 }
 
+/** link a trading wallet by signing with it (it was imported into Phantom, Solflare...): no transfer needed */
+export async function signTradingWallet(secret: string, w: Wallet, expected: string, label: string | null): Promise<string> {
+  let address: string | null;
+  let sig: Uint8Array;
+  const { message } = await rpc<{ message: string }>("yr_wallet_nonce", { p_secret: secret });
+  try {
+    address = await w.connect(false);
+    if (!address) throw new Error(`${w.name} did not share an address`);
+    if (address !== expected) throw new Error(`${w.name} is on ${short(address)}. Switch to the account with ${short(expected)} and try again.`);
+    sig = await w.signMessage(new TextEncoder().encode(message));
+  } catch (e) {
+    throw walletError(e, w.name);
+  }
+  const r = await fetch(`${SUPABASE_URL}/functions/v1/yr-real`, {
+    method: "POST",
+    headers: { "content-type": "application/json", apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ action: "twallet_sign", secret, address, signature: toBase64(sig), label }),
+  });
+  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+  if (!r.ok || !j.ok) throw new Error(j.error || "Could not link the wallet");
+  return address;
+}
+
 export const short = (a: string | null | undefined) => (a ? `${a.slice(0, 4)}…${a.slice(-4)}` : "");
 export const solscanTx = (sig: string) => `https://solscan.io/tx/${sig}`;
 export const solscanAccount = (a: string) => `https://solscan.io/account/${a}`;

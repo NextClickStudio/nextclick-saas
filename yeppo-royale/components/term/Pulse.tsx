@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { rpc } from "@/lib/supabase";
 import { age, compact, usd } from "@/lib/format";
-import { coinOf, getFeed, isMint, progressOf, setSolPrice, solPrice, SUPPLY } from "@/lib/pump";
+import { coinOf, getFeed, isMint, progressOf, setSolPrice, shortAddr, solPrice, SUPPLY, termCall } from "@/lib/pump";
 import CoinAvatar from "./CoinAvatar";
 
 type Row = {
@@ -11,7 +11,8 @@ type Row = {
   name: string;
   symbol: string;
   uri: string | null;
-  created: number;
+  /** null for coins yeppo did not see launch (they come from Trending) */
+  created: number | null;
   mc: number;
   vsol: number;
   ath: number;
@@ -25,17 +26,19 @@ type Row = {
   web: boolean;
   last: number;
   live?: boolean;
+  /** in the top of every pump.fun trade of the last 5 minutes */
+  hot?: boolean;
 };
 type PulseRes = {
   now: number;
-  sol_usd: number | null;
-  coins: [string, string, string, string | null, number, number, number, number, number, number, number, number, number, boolean, boolean, boolean, number][];
+  sol_usd?: number | null;
+  coins: [string, string | null, string | null, string | null, number | null, number, number, number, number, number, number, number, number, boolean, boolean, boolean, number][];
 };
 
 type Tab = "new" | "hot" | "final";
 const TABS: [Tab, string][] = [
-  ["new", "New pairs"],
   ["hot", "Trending"],
+  ["new", "New pairs"],
   ["final", "Final stretch"],
 ];
 const BAD = /(nigg|n1gg|fag|rape|hitler|nazi|kkk|retard|kike|chink|spic|tranny|porn|nsfw|cunt|whore|slut)/i;
@@ -79,28 +82,67 @@ export default function Pulse({
 }) {
   const rows = useRef(new Map<string, Row>());
   const [ver, setVer] = useState(0);
-  const [tab, setTab] = useState<Tab>("new");
+  const [tab, setTab] = useState<Tab>("hot");
   const [q, setQ] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const flash = useRef(new Map<string, { k: number; t: number }>());
   const [editQuick, setEditQuick] = useState(false);
 
-  // captured launches, refreshed every few seconds
+  // captured launches, and the most traded coins of all pump.fun, refreshed every few seconds
+  const named = useRef(new Set<string>());
   useEffect(() => {
     let dead = false;
+    const put = (r: PulseRes, hot: boolean) => {
+      for (const c of r.coins) {
+        const [mint, name, symbol, uri, created, mc, vsol, ath, n, b5, s5, v5, t1, x, tg, web, last] = c;
+        const prev = rows.current.get(mint);
+        rows.current.set(mint, {
+          mint,
+          name: name ?? prev?.name ?? "",
+          symbol: symbol ?? prev?.symbol ?? "",
+          uri: uri ?? prev?.uri ?? null,
+          created: created ?? prev?.created ?? null,
+          mc: +mc,
+          vsol: +vsol,
+          ath: Math.max(+ath, prev?.ath ?? 0),
+          n,
+          b5,
+          s5,
+          v5: +v5,
+          t1,
+          x: x || !!prev?.x,
+          tg: tg || !!prev?.tg,
+          web: web || !!prev?.web,
+          last: Math.max(last, prev?.last ?? 0),
+          live: prev?.live,
+          hot: hot || prev?.hot,
+        });
+        const coin = coinOf(mint);
+        if (!coin.meta.name && name) coin.meta = { ...coin.meta, name, symbol, uri, created };
+      }
+    };
     const load = async () => {
       try {
-        const r = await rpc<PulseRes>("yr_t_pulse", {});
+        const [p, h] = await Promise.all([rpc<PulseRes>("yr_t_pulse", {}), rpc<PulseRes>("yr_t_hot", {}).catch(() => null)]);
         if (dead) return;
-        setSolPrice(r.sol_usd);
-        for (const c of r.coins) {
-          const [mint, name, symbol, uri, created, mc, vsol, ath, n, b5, s5, v5, t1, x, tg, web, last] = c;
-          const prev = rows.current.get(mint);
-          rows.current.set(mint, { mint, name, symbol, uri, created, mc: +mc, vsol: +vsol, ath: +ath, n, b5, s5, v5: +v5, t1, x, tg, web, last, live: prev?.live });
-          const coin = coinOf(mint);
-          if (!coin.meta.name) coin.meta = { ...coin.meta, name, symbol, uri, created };
-        }
+        setSolPrice(p.sol_usd);
+        for (const r of rows.current.values()) r.hot = false;
+        put(p, false);
+        if (h) put(h, true);
         setVer((v) => v + 1);
+        // names of traded coins yeppo never captured, read once from the chain
+        const unknown = (h?.coins ?? []).filter((c) => !c[1] && !named.current.has(c[0])).map((c) => c[0]).slice(0, 20);
+        if (unknown.length) {
+          unknown.forEach((m) => named.current.add(m));
+          const res = await termCall<{ metas: { mint: string; name: string | null; symbol: string | null; uri: string | null }[] }>({ action: "meta", mints: unknown }).catch(() => null);
+          for (const m of res?.metas ?? []) {
+            const row = rows.current.get(m.mint);
+            if (row) Object.assign(row, { name: m.name ?? "", symbol: m.symbol ?? "", uri: m.uri });
+            const coin = coinOf(m.mint);
+            if (!coin.meta.name) coin.meta = { ...coin.meta, name: m.name, symbol: m.symbol, uri: m.uri };
+          }
+          if (!dead) setVer((v) => v + 1);
+        }
       } catch {
         /* the next round will do */
       }
@@ -161,7 +203,9 @@ export default function Pulse({
   }, []);
 
   const list = useMemo(() => {
-    const all = [...rows.current.values()].filter((r) => now - r.created < 1_800_000);
+    const all = [...rows.current.values()].filter(
+      (r) => !BAD.test(`${r.name} ${r.symbol}`) && ((r.created != null && now - r.created < 1_800_000) || (r.hot && now - r.last < 180_000)),
+    );
     const live = (r: Row) => {
       const c = coinOf(r.mint);
       if (c.lastT > r.last && c.vtok > 0) {
@@ -173,8 +217,8 @@ export default function Pulse({
     const term = q.trim().toLowerCase();
     let out = all.map(live);
     if (term && !isMint(term)) out = out.filter((r) => `${r.name} ${r.symbol}`.toLowerCase().includes(term));
-    if (tab === "new") out.sort((a, b) => b.created - a.created);
-    else if (tab === "hot") out = out.filter((r) => now - r.last < 90_000).sort((a, b) => b.v5 - a.v5);
+    if (tab === "new") out = out.filter((r) => r.created != null && now - r.created < 1_800_000).sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
+    else if (tab === "hot") out = out.filter((r) => now - r.last < 120_000).sort((a, b) => b.t1 - a.t1 || b.v5 - a.v5);
     else out = out.filter((r) => r.prog >= 35 && r.prog < 100).sort((a, b) => b.prog - a.prog);
     return out.slice(0, 50);
   }, [ver, now, tab, q]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -183,9 +227,10 @@ export default function Pulse({
   useEffect(() => {
     if (firstDone.current || !onFirst || !rows.current.size) return;
     const t = Date.now();
+    // the coin trading the most right now
     const best = [...rows.current.values()]
-      .filter((r) => t - r.last < 120_000 && t - r.created < 1_800_000)
-      .sort((a, b) => b.v5 - a.v5)[0];
+      .filter((r) => t - r.last < 60_000 && !BAD.test(`${r.name} ${r.symbol}`))
+      .sort((a, b) => b.t1 - a.t1 || b.v5 - a.v5)[0];
     if (best) {
       firstDone.current = true;
       onFirst(best.mint);
@@ -275,15 +320,18 @@ export default function Pulse({
               onClick={() => onPick(r.mint)}
               onKeyDown={(e) => e.key === "Enter" && onPick(r.mint)}
             >
-              <CoinAvatar mint={r.mint} uri={r.uri} sym={r.symbol || r.name} size={36} />
+              <CoinAvatar mint={r.mint} uri={r.uri} sym={r.symbol || r.name || r.mint} size={36} />
               <div className="prow-mid">
                 <div className="prow-l1">
-                  <b className="prow-sym">{(r.symbol || r.name).replace(/^\$/, "").slice(0, 10)}</b>
+                  <b className="prow-sym">{(r.symbol || r.name || shortAddr(r.mint)).replace(/^\$/, "").slice(0, 10)}</b>
                   <span className="prow-name">{r.name}</span>
+                  {r.hot && tab !== "hot" && <span className="chip chip-hot">HOT</span>}
                   {held.has(r.mint) && <span className="chip chip-you">BAG</span>}
                 </div>
                 <div className="prow-l2 mono">
-                  <span className={now - r.created < 120_000 ? "t-up" : "dim"}>{age(now - r.created).replace(/ \d+s$/, "")}</span>
+                  <span className={r.created != null && now - r.created < 120_000 ? "t-up" : "dim"}>
+                    {r.created != null ? age(now - r.created).replace(/ \d+s$/, "") : "—"}
+                  </span>
                   {r.x && <i className="soc">𝕏</i>}
                   {r.tg && <i className="soc">tg</i>}
                   {r.web && <i className="soc">www</i>}
