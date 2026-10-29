@@ -194,7 +194,19 @@ export function loadCoin(mint: string): Promise<Coin> {
         c.add({ sig: `db${i}:${t}`, t: db!.created + t, k: k === 1 ? 1 : 2, sol: solAmt, tok, vsol, vtok: (vsol * SUPPLY) / mc, who: `w${w}` });
       });
     }
-    const stale = !db || Date.now() - (db.created + (db.ev[db.ev.length - 1]?.[0] ?? 0)) > 60_000;
+    // the last 20 minutes of trades, for any coin, from the capture
+    let recent = 0;
+    try {
+      const r = await rpc<{ ticks: TickRow[] }>("yr_ticks", { p_mints: [mint], p_since: 0 });
+      for (const [, t, k, s, tok, vsol, vtok, who, sig] of r.ticks) {
+        if (t <= c.lastT || !(vtok > 0)) continue;
+        c.add({ sig, t, k: k === 1 ? 1 : 2, sol: s, tok, vsol, vtok, who: who ?? "" });
+        recent++;
+      }
+    } catch {
+      /* the chain lookup below covers it */
+    }
+    const stale = !recent && (!db || Date.now() - (db.created + (db.ev[db.ev.length - 1]?.[0] ?? 0)) > 60_000);
     if (stale) {
       try {
         const ch = await termCall<ChainCoin>({ action: "coin", mint });
@@ -226,10 +238,11 @@ export function loadCoin(mint: string): Promise<Coin> {
 }
 
 // ---------- the live feed ----------
-// One PumpPortal socket per browser. PumpPortal cuts off browsers that open many sockets, so the first
-// tab takes a Web Lock and owns the socket, and every other tab (and the floating tracker window) gets
-// its messages over a BroadcastChannel. A watchdog reopens a socket that went quiet, and the chain
-// ticker reads the bonding curves straight from Solana so prices keep moving even without the socket.
+// Launches come from PumpPortal's free socket. Trades come from yeppo: the capture reads every pump.fun
+// TradeEvent from the chain and writes it to yr_ticks about once a second (PumpPortal only streams a
+// coin's trades with a funded API key); every visible tab asks for the coins it follows once a second.
+// The socket is shared: the first tab takes a Web Lock, owns it and passes its messages to the other tabs
+// over a BroadcastChannel. If the trades stop, the chain ticker reads the bonding curves from Solana.
 
 type Msg = Record<string, unknown>;
 const num = (x: unknown) => {
@@ -237,9 +250,11 @@ const num = (x: unknown) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-const CHANNEL = "yr-feed-1";
+const CHANNEL = "yr-feed-2";
 const PEER_TTL = 13_000;
 const QUIET_MS = 30_000;
+/** [mint, atMs, kind, sol, tokens, vSol, vTokens, wallet, signature] */
+type TickRow = [string, number, number, number, number, number, number, string | null, string];
 type ChanMsg =
   | { t: "m"; d: string }
   | { t: "s"; s: FeedStatus }
@@ -256,7 +271,6 @@ class Feed {
   private chan: BroadcastChannel | null = null;
   private leader = false;
   private peers = new Map<string, { mints: string[]; fresh: boolean; at: number }>();
-  private subbed = new Set<string>();
   private subbedNew = false;
   private watched = new Map<string, number>();
   private liveAt = new Map<string, number>();
@@ -270,6 +284,9 @@ class Feed {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private syncT: ReturnType<typeof setTimeout> | null = null;
   private started = false;
+  private tickSince = 0;
+  private tickOkAt = 0;
+  private tickTimer: ReturnType<typeof setTimeout> | null = null;
   readonly ticker: Ticker;
 
   constructor() {
@@ -280,9 +297,9 @@ class Feed {
     );
   }
 
-  /** the socket is up and talking */
+  /** trades are flowing from yeppo */
   healthy() {
-    return this.status === "live" && Date.now() - this.lastMsg < QUIET_MS;
+    return Date.now() - this.tickOkAt < 6000;
   }
 
   private start() {
@@ -299,6 +316,12 @@ class Feed {
       this.chan.postMessage({ t: "hello" } satisfies ChanMsg);
     } else this.lead();
     setInterval(() => this.watchdog(), 5000);
+    void this.pollTicks();
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState !== "visible" || !this.tickTimer) return;
+      clearTimeout(this.tickTimer);
+      void this.pollTicks();
+    });
   }
 
   private lead() {
@@ -306,6 +329,39 @@ class Feed {
     this.leader = true;
     this.chan?.postMessage({ t: "hello" } satisfies ChanMsg);
     this.sync();
+  }
+
+  /** this tab asks yeppo for the new trades of the coins it follows, once a second while it is visible */
+  private async pollTicks() {
+    this.tickTimer = null;
+    const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+    const mints = [...this.watched.keys()].slice(0, 60);
+    let wait = hidden ? 5000 : 1000;
+    if (mints.length) {
+      try {
+        // a little overlap: batches can land a moment out of order, and Coin.add drops repeats
+        const since = this.tickSince ? this.tickSince - 2500 : Date.now() - 10_000;
+        const r = await rpc<{ now: number; ticks: TickRow[] }>("yr_ticks", { p_mints: mints, p_since: since });
+        this.tickOkAt = Date.now();
+        const last = r.ticks[r.ticks.length - 1];
+        this.tickSince = Math.max(this.tickSince, last ? last[1] : r.now - 5000);
+        this.applyTicks(r.ticks);
+      } catch {
+        wait = 3000;
+      }
+    }
+    this.tickTimer = setTimeout(() => void this.pollTicks(), wait);
+  }
+
+  private applyTicks(rows: TickRow[]) {
+    const now = Date.now();
+    this.tickOkAt = now;
+    for (const [mint, t, k, sol, tok, vsol, vtok, who, sig] of rows) {
+      if (!(vtok > 0)) continue;
+      const tr: Trade = { sig, t, k: k === 1 ? 1 : 2, sol, tok, vsol, vtok, who: who ?? "" };
+      this.liveAt.set(mint, now);
+      if (coinOf(mint).add(tr, true)) this.tradeL.forEach((f) => f(mint, tr));
+    }
   }
 
   private onChan(m: ChanMsg) {
@@ -342,7 +398,7 @@ class Feed {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(o));
   }
 
-  /** what this browser wants from PumpPortal: this tab's coins plus every live follower's */
+  /** what this browser follows: this tab's coins plus every live follower's */
   private wanted() {
     const now = Date.now();
     const mints = new Set(this.watched.keys());
@@ -376,18 +432,13 @@ class Feed {
   private flush() {
     if (!this.leader) return this.announce();
     const w = this.wanted();
-    if (!w.mints.size && !w.fresh) {
+    // the socket only carries launches and migrations; trades come from pollTicks
+    if (!w.fresh) {
       if (this.ws) this.ws.close();
       return;
     }
     if (!this.ws && !this.timer) return this.connect();
     if (this.ws?.readyState !== WebSocket.OPEN) return;
-    const add = [...w.mints].filter((m) => !this.subbed.has(m));
-    const del = [...this.subbed].filter((m) => !w.mints.has(m));
-    for (let i = 0; i < add.length; i += 50) this.send({ method: "subscribeTokenTrade", keys: add.slice(i, i + 50) });
-    if (del.length) this.send({ method: "unsubscribeTokenTrade", keys: del });
-    add.forEach((m) => this.subbed.add(m));
-    del.forEach((m) => this.subbed.delete(m));
     if (w.fresh !== this.subbedNew) {
       const verb = w.fresh ? "subscribe" : "unsubscribe";
       this.send({ method: `${verb}NewToken` });
@@ -401,7 +452,6 @@ class Feed {
     this.setStatus("connecting");
     const ws = new WebSocket(WS);
     this.ws = ws;
-    this.subbed = new Set();
     this.subbedNew = false;
     ws.onopen = () => {
       this.retry = 0;
@@ -417,7 +467,7 @@ class Feed {
     ws.onclose = () => {
       if (this.ws === ws) this.ws = null;
       const w = this.wanted();
-      if (!w.mints.size && !w.fresh) {
+      if (!w.fresh) {
         this.setStatus("off");
         return;
       }
@@ -539,7 +589,7 @@ function fromB64(s: string) {
   return out;
 }
 
-/** reads the bonding curves of followed coins from Solana; a reserve change the socket missed becomes a trade */
+/** reads the bonding curves of followed coins from Solana; while yeppo's trades are down, a reserve change becomes a trade */
 class Ticker {
   private want = new Map<string, number>();
   private pdas = new Map<string, string>();
@@ -584,7 +634,7 @@ class Ticker {
   private async run() {
     this.timer = null;
     if (!this.want.size) return;
-    let wait = this.socketOk() ? 4000 : 1200;
+    let wait = this.socketOk() ? 8000 : 1200;
     if (typeof document !== "undefined" && document.visibilityState === "hidden") wait = 5000;
     else {
       this.busy = true;
@@ -616,7 +666,8 @@ class Ticker {
             c.version++;
             return;
           }
-          if (Math.abs(vtok - c.vtok) < 1 || this.socketHas(mint)) return;
+          // while yeppo's trades flow they move the chart; this only fills in when they stop
+          if (Math.abs(vtok - c.vtok) < 1 || this.socketOk() || this.socketHas(mint)) return;
           const k = vsol > c.vsol ? 1 : 2;
           const t: Trade = {
             sig: `rpc:${mint}:${vtok}`,

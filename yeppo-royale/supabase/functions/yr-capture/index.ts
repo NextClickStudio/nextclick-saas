@@ -5,11 +5,12 @@
 //     read through the public Solana RPC (logsSubscribe), no API key needed.
 // Wallets and tx signatures are reduced to 32-bit hashes before they are stored. The one exception is
 // yr_hot_wallets: the public addresses of wallets trading pump.fun right now, which real duels use as
-// live-trader opponents when no player is around.
+// live-trader opponents when no player is around. Every trade of every coin also lands in yr_ticks,
+// about once a second, for the live terminal (kept 20 minutes).
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 
 const WINDOW_MS = 20 * 60_000;
-const RUN_MS = 52_000;
+const RUN_MS = 55_000;
 const FLUSH_MS = 8_000;
 const MIN_EVENTS = 12;
 const META_AT = 25;
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
   });
   const { data: keyRow } = await sb.from("yr_config").select("value").eq("key", "ingest_key").maybeSingle();
   if (!keyRow || req.headers.get("x-ingest-key") !== keyRow.value) return new Response("forbidden", { status: 403 });
-  const { data: lease } = await sb.rpc("yr_take_lease", { p_ms: RUN_MS + 6_000 });
+  const { data: lease } = await sb.rpc("yr_take_lease", { p_ms: RUN_MS + 3_000 });
   if (!lease) return Response.json({ skipped: true });
 
   const started = Date.now();
@@ -125,7 +126,9 @@ Deno.serve(async (req) => {
   const fresh = new Map<string, { row: Record<string, unknown>; sig: string; events: Ev[] }>();
   let events: Ev[] = [];
   let migr: { mint: string; t: number }[] = [];
-  const stats = { creates: 0, notes: 0, trades: 0, matched: 0, stored: 0, coins: 0, errors: 0, meta: 0, hot: 0 };
+  const stats = { creates: 0, notes: 0, trades: 0, matched: 0, stored: 0, coins: 0, errors: 0, meta: 0, hot: 0, ticks: 0 };
+  // every trade of every coin, for the live terminal
+  let ticks: Record<string, unknown>[] = [];
   // every wallet trading pump.fun during this run (any coin), for live-trader opponents
   const hot = new Map<string, { key: Uint8Array; n: number; buys: number; vol: number; coins: Set<string>; last: number }>();
 
@@ -193,6 +196,7 @@ Deno.serve(async (req) => {
     }
     if (v.err) return;
     const now = Date.now();
+    let ix = 0;
     for (const line of v.logs) {
       if (!line.startsWith("Program data: " + TRADE_B64)) continue;
       const b = b64bytes(line.slice(14));
@@ -203,6 +207,9 @@ Deno.serve(async (req) => {
       stats.trades++;
       const mintHex = hex(b, 8, 40);
       {
+        const dvt = new DataView(b.buffer, b.byteOffset, b.byteLength);
+        const solT = Number(dvt.getBigUint64(40, true)) / 1e9;
+        const vtT = Number(dvt.getBigUint64(105, true)) / 1e6;
         const uk = hex(b, 57, 89);
         let h = hot.get(uk);
         if (!h) {
@@ -211,9 +218,24 @@ Deno.serve(async (req) => {
         }
         h.n++;
         if (b[56] === 1) h.buys++;
-        h.vol += Number(new DataView(b.buffer, b.byteOffset, b.byteLength).getBigUint64(40, true)) / 1e9;
+        h.vol += solT;
         h.coins.add(mintHex);
         h.last = now;
+        if (vtT > 0) {
+          ticks.push({
+            sig: v.signature,
+            ix,
+            mint: b58encode(b.slice(8, 40)),
+            t: now,
+            k: b[56] === 1 ? 1 : 2,
+            sol: solT,
+            tok: Number(dvt.getBigUint64(48, true)) / 1e6,
+            vsol: Number(dvt.getBigUint64(97, true)) / 1e9,
+            vtok: vtT,
+            who: b58encode(h.key),
+          });
+        }
+        ix++;
       }
       const t0 = tracked.get(mintHex);
       const f = t0 ? undefined : fresh.get(mintHex);
@@ -304,12 +326,28 @@ Deno.serve(async (req) => {
     else stats.hot = rows.length;
   }
 
+  // one write at a time, so batches land in the order they were seen
+  let tickChain: Promise<void> = Promise.resolve();
+  function flushTicks() {
+    tickChain = tickChain.then(async () => {
+      if (!ticks.length) return;
+      const rows = ticks;
+      ticks = [];
+      const { error } = await sb.from("yr_ticks").upsert(rows, { onConflict: "sig,ix", ignoreDuplicates: true });
+      if (error) stats.errors++;
+      else stats.ticks += rows.length;
+    });
+    return tickChain;
+  }
+
   const timer = setInterval(() => {
     void flush(false);
     void flushHot();
   }, FLUSH_MS);
+  const tickTimer = setInterval(() => void flushTicks(), 1000);
   await new Promise((r) => setTimeout(r, RUN_MS));
   clearInterval(timer);
+  clearInterval(tickTimer);
   for (const w of [pp, rpc]) {
     try {
       w.close();
@@ -317,8 +355,10 @@ Deno.serve(async (req) => {
       /* already closed */
     }
   }
+  await flushTicks();
   await flush(true);
   await flushHot();
+  await sb.from("yr_ticks").delete().lt("t", Date.now() - 20 * 60_000);
   await sb.from("yr_hot_wallets").delete().lt("last_at", new Date(Date.now() - 10 * 60_000).toISOString());
   return Response.json({ ok: true, ms: Date.now() - started, tracked: tracked.size, fresh: fresh.size, ...stats });
 });
