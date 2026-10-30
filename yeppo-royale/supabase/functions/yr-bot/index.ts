@@ -1,5 +1,5 @@
 // yr-bot: yeppo's own paper traders, the live test of the tool. Called by pg_cron every 30 s with the ingest key.
-// The four paper wallets (1000 SOL each) are listed in yr_config 'paper_bots'. Each run reads the most traded
+// The paper wallets (1000 SOL each) are listed in yr_config 'paper_bots'. Each run reads the most traded
 // young coins exactly as the extension does (yeppo.it/api/read) and paper-trades them with 0.1 SOL, once per
 // coin, at the real curve price with fees (yr_paper_buy). The cron yr_paper_auto sells each position when its
 // take profit, stop or time limit hits.
