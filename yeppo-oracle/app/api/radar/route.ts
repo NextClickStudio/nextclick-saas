@@ -59,7 +59,7 @@ export async function GET() {
     ]);
     const live = await markets(grads.slice(0, 30).map((g) => g[0]));
     return Response.json(radar(board.coins, social, metas, track, board.now, grads.slice(0, 30), live), {
-      headers: { "access-control-allow-origin": "*", "cache-control": "public, s-maxage=10, stale-while-revalidate=20" },
+      headers: { "access-control-allow-origin": "*", "cache-control": "public, s-maxage=30, stale-while-revalidate=60" },
     });
   } catch {
     return Response.json({ error: "The radar is busy, retrying soon" }, { status: 503, headers: { "cache-control": "no-store" } });
