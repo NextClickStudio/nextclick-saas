@@ -18,7 +18,7 @@ async function call<T>(fn: string): Promise<T> {
   return (await r.json()) as T;
 }
 
-type Pair = { chainId: string; dexId: string; url: string; baseToken: { address: string }; marketCap?: number; liquidity?: { usd?: number }; txns?: { m5?: { buys: number; sells: number } }; volume?: { m5?: number }; priceChange?: { m5?: number; h1?: number } };
+type Pair = { chainId: string; dexId: string; url: string; baseToken: { address: string; symbol?: string; name?: string }; marketCap?: number; liquidity?: { usd?: number }; txns?: { m5?: { buys: number; sells: number } }; volume?: { m5?: number }; priceChange?: { m5?: number; h1?: number } };
 
 /** DexScreener's live market for up to 30 coins at once: the deepest Solana pair of each */
 async function markets(mints: string[]): Promise<GradMarket[]> {
@@ -34,6 +34,8 @@ async function markets(mints: string[]): Promise<GradMarket[]> {
     }
     return [...best.values()].map((p) => ({
       mint: p.baseToken.address,
+      symbol: p.baseToken.symbol ?? null,
+      name: p.baseToken.name ?? null,
       dex: p.dexId,
       url: p.url,
       mcap: p.marketCap ?? null,

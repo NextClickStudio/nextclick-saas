@@ -15,11 +15,11 @@ export type BoardCoin = [string, string | null, string | null, string | null, nu
 /** a graduation: [mint, graduated at, born at, name, symbol, uri, creator's rugs, creator's coins] */
 export type GradRow = [string, number, number | null, string | null, string | null, string | null, number | null, number | null];
 /** the live market of a graduated coin, from DexScreener */
-export type GradMarket = { mint: string; dex: string; url: string; mcap: number | null; liq: number | null; m5: { buys: number; sells: number } | null; vol5: number | null; ch5: number | null; ch1: number | null };
+export type GradMarket = { mint: string; symbol: string | null; name: string | null; dex: string; url: string; mcap: number | null; liq: number | null; m5: { buys: number; sells: number } | null; vol5: number | null; ch5: number | null; ch1: number | null };
 
 /** the screener filters, the same kind pump.fun traders set on Axiom Pulse or GMGN. Market caps in SOL. */
 export const FILTERS = { mcSol: 60, holders: 40, trades2: 30, wallets2: 15, buyShare: 0.5, vol2Sol: 3, fromHigh: 0.5 };
-export const GRAD_FILTERS = { mcUsd: 40_000, liqUsd: 15_000, trades5: 40, ch1: -40 };
+export const GRAD_FILTERS = { mcUsd: 40_000, mcMaxUsd: 20_000_000, liqUsd: 15_000, trades5: 40, ch1: -40 };
 /** [mint, tweet id, X handle, X author, post text, has website, has Telegram, launcher, boost, paid profile, X link,
  *  post likes, post replies, verified author, posted at (ms)] */
 export type SocialRow = [string, string | null, string | null, string | null, string | null, boolean, boolean, string | null, number, boolean, string | null,
@@ -225,19 +225,21 @@ export function radar(coins: BoardCoin[], social: SocialRow[], metas: Meta[], tr
     if (!m || !m.m5) continue;
     const trades5 = m.m5.buys + m.m5.sells;
     const rugger = (g[6] ?? 0) >= 2 && (g[6] ?? 0) / Math.max(1, g[7] ?? 0) >= 0.5;
-    if (rugger || (m.mcap ?? 0) < GRAD_FILTERS.mcUsd || (m.liq ?? 0) < GRAD_FILTERS.liqUsd || trades5 < GRAD_FILTERS.trades5 || (m.ch1 ?? 0) < GRAD_FILTERS.ch1) continue;
+    if (rugger || (m.mcap ?? 0) < GRAD_FILTERS.mcUsd || (m.mcap ?? 0) > GRAD_FILTERS.mcMaxUsd || (m.liq ?? 0) < GRAD_FILTERS.liqUsd || trades5 < GRAD_FILTERS.trades5 || (m.ch1 ?? 0) < GRAD_FILTERS.ch1) continue;
     const share = trades5 ? m.m5.buys / trades5 : 0.5;
     if (share < 0.45) continue;
     const chips: Chip[] = [{ icon: "🎓", text: `graduated ${Math.max(1, Math.round((now - g[1]) / 60000))} min ago`, tone: "up" }];
     chips.push({ icon: "🔥", text: `${trades5} trades in 5 min, ${Math.round(share * 100)}% buys`, tone: share >= 0.6 ? "up" : "info" });
     if (m.ch5 != null) chips.push({ icon: m.ch5 >= 0 ? "📈" : "📉", text: `${m.ch5 >= 0 ? "+" : ""}${m.ch5.toFixed(0)}% in 5 min`, tone: m.ch5 >= 0 ? "up" : "mid" });
-    const { attention, post } = attentionOf(g[0], g[3], g[4], soc.get(g[0]), chips);
+    const name = g[3] ?? m.name;
+    const symbol = g[4] ?? m.symbol;
+    const { attention, post } = attentionOf(g[0], name, symbol, soc.get(g[0]), chips);
     const momentum = 40 * clamp(0.6 * clamp(Math.log1p(trades5) / Math.log1p(1500)) + 0.4 * clamp((share - 0.4) / 0.35));
     const fresh = now - g[1] < 600_000 ? 10 : now - g[1] < 1_800_000 ? 6 : 3;
     graduated.push({
       mint: g[0],
-      symbol: g[4],
-      name: g[3],
+      symbol,
+      name,
       uri: g[5],
       ageS: g[2] ? Math.round((now - g[2]) / 1000) : Math.round((now - g[1]) / 1000),
       mc: null,
