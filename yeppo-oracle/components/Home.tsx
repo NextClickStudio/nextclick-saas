@@ -69,7 +69,7 @@ export default function Home() {
         <section id="how" className="wrap x-sec">
           <Reveal className="x-head">
             <h2 className="disp">How yeppo picks</h2>
-            <p>Three steps, every 20 seconds, on the 40 most traded young coins.</p>
+            <p>Three steps, every 30 seconds, on the 30 most traded young coins.</p>
           </Reveal>
           <div className="x-bento">
             <Reveal className="x-tile big">

@@ -1,6 +1,6 @@
 // The short read of one coin, for the extension's badge and panel: the decision (OK to buy, Risky, Don't buy),
 // the scam checks, the verdict, the red flags and the Exit Plan, the same logic as the coin page.
-// Fast: a coin on the board (the 40 most traded young coins, worked out every 20 s in the database) is answered
+// Fast: a coin on the board (the 30 most traded young coins, worked out every 30 s in the database) is answered
 // from that copy; any other coin is worked out here. Cached at the edge for 5 s, shared by everyone.
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/config";
 import { isMint } from "@/lib/format";

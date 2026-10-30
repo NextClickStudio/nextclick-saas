@@ -14,7 +14,7 @@ yeppo answers two questions for a beginner trading pump.fun memecoins:
 
 - **`yr-capture`** (edge function, runs all the time) reads every pump.fun trade and launch from the public Solana RPC.
 - **`yr_oracle_roll`** (pg_cron, every 10 s) builds coins, 10 s buckets, positions, wallet habits and snapshots with what came next.
-- **`yr_oracle_hot_build`** (pg_cron, every 20 s) builds the board: the 40 most traded young coins with features, look-alikes and the dev record. The result goes in `yr_tcache` under `ohot` and `ohot_full`.
+- **`yr_oracle_hot_build`** (pg_cron, every 30 s) builds the board: the 30 most traded young coins with features, look-alikes and the dev record. The result goes in `yr_tcache` under `ohot` and `ohot_full`.
   - Never build heavy things inside a user request. An anon request has a 3 s statement timeout, and a board built on demand froze the whole site once.
 - **`yr-social`** (edge function, pg_cron every minute) reads, for board coins:
   - the metadata file: X link, website, Telegram, and the launcher host;
