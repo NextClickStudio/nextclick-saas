@@ -107,13 +107,16 @@ export function creatorOf(dev: string, total: number, rows: CoinRow[], now: numb
   const sellS = med(sells.map((c) => c.soldS!));
   const sellX = med(sells.filter((c) => c.soldX != null).map((c) => c.soldX!));
   let line: string;
-  if (!coins.length) line = total > 1 ? "Their other coins are too new to judge." : "First coin yeppo has seen from this creator.";
+  if (total >= FARM) line = `Coin farm: ${total} coins launched in 14 days.`;
+  else if (!coins.length) line = total > 1 ? "Their other coins are too new to judge." : "First coin yeppo has seen from this creator.";
   else if (isRugger({ rugs, coins })) line = `Serial rugger: rugged ${rugs} of ${coins.length} coins.`;
   else if (isSpammer({ rugs, dead, coins })) line = `Coin spammer: ${rugs + dead} of ${coins.length} coins died or rugged.`;
   else line = `${coins.length} coin${coins.length > 1 ? "s" : ""}: ${rugs} rugged, ${dead} died, ${ran} ran.`;
   return { dev, total, coins, rugs, dead, ran, sellS, sellX, line };
 }
 
+/** a wallet that launches coins nonstop is a bot farm, whatever each coin did */
+const FARM = 40;
 const isRugger = (c: { rugs: number; coins: unknown[] }) => c.rugs >= 2 && c.rugs >= c.coins.length / 2;
 /** launches coin after coin and almost all of them die: the next one most likely too */
 const isSpammer = (c: { rugs: number; dead: number; coins: unknown[] }) => c.rugs + c.dead >= 5 && (c.rugs + c.dead) / c.coins.length >= 0.85;
@@ -176,6 +179,7 @@ export function decide(a: {
   const bad = a.checks.find((c) => !c.ok);
   if (bad) return { word: "Don't buy", tone: "down", why: bad.label };
   const c = a.creator;
+  if (c && c.total >= FARM) return { word: "Don't buy", tone: "down", why: `This creator launched ${c.total} coins. It's a coin farm.` };
   if (c && isRugger(c)) return { word: "Don't buy", tone: "down", why: `This creator rugged ${c.rugs} of their last ${c.coins.length} coins.` };
   if (c && isSpammer(c)) return { word: "Don't buy", tone: "down", why: `This creator made ${c.coins.length} coins. ${c.rugs + c.dead} died or rugged.` };
   // a creator who sold out early leaves the crowd: only a live push is worth a look, and then only short
