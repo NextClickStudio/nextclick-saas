@@ -28,7 +28,7 @@ const link = (v: unknown, kind: "x" | "tg" | "web") => {
   }
 };
 
-/** a coin's metadata json (cached, at most four lookups at a time) */
+/** a coin's metadata json, through /api/meta (cached, at most four lookups at a time) */
 export function coinJson(uri: string | null | undefined): Promise<CoinJson | null> {
   if (!uri) return Promise.resolve(null);
   if (jsonCache.has(uri)) return Promise.resolve(jsonCache.get(uri)!);
@@ -38,23 +38,20 @@ export function coinJson(uri: string | null | undefined): Promise<CoinJson | nul
     const run = async () => {
       jsonActive++;
       let out: CoinJson | null = null;
-      for (const u of mirrors(uri)) {
-        try {
-          const r = await fetch(u, { signal: AbortSignal.timeout(6000) });
-          if (!r.ok) continue;
+      try {
+        const r = await fetch(`/api/meta?u=${encodeURIComponent(uri)}`, { signal: AbortSignal.timeout(8000) });
+        if (r.ok) {
           const j = (await r.json()) as Record<string, unknown>;
-          const ext = (j.extensions ?? {}) as Record<string, unknown>;
           out = {
             image: typeof j.image === "string" && j.image ? j.image : null,
-            twitter: link(j.twitter ?? ext.twitter, "x"),
-            telegram: link(j.telegram ?? ext.telegram, "tg"),
-            website: link(j.website ?? ext.website, "web"),
-            description: typeof j.description === "string" ? j.description.slice(0, 300) : null,
+            twitter: link(j.twitter, "x"),
+            telegram: link(j.telegram, "tg"),
+            website: link(j.website, "web"),
+            description: typeof j.description === "string" ? j.description : null,
           };
-          break;
-        } catch {
-          /* next gateway */
         }
+      } catch {
+        /* no picture, initials instead */
       }
       jsonCache.set(uri, out);
       jsonActive--;
