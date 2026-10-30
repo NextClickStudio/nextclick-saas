@@ -233,7 +233,8 @@ export function outlookCurve(steps: number[][], nowStep: number, priceX: number 
   };
   const now = closeAt(nowStep);
   const ch = (back: number) => {
-    const a = closeAt(nowStep - back) ?? (back >= 120 ? steps[0]?.[1] : null) ?? null;
+    // a coin younger than the window: from its first price
+    const a = closeAt(nowStep - back) ?? steps[0]?.[1] ?? null;
     return now && a ? now / a - 1 : null;
   };
   const tf = [{ k: "1m", v: ch(6) }, { k: "5m", v: ch(30) }, { k: "20m", v: ch(120) }, { k: "launch", v: priceX != null ? priceX - 1 : null }];
