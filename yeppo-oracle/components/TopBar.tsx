@@ -1,47 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { setSound, soundOn } from "@/lib/sound";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { Eye } from "./Bits";
-import Search from "./Search";
 
-export default function TopBar({ live, search = true }: { live?: string | null; search?: boolean }) {
-  const [snd, setSnd] = useState(false);
-  useEffect(() => setSnd(soundOn()), []);
+const NAV = [
+  { href: "/#how", label: "How it works" },
+  { href: "/wallet", label: "Wallet" },
+  { href: "/extension", label: "Extension" },
+  { href: "/pricing", label: "Pricing" },
+];
+
+export default function TopBar({ live }: { live?: string | null }) {
+  const path = usePathname();
+  const [open, setOpen] = useState(false);
   return (
     <header className="top">
       <div className="wrap">
         <Link href="/" className="logo disp">
           <Eye />
           <b>yeppo</b>
-          <span className="tag">ORACLE</span>
         </Link>
-        <nav className="top-nav">
-          <Link href="/guard">Bag Guard</Link>
-          <Link href="/extension">Extension</Link>
+        <nav className={`top-nav ${open ? "open" : ""}`} onClick={() => setOpen(false)}>
+          {NAV.map((n) => (
+            <Link key={n.href} href={n.href} className={path === n.href ? "on" : ""}>
+              {n.label}
+            </Link>
+          ))}
         </nav>
         <div className="grow" />
-        {search && (
-          <div className="top-search">
-            <Search small />
-          </div>
-        )}
         {live !== undefined && (
           <div className="live-pill">
             <i className={`dot ${live ? "" : "off"}`} />
             <span className="txt">{live ?? "connecting…"}</span>
           </div>
         )}
-        <button
-          className="icon-btn"
-          title={snd ? "Sound on" : "Sound off"}
-          onClick={() => {
-            setSound(!snd);
-            setSnd(!snd);
-          }}
-        >
-          {snd ? "🔊" : "🔈"}
+        <Link href="/extension" className="btn btn-glow btn-sm top-cta">
+          Get the extension
+        </Link>
+        <button className="icon-btn top-burger" aria-label="Menu" onClick={() => setOpen(!open)}>
+          {open ? "✕" : "☰"}
         </button>
       </div>
     </header>

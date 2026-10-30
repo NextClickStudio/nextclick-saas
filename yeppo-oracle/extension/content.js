@@ -110,7 +110,7 @@
       .t-rug { animation: pulse 1.6s ease-in-out infinite; }
       @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(255, 77, 109, .18), 0 10px 30px -8px rgba(0,0,0,.7); } }
       .t-learn .lbl { color: #b9a4ff; }
-      .card { position: absolute; right: 0; bottom: 50px; width: 380px; height: min(600px, calc(100vh - 90px)); border-radius: 18px; overflow: hidden;
+      .card { position: absolute; right: 0; bottom: 50px; width: 380px; height: min(680px, calc(100vh - 90px)); border-radius: 18px; overflow: hidden;
         border: 1px solid rgba(139, 92, 255, .35); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .85); background: #06070b; display: none; }
       .card.on { display: block; animation: rise .18s ease-out; }
       @keyframes rise { from { opacity: 0; transform: translateY(8px); } }

@@ -132,3 +132,75 @@ export const tradeLinks = (mint: string) => [
   { label: "DexScreener", href: `https://dexscreener.com/solana/${mint}` },
   { label: "𝕏 search", href: `https://x.com/search?q=${mint}&f=live` },
 ];
+
+/** A trade plan read off the 30 look-alikes: where to take profit, where to cut, how long to stay, and how
+ *  that exact plan did on those 30 coins (after about 2% of fees). Not a promise: a plan from past coins. */
+export type Plan = {
+  go: boolean;
+  tp: number;
+  stop: number;
+  minutes: number;
+  wins: number;
+  losses: number;
+  even: number;
+  avg: number;
+  /** look-alikes that fell to the stop and came back above the entry */
+  back: number;
+};
+
+export function plan(matches: Match[]): Plan | null {
+  const paths = matches.map((m) => m[4]).filter((p) => p.length >= 10);
+  if (paths.length < 10) return null;
+  const peaks = paths.map((p) => {
+    let mx = 1;
+    let at = 0;
+    p.forEach((v, i) => {
+      if (v > mx) [mx, at] = [v, i];
+    });
+    return { mx, at };
+  });
+  // the stop: the smallest drop after which at most 1 in 5 look-alikes came back above the entry
+  let stop = 0.6;
+  let back = 0;
+  for (const s of [0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6]) {
+    const hit = paths.filter((p) => p.some((v) => v <= s));
+    if (hit.length < 3) continue;
+    const came = hit.filter((p) => p.slice(p.findIndex((v) => v <= s)).some((v) => v >= 1.05)).length;
+    if (came / hit.length <= 0.2) {
+      [stop, back] = [s, came / hit.length];
+      break;
+    }
+  }
+  // the target: a level that 6 in 10 of the look-alikes that went up reached
+  const ups = peaks.filter((x) => x.mx >= 1.25);
+  const tp = ups.length >= 3 ? clamp(quantile(ups.map((x) => x.mx).sort((a, b) => a - b), 0.4), 1.2, 3) : 1.3;
+  const atQ = ups.length ? quantile(ups.map((x) => x.at).sort((a, b) => a - b), 0.6) : 14;
+  const last = Math.min(29, Math.max(2, Math.round(atQ) + 1));
+  let wins = 0;
+  let losses = 0;
+  let even = 0;
+  let sum = 0;
+  for (const p of paths) {
+    let r = p[Math.min(last, p.length - 1)];
+    for (let i = 0; i <= last && i < p.length; i++) {
+      if (p[i] >= tp) {
+        r = tp;
+        break;
+      }
+      if (p[i] <= stop) {
+        r = stop;
+        break;
+      }
+    }
+    const net = r * 0.98 - 1;
+    sum += net;
+    if (net > 0.03) wins++;
+    else if (net < -0.03) losses++;
+    else even++;
+  }
+  const avg = sum / paths.length;
+  return { go: avg > 0.02 && wins > losses, tp, stop, minutes: Math.max(1, Math.round(((last + 1) * 20) / 60)), wins, losses, even, avg, back };
+}
+
+/** the most to buy so that hitting the stop loses no more than the trader's own limit */
+export const maxBuy = (risk: number, stop: number) => risk / Math.max(0.05, 1 - stop);

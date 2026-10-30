@@ -21,13 +21,13 @@ export default function ExtensionPage() {
             yeppo, <span className="shine">right next to your chart</span>
           </h1>
           <p className="lead">
-            Open any coin on your trading site. The extension spots it by itself and tells you, in plain words, if coins like it usually pump or
-            dump. No wallet, no sign-up.
+            Open any coin on your trading site. The extension spots it by itself and shows two things: what coins like it usually do, with an exit
+            plan, and below it your own wallet, with an alarm on every bag. Nothing to paste, nothing to sign.
           </p>
           <a className="btn btn-glow btn-lg" href="/yeppo-extension.zip" download>
             ⬇ Download the extension
           </a>
-          <p className="small dim">Version 1.0 · 30 KB · installs in a minute</p>
+          <p className="small dim">Version 1.1 · 30 KB · installs in a minute</p>
         </div>
 
         <div className="ext-demo glass" aria-hidden>
@@ -52,9 +52,11 @@ export default function ExtensionPage() {
               <b>🔥 Runner potential</b>
               <span>9 of the 30 look-alikes went up 50%+ in the next 10 minutes, only 2 dumped.</span>
             </div>
-            <div className="ext-line">📈 Going up: +18% in the last minute.</div>
-            <div className="ext-line">👥 412 wallets hold it. The creator still holds 3%.</div>
+            <div className="ext-line">
+              🎯 Exit plan: take profit <b className="up">+45%</b>, cut <b className="down">−25%</b>, out within 4 min
+            </div>
             <div className="ext-line">✅ Clean dev: 2 of 5 coins went big, no rugs.</div>
+            <div className="ext-line">🛡 My wallet: $WIF3 GET OUT, the dev sold.</div>
           </div>
         </div>
 
@@ -74,9 +76,14 @@ export default function ExtensionPage() {
               <p>A small badge on the page says Runner potential, Coin flip or Likely dump, and turns red on bot ladders and serial ruggers.</p>
             </div>
             <div className="check glass">
-              <span className="ic">📋</span>
-              <h3>The full read, one click away</h3>
-              <p>Click the badge, or the yeppo button in your toolbar, for the plain-words read, the red flags and the live play-by-play.</p>
+              <span className="ic">🎯</span>
+              <h3>An exit plan before you buy</h3>
+              <p>Take profit, stop, time limit and the most to buy for your own risk limit, tested on the 30 coins most like this one.</p>
+            </div>
+            <div className="check glass">
+              <span className="ic">🛡</span>
+              <h3>Your wallet, right below</h3>
+              <p>Add your trading wallet once. Every bag gets GET OUT, WATCH or HOLD, and yeppo tells you when to stop for the day.</p>
             </div>
           </div>
         </section>

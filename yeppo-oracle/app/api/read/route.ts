@@ -2,7 +2,7 @@
 // coin page, worked out here so the extension stays tiny. Cached at the edge for 10 s, shared by everyone.
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/config";
 import { isMint } from "@/lib/format";
-import { flags, MIN_N, signalsOf, verdict } from "@/lib/oracle";
+import { flags, MIN_N, plan, signalsOf, verdict } from "@/lib/oracle";
 import type { Future, Track, Xray } from "@/lib/types";
 
 export const runtime = "edge";
@@ -44,6 +44,7 @@ export async function GET(req: Request) {
         verdict: v && { label: v.label, tone: v.tone, score: v.score, line: v.line },
         odds: v && o ? { k: o.odds.k, p50: o.odds.p50, dump: o.odds.dump } : null,
         flags: x ? flags(sig) : [],
+        plan: v && o?.matches?.length ? plan(o.matches) : null,
       },
       { headers: { ...CORS, "cache-control": "public, s-maxage=10, stale-while-revalidate=20" } },
     );

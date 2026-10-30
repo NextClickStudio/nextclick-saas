@@ -4,58 +4,18 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { age, isMint, mult, pct, short, sol as fmtSol, usd } from "@/lib/format";
 import { usePoll, useNow, useSol } from "@/lib/hooks";
-import { flags, MIN_N, verdict, type Flag, type Verdict } from "@/lib/oracle";
+import { ALARM, DEFAULT_LIMITS, readBag, safety, type Alarm, type BagRead, type Limits } from "@/lib/guard";
 import { blip } from "@/lib/sound";
 import { readLocal, rpc, writeLocal } from "@/lib/supabase";
 import type { Bag, Guard as GuardData, Track } from "@/lib/types";
 import { CoinImg } from "./Bits";
 import { Footer } from "./Home";
+import { RiskEdit } from "./PanelView";
 import TopBar from "./TopBar";
-
-type Alarm = "out" | "watch" | "hold" | "wait";
-type BagRead = { b: Bag; v: Verdict | null; fl: Flag[]; alarm: Alarm; why: string; value: number; pnl: number };
-
-const ALARM: Record<Alarm, { label: string; cls: string }> = {
-  out: { label: "GET OUT", cls: "a-out" },
-  watch: { label: "WATCH", cls: "a-watch" },
-  hold: { label: "HOLD", cls: "a-hold" },
-  wait: { label: "READING", cls: "a-wait" },
-};
-
-/** what Bag Guard says about one bag, most urgent reason first */
-function readBag(b: Bag, track: Track | null): BagRead {
-  const [, , , , , share, sin, sout, , , mc, , o, pattern, dev, devSold, soon] = b;
-  const sig = { ladder: !!pattern?.ladder, devSold: !!devSold, dev };
-  const ready = !!o && !o.old && o.n >= MIN_N && o.odds?.k > 0;
-  const v = ready && o && !o.old ? verdict(o.odds, o.base, sig, track) : null;
-  const fl = flags(sig);
-  const value = ((share / 100) * 1e9 * (mc ?? 0)) / 1e9; // SOL: tokens x price, price = mc / supply
-  const pnl = sin > 0 ? (value + sout) / sin - 1 : 0;
-  let alarm: Alarm = "wait";
-  let why = "The oracle is still learning coins of this age.";
-  const red = fl.find((f) => f.tone === "down");
-  if (red) {
-    alarm = "out";
-    why = red.text;
-  } else if (v && (v.tone === "down" || v.tone === "rug")) {
-    alarm = "out";
-    why = v.line;
-  } else if (soon >= 15) {
-    alarm = "out";
-    why = `${soon.toFixed(1)}% of the supply sits with wallets that usually sell within a minute.`;
-  } else if (v?.tone === "up") {
-    alarm = "hold";
-    why = v.line;
-  } else if (v) {
-    alarm = "watch";
-    why = soon >= 6 ? `${soon.toFixed(1)}% of the supply could be sold in the next minute. ${v.line}` : v.line;
-  }
-  return { b, v, fl, alarm, why, value, pnl };
-}
 
 function notify(text: string) {
   try {
-    if ("Notification" in window && Notification.permission === "granted") new Notification("yeppo Bag Guard", { body: text, icon: "/icon.svg" });
+    if ("Notification" in window && Notification.permission === "granted") new Notification("yeppo", { body: text, icon: "/icon.svg" });
     navigator.vibrate?.([120, 60, 120]);
   } catch {
     /* no notifications here */
@@ -67,8 +27,10 @@ export default function Guard() {
   const [input, setInput] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [notif, setNotif] = useState<string>("default");
+  const [lim, setLim] = useState<Limits>(DEFAULT_LIMITS);
   useEffect(() => {
     setWho(readLocal<string | null>("yo:guard", null));
+    setLim(readLocal<Limits>("yo:limits", DEFAULT_LIMITS));
     if ("Notification" in window) setNotif(Notification.permission);
   }, []);
   const sol = useSol() || 150;
@@ -112,17 +74,19 @@ export default function Guard() {
   };
 
   const h = data?.habits;
+  const net = safety(data ?? null, lim, now);
   return (
     <>
       <TopBar live={data ? `guarding ${short(data.who)}` : null} />
       <main className="wrap scan">
         <div className="guard-head glass">
           <div>
-            <span className="lbl">Bag Guard</span>
-            <h1 className="disp">yeppo watches your bags and tells you when to get out.</h1>
+            <span className="lbl">Wallet · Safety Net</span>
+            <h1 className="disp">Your bags, guarded. Your limits, kept.</h1>
             <p className="dim">
-              Paste the wallet your trading app uses (Axiom, GMGN, Photon, BullX…). Every coin it holds gets the oracle&apos;s read, the red flags
-              and the sell pressure, live. Read-only: no keys, no signing.
+              Paste the wallet your trading app uses (Axiom, GMGN, Photon, BullX…). Every coin it holds gets a clear call: GET OUT, WATCH or HOLD,
+              with the reason in one line. Set your limits and yeppo tells you when to slow down or stop for the day. Read-only: no keys, no
+              signing.
             </p>
           </div>
           <form
@@ -147,7 +111,7 @@ export default function Guard() {
 
         {!who ? null : error && !data ? (
           <div className="notice glass">
-            <h2 className="disp">Bag Guard can&apos;t read this wallet</h2>
+            <h2 className="disp">yeppo can&apos;t read this wallet</h2>
             <p>{error}</p>
           </div>
         ) : !data ? (
@@ -161,11 +125,41 @@ export default function Guard() {
                 <div className="notice glass">
                   <h2 className="disp">No open bags right now</h2>
                   <p>Buy a pump.fun coin with this wallet and it shows up here within about 10 seconds, with its alarm.</p>
-                  <p className="small dim">Bag Guard follows coins yeppo watched from launch, up to a few hours old.</p>
+                  <p className="small dim">yeppo follows coins it watched from launch, up to a few hours old.</p>
                 </div>
               )}
             </div>
             <div className="scan-side">
+              {net && (
+                <div className={`pv-safety s-${net.state}`}>
+                  <header>
+                    <h3>{net.state === "stop" ? "⛔ Stop for today" : net.state === "slow" ? "✋ Slow down" : "🛡 Safety Net"}</h3>
+                    <span>today</span>
+                  </header>
+                  <div className="pv-safety-row">
+                    <div>
+                      <span>Result</span>
+                      <b className={`mono ${net.today >= 0 ? "up" : "down"}`}>
+                        {net.today >= 0 ? "+" : ""}
+                        {net.today.toFixed(2)} SOL
+                      </b>
+                    </div>
+                    <div>
+                      <span>Day limit</span>
+                      <b className="mono">−{lim.daily} SOL</b>
+                    </div>
+                    <div>
+                      <span>Trades</span>
+                      <b className="mono">{net.trades}</b>
+                    </div>
+                  </div>
+                  <div className="pv-meter">
+                    <i style={{ width: `${Math.min(100, (Math.max(0, -net.today) / lim.daily) * 100)}%` }} />
+                  </div>
+                  <p className="pv-note">{net.why}</p>
+                  <RiskEdit lim={lim} setLim={setLim} />
+                </div>
+              )}
               <div className="panel glass">
                 <h3>🧬 Your habits</h3>
                 <p className="hint">From every closed trade of this wallet yeppo saw.</p>
