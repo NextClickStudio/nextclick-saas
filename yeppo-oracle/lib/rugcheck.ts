@@ -1,7 +1,7 @@
 // RugCheck's free public report (api.rugcheck.xyz): the holders, the creator, the linked "insider" wallets, the
 // mint and freeze authorities and the locked liquidity of any Solana coin, wherever it trades. It lets yeppo run
 // its scam checks on coins it did not see from their first trade: graduated to PumpSwap, or launched elsewhere.
-import type { Check } from "./oracle";
+import type { Check } from "./decide";
 
 type Holder = { address: string; owner: string; pct: number; insider?: boolean };
 type Market = { marketType: string; pubkey: string; lp?: { lpLockedPct?: number; quoteUSD?: number; baseUSD?: number } };
@@ -19,6 +19,7 @@ type Report = {
 
 /** what yeppo keeps of a report, shares in 0..1 */
 export type Rug = {
+  dev: string | null;
   top10: number;
   creator: number;
   insiders: number;
@@ -69,6 +70,7 @@ function digest(j: Report): Rug {
   const nets = j.insiderNetworks ?? [];
   const deep = [...markets].sort((a, b) => (b.lp?.quoteUSD ?? 0) + (b.lp?.baseUSD ?? 0) - ((a.lp?.quoteUSD ?? 0) + (a.lp?.baseUSD ?? 0)))[0];
   return {
+    dev: j.creator ?? null,
     top10,
     creator,
     insiders: nets.reduce((a, n) => a + (n.currentHolding || 0), 0) / supply,
@@ -92,34 +94,27 @@ export function extraChecks(r: Rug): Check[] {
       ok: r.insiders < 0.15,
       label:
         r.insiderWallets === 0
-          ? "No linked insider wallets"
+          ? "No insider group"
           : r.insiders < 0.15
-            ? `${r.insiderWallets} linked wallets hold ${p(r.insiders)}`
-            : `${r.insiderWallets} linked wallets hold ${p(r.insiders)}: one team that can sell together`,
+            ? `Insider group holds ${p(r.insiders)}`
+            : `Insider group holds ${p(r.insiders)}. They sell together.`,
     },
   ];
-  if (r.rugged) out.push({ ok: false, label: "RugCheck marks this coin as rugged" });
-  for (const d of r.danger) out.push({ ok: false, label: `RugCheck warning: ${d}` });
+  if (r.rugged) out.push({ ok: false, label: "Already rugged." });
+  for (const d of r.danger) out.push({ ok: false, label: `${d}.` });
   return out;
 }
 
-/** the full scam checks, for any coin */
+/** the full safety checks, for any coin */
 export function rugChecks(r: Rug): Check[] {
   const lockOk = r.curve || (r.locked ?? 0) >= 0.9;
   return [
-    { ok: r.top10 < 0.25, label: r.top10 < 0.25 ? `Top 10 wallets hold ${p(r.top10)}: spread out` : `Top 10 wallets hold ${p(r.top10)}: a few can crash it` },
-    { ok: r.creator < 0.05, label: r.creator < 0.05 ? `Creator holds ${p(r.creator)}` : `Creator still holds ${p(r.creator)}: can dump on you` },
+    { ok: r.top10 < 0.25, label: r.top10 < 0.25 ? `Top 10 hold ${p(r.top10)}` : `Top 10 hold ${p(r.top10)}. They can crash it.` },
+    { ok: r.creator < 0.05, label: r.creator < 0.05 ? `Creator holds ${p(r.creator)}` : `Creator still holds ${p(r.creator)}. Can dump on you.` },
     ...extraChecks(r).slice(0, 1),
-    { ok: !r.mintAuth, label: r.mintAuth ? "The creator can still print more coins" : "Nobody can print more coins" },
-    { ok: !r.freezeAuth, label: r.freezeAuth ? "The creator can freeze your coins: you may not be able to sell" : "Nobody can freeze your coins" },
-    {
-      ok: lockOk,
-      label: r.curve
-        ? "On pump.fun's curve: the liquidity can't be pulled"
-        : lockOk
-          ? `Liquidity ${p(r.locked ?? 0)} locked or burned: it can't be pulled`
-          : `Only ${p(r.locked ?? 0)} of the liquidity is locked: it can be pulled`,
-    },
+    { ok: !r.mintAuth, label: r.mintAuth ? "Creator can print more coins." : "No new coins can be printed" },
+    { ok: !r.freezeAuth, label: r.freezeAuth ? "Creator can freeze your coins." : "Your coins can't be frozen" },
+    { ok: lockOk, label: lockOk ? "Liquidity can't be pulled" : "Liquidity can be pulled." },
     ...extraChecks(r).slice(1),
   ];
 }

@@ -1,253 +1,230 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Eye } from "./Bits";
-import TopBar from "./TopBar";
+import Demo, { MiniOverlay } from "./Demo";
+import Nav, { Footer } from "./Nav";
+import Reveal from "./Reveal";
+import Search from "./Search";
 
-/** fades its children in the first time they scroll into view */
-export function Reveal({ children, className = "", delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      ([e]) => {
-        if (e.isIntersecting) {
-          setOn(true);
-          io.disconnect();
-        }
-      },
-      { threshold: 0.15 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-  return (
-    <div ref={ref} className={`rv ${on ? "in" : ""} ${className}`} style={{ transitionDelay: `${delay}ms` }}>
-      {children}
-    </div>
-  );
-}
+const SITES = ["pump.fun", "GMGN", "Axiom", "Photon", "BullX", "DexScreener", "Birdeye", "Jupiter"];
 
 export default function Home() {
   return (
     <>
-      <TopBar />
-      <main className="home">
-        <section className="x-hero x-hero-radar wrap">
-          <div className="x-hero-copy">
-            <span className="x-pill">
-              <i className="dot" /> Reads every new pump.fun coin, live
-            </span>
-            <h1 className="disp">
-              Find the coin worth a shot.
-              <br />
-              <span className="shine">Skip the scams.</span>
-            </h1>
-            <p className="x-lead">
-              Open a coin on pump.fun, GMGN or Axiom. The yeppo extension tells you in a second: OK to buy, Risky or Don&apos;t buy, and
-              why.
-            </p>
-            <div className="x-cta">
-              <Link href="/extension" className="btn btn-glow btn-lg">
-                Get the extension
+      <Nav />
+      <main className="wrap">
+        <section className="hero">
+          <div>
+            <Reveal>
+              <span className="kicker">
+                <i className="live" /> Reading every pump.fun launch, live
+              </span>
+            </Reveal>
+            <Reveal delay={80}>
+              <h1>
+                know who made it.
+                <br />
+                <span className="grad">catch the move.</span>
+              </h1>
+            </Reveal>
+            <Reveal delay={160}>
+              <p className="lead">Open any memecoin. In one second yeppo tells you if it&apos;s safe, what its creator did before, and if now is the moment.</p>
+            </Reveal>
+            <Reveal delay={240} className="hero-cta">
+              <Link href="/extension" className="btn btn-go btn-lg">
+                Add to Chrome · free
               </Link>
               <a href="#how" className="btn btn-lg btn-ghost">
-                How it decides
+                How it works
               </a>
-            </div>
-          </div>
-        </section>
-
-        <section className="wrap x-radar">
-          <div className="x-pop">
-            <div className="pv-decide d-down">
-              <b>⛔ Don&apos;t buy</b>
-              <p>Creator rugged their earlier coins.</p>
-              <span className="pv-decide-sub">Seen on $MOON, 3 min old.</span>
-            </div>
-            <div className="pv-decide d-mid">
-              <b>⚠️ Risky</b>
-              <p>No scam signs, but no clear upside. If you buy, buy small and keep the stop.</p>
-              <span className="pv-decide-sub">Seen on $PEPEFOE, 2 min old.</span>
-            </div>
-            <div className="pv-decide d-up">
-              <b>✅ OK to buy</b>
-              <p>No scam signs, and coins like this one usually went up. Follow the exit plan.</p>
-              <span className="pv-decide-sub">Seen on $RK, 3 min old: sell at +45%, cut at −20%, out within 4 min.</span>
-            </div>
-          </div>
-        </section>
-
-        <section id="how" className="wrap x-sec">
-          <Reveal className="x-head">
-            <h2 className="disp">How yeppo decides</h2>
-            <p>Three steps, every time you open a coin.</p>
-          </Reveal>
-          <div className="x-bento">
-            <Reveal className="x-tile big">
-              <DevArt />
-              <h3>1 · Throw out the scams</h3>
-              <p>
-                Top 10 wallets over 25%, creator over 5%, snipers over 15%, a creator who rugged before, bots faking a climb, or similar coins that
-                crashed: out, whatever the hype.
-              </p>
             </Reveal>
-            <Reveal className="x-tile" delay={80}>
-              <MeterArt />
-              <h3>2 · Read the market right now</h3>
-              <p>Already dumped, nobody trading, a single bot trading it, a sell-off: no, whatever the hype.</p>
-            </Reveal>
-            <Reveal className="x-tile" delay={160}>
-              <PlanArt />
-              <h3>3 · Plan the exit</h3>
-              <p>When to take profit, when to cut, how long to stay and how much to buy for your limit.</p>
-            </Reveal>
-            <Reveal className="x-tile big" delay={120}>
-              <LadderArt />
-              <h3>In your browser</h3>
-              <p>Open a coin on pump.fun, GMGN or Axiom: the extension says OK to buy, Risky or Don&apos;t buy, and why, on the page and in the side panel.</p>
+            <Reveal delay={320} className="hero-try">
+              <Search label="Read it" />
+              <p className="hero-note">Or paste a coin here. No wallet, no sign-up.</p>
             </Reveal>
           </div>
-        </section>
-
-        <section className="wrap x-sec">
-          <Reveal className="x-head">
-            <h2 className="disp">Tested, without peeking</h2>
-            <p>yeppo replays its own answers on 2,833 past coins, using only what it knew at the time.</p>
-          </Reveal>
-          <div className="x-proof">
-            <Reveal className="x-num">
-              <b className="down mono">41%</b>
-              <span>of Don&apos;t buy coins lost half within 10 min</span>
-            </Reveal>
-            <Reveal className="x-num" delay={90}>
-              <b className="mono">27%</b>
-              <span>of all coins did</span>
-            </Reveal>
-            <Reveal className="x-num" delay={180}>
-              <b className="up mono">7%</b>
-              <span>of the coins yeppo let through did</span>
-            </Reveal>
-          </div>
-          <p className="x-honest">
-            Passing the checks means fewer crashes, not a sure win: after fees, most coins still lose. Buy small and follow the stop.
-          </p>
-        </section>
-
-        <section className="wrap x-sec">
-          <Reveal className="x-final">
-            <Eye size={56} />
-            <h2 className="disp">Know what to skip before you click buy.</h2>
-            <div className="x-cta">
-              <Link href="/extension" className="btn btn-glow btn-lg">
-                Get the extension
-              </Link>
-              <Link href="/pricing" className="btn btn-lg btn-ghost">
-                Pricing
-              </Link>
-            </div>
+          <Reveal delay={200}>
+            <Demo />
           </Reveal>
         </section>
+      </main>
 
-        <section className="wrap x-sec x-last">
-          <div className="faq">
+      <div className="marq" aria-label="Works on">
+        <div className="marq-row">
+          {[...SITES, ...SITES].map((s, i) => (
+            <span key={i}>{s}</span>
+          ))}
+        </div>
+      </div>
+
+      <main className="wrap">
+        <section className="sec" id="how">
+          <Reveal className="sec-head">
+            <span className="label">How it works</span>
+            <h2>three reads. one second.</h2>
+            <p>Everything you would check by hand, done before you can open a second tab.</p>
+          </Reveal>
+          <div className="three">
+            <Reveal className="card feat" delay={0}>
+              <div className="feat-art">
+                <div className="art-checks">
+                  {["Top 10 hold 14%", "Creator holds 0%", "No insider group", "Liquidity can't be pulled"].map((t, i) => (
+                    <div key={t} style={{ "--i": i } as React.CSSProperties}>
+                      <i>✓</i>
+                      {t}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <span className="label" style={{ display: "block", marginTop: 16 }}>
+                Safety
+              </span>
+              <h3>Is it a trap?</h3>
+              <p>Holders, creator bag, insider groups, frozen coins, pullable liquidity. One fail and it&apos;s a no.</p>
+            </Reveal>
+            <Reveal className="card feat" delay={90}>
+              <div className="feat-art">
+                <MiniOverlay />
+              </div>
+              <span className="label" style={{ display: "block", marginTop: 16, color: "var(--dev)" }}>
+                Creator
+              </span>
+              <h3>What did they do last time?</h3>
+              <p>Every coin the same wallet launched, laid over this one. You see exactly where they dump.</p>
+            </Reveal>
+            <Reveal className="card feat" delay={180}>
+              <div className="feat-art">
+                <div className="art-eq">
+                  {Array.from({ length: 18 }, (_, i) => (
+                    <i key={i} style={{ "--i": i } as React.CSSProperties} />
+                  ))}
+                </div>
+              </div>
+              <span className="label" style={{ display: "block", marginTop: 16, color: "var(--up)" }}>
+                Moment
+              </span>
+              <h3>Is now the time?</h3>
+              <p>The last minute against the four before: price, buyers, sellers, wallets. Volatility, read live.</p>
+            </Reveal>
+          </div>
+        </section>
+
+        <section className="sec">
+          <div className="cre">
+            <Reveal>
+              <span className="label" style={{ color: "var(--dev)" }}>
+                Creator history
+              </span>
+              <div className="sec-head" style={{ margin: 0 }}>
+                <h2>most rugs are reruns.</h2>
+                <p>The same wallets launch coin after coin and dump them the same way. yeppo remembers every one.</p>
+              </div>
+              <ul className="cre-list">
+                <li>
+                  <span>
+                    <b>Every coin they made</b> in the last 14 days, with how it ended: rugged, died or ran.
+                  </span>
+                </li>
+                <li>
+                  <span>
+                    <b>When they usually sell</b>, and at what price. So you sell first.
+                  </span>
+                </li>
+                <li>
+                  <span>
+                    <b>What they&apos;re doing now</b> on this coin: holding, selling or already out.
+                  </span>
+                </li>
+              </ul>
+            </Reveal>
+            <Reveal delay={120} className="card cre-art glow-edge">
+              <div className="cp">
+                <section className="cp-call t-down">
+                  <div className="cp-word">
+                    <i />
+                    Don&apos;t buy
+                  </div>
+                  <p>This creator rugged 6 of their last 7 coins.</p>
+                </section>
+                <div className="cp-coins">
+                  {[
+                    ["$MOONDOG", "2h", "×2.6", "sold 3m", "rug"],
+                    ["$DOGMOON", "5h", "×2.2", "sold 3m", "rug"],
+                    ["$PUPPER", "9h", "×1.4", "sold 2m", "dead"],
+                    ["$WOOFY", "1d", "×3.0", "sold 4m", "rug"],
+                    ["$BARK", "2d", "×2.4", "sold 3m", "rug"],
+                  ].map(([s, a, p, so, f]) => (
+                    <div key={s} className="cp-coin">
+                      <span>
+                        {s} <span className="when">{a} ago</span>
+                      </span>
+                      <span className="mono mute">{p}</span>
+                      <span className="mono dim">{so}</span>
+                      <span className={`chip tone fate fate-${f}`}>{f === "rug" ? "Rugged" : "Died"}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="dim" style={{ margin: 0, fontSize: 11 }}>
+                  Example
+                </p>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
+        <section className="sec">
+          <Reveal className="sec-head center">
+            <span className="label">The call</span>
+            <h2>three words. no noise.</h2>
+          </Reveal>
+          <div className="words">
             {[
-              ["Will I win every trade?", "No one can promise that. yeppo throws out the coins that look like scams and gives you a plan with limits, so losing big gets much harder."],
-              ["Do I connect my wallet?", "Never. yeppo reads public chain data. For the Safety Net you paste a public address. Nothing to sign."],
-              ["Which coins does it read?", "pump.fun coins it watched from their first trade get the full read. Graduated coins and coins from other launchpads get the market rules: liquidity, trades, sell-offs."],
-              ["How do I pay?", "In SOL, from any wallet. No account, no card."],
-            ].map(([q, a]) => (
-              <details key={q}>
-                <summary>{q}</summary>
-                <p>{a}</p>
-              </details>
+              ["up", "Momentum", "Safe, clean creator, and buyers are piling in right now."],
+              ["mid", "Wait", "Nothing wrong, but no push. Wait for volume to come back."],
+              ["down", "Don't buy", "A trap, a rugger, or already dumped. Walk away."],
+            ].map(([t, w, p], i) => (
+              <Reveal key={w} className={`card word t-${t}`} delay={i * 90}>
+                <b>
+                  <i />
+                  {w}
+                </b>
+                <p>{p}</p>
+              </Reveal>
             ))}
           </div>
         </section>
+
+        <section className="sec">
+          <Reveal className="sec-head">
+            <span className="label">Start</span>
+            <h2>live in a minute.</h2>
+          </Reveal>
+          <div className="steps">
+            {[
+              ["Add yeppo to Chrome", "Free. Works in Chrome, Brave, Edge and Arc."],
+              ["Open any coin", "On pump.fun, GMGN, Axiom, Photon or DexScreener."],
+              ["Read the call", "A badge on the page. Click it for the full read."],
+            ].map(([h, p], i) => (
+              <Reveal key={h} className="card step" delay={i * 90}>
+                <span>0{i + 1}</span>
+                <h3>{h}</h3>
+                <p>{p}</p>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+
+        <Reveal className="card final glow-edge">
+          <h2>
+            trade the move.
+            <br />
+            <span className="grad">skip the rug.</span>
+          </h2>
+          <p>Free while in beta. It never touches your wallet.</p>
+          <Link href="/extension" className="btn btn-go btn-lg">
+            Add to Chrome
+          </Link>
+        </Reveal>
       </main>
       <Footer />
     </>
-  );
-}
-
-function PlanArt() {
-  return (
-    <svg className="art" viewBox="0 0 320 120" preserveAspectRatio="none" aria-hidden>
-      <line x1="0" x2="320" y1="28" y2="28" className="art-tp" />
-      <line x1="0" x2="320" y1="96" y2="96" className="art-stop" />
-      <text x="6" y="22" className="art-t up">take profit +45%</text>
-      <text x="6" y="112" className="art-t down">cut −25%</text>
-      <path d="M0 70 L40 66 L80 72 L120 58 L160 62 L200 46 L240 40 L280 28" className="art-line" />
-      <circle cx="280" cy="28" r="5" className="art-hit" />
-    </svg>
-  );
-}
-
-function MeterArt() {
-  return (
-    <div className="art art-meter" aria-hidden>
-      <div className="m-row">
-        <span>today</span>
-        <b className="mono down">−0.31 SOL</b>
-      </div>
-      <div className="m-bar">
-        <i />
-      </div>
-      <span className="m-chip">Slow down</span>
-    </div>
-  );
-}
-
-function LadderArt() {
-  return (
-    <svg className="art" viewBox="0 0 200 120" aria-hidden>
-      <path d="M10 104 L30 104 L30 90 L50 90 L50 76 L70 76 L70 62 L90 62 L90 48 L110 48 L110 34 L130 34 L130 22 L150 22 L168 108 L190 112" className="art-ladder" />
-    </svg>
-  );
-}
-
-function DevArt() {
-  const coins = [1, 0, 0, 1, 2, 0, 0, 0, 1, 0, 0, 0];
-  return (
-    <div className="art art-dev" aria-hidden>
-      {coins.map((c, i) => (
-        <i key={i} className={c === 2 ? "ran" : c === 1 ? "ok" : "rug"} style={{ animationDelay: `${i * 90}ms` }} />
-      ))}
-      <span className="mono">9 rugged · 1 ran · 2 alive</span>
-    </div>
-  );
-}
-
-export function Footer() {
-  return (
-    <footer className="foot">
-      <div className="wrap">
-        <div className="foot-brand">
-          <Link href="/" className="logo disp">
-            <Eye size={24} />
-            <b>yeppo</b>
-          </Link>
-          <p>Reads every new memecoin, so you never trade blind.</p>
-        </div>
-        <div className="foot-cols">
-          <div>
-            <b>Product</b>
-            <Link href="/extension">Extension</Link>
-            <Link href="/wallet">Wallet</Link>
-            <Link href="/pricing">Pricing</Link>
-          </div>
-          <div>
-            <b>Legal</b>
-            <Link href="/terms">Terms</Link>
-            <Link href="/privacy">Privacy</Link>
-            <Link href="/risk">Risk</Link>
-          </div>
-        </div>
-      </div>
-      <div className="wrap foot-note">Not financial advice. Memecoins can go to zero in seconds. Only trade what you can afford to lose.</div>
-    </footer>
   );
 }

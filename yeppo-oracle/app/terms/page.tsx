@@ -13,8 +13,8 @@ export default function Page() {
       </p>
       <h2>1. What yeppo is</h2>
       <p>
-        yeppo is an information tool. It reads public data from the Solana blockchain and shows statistics about how past memecoins behaved: verdicts,
-        odds, red flags, exit plans, wallet alarms. It does not trade for you, it never holds your funds or keys, and it never asks you to sign
+        yeppo is an information tool. It reads public data from the Solana blockchain and shows facts about a memecoin: safety checks, what its
+        creator&apos;s earlier coins did, and how it is trading right now, summed up in one word. It does not trade for you, it never holds your funds or keys, and it never asks you to sign
         anything.
       </p>
       <h2>2. Not financial advice</h2>

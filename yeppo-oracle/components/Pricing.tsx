@@ -5,16 +5,10 @@ import qrcode from "qrcode-generator";
 import { useEffect, useMemo, useState } from "react";
 import { license, pay, savedKey, type License, type Order, type PayPlan } from "@/lib/pay";
 import { writeLocal } from "@/lib/supabase";
-import { Footer, Reveal } from "./Home";
-import TopBar from "./TopBar";
+import Nav, { Footer } from "./Nav";
+import Reveal from "./Reveal";
 
-const FEATURES = [
-  "The extension on pump.fun, GMGN, Axiom, Photon, BullX, DexScreener",
-  "Verdict and red flags on every new coin",
-  "Exit Plan: take profit, stop, time limit, max size",
-  "Safety Net: bag alarms, slow down, stop for today",
-  "Creator records and fast-seller check",
-];
+const FEATURES = ["The extension on every trading site", "Safety checks on any coin", "Creator history and when they sell", "The live moment: Momentum, Wait, Don't buy"];
 
 function Qr({ text }: { text: string }) {
   const cells = useMemo(() => {
@@ -38,7 +32,7 @@ function Copy({ text, label }: { text: string; label?: string }) {
   const [ok, setOk] = useState(false);
   return (
     <button
-      className="copy"
+      className="copy-btn"
       onClick={() =>
         void navigator.clipboard?.writeText(text).then(() => {
           setOk(true);
@@ -104,19 +98,20 @@ export default function Pricing() {
 
   return (
     <>
-      <TopBar />
+      <Nav />
       <main className="page wrap">
         <Reveal className="page-head">
-          <span className="h-eyebrow">Pricing</span>
-          <h1 className="disp">One plan. Paid in SOL.</h1>
-          <p>No account, no card, no email. Pay from any Solana wallet and you get a key that unlocks the extension on every device.</p>
+          <span className="label">Pricing</span>
+          <h1>one plan. paid in SOL.</h1>
+          <p>No account, no card, no email. Pay from any Solana wallet, get a key.</p>
         </Reveal>
 
         {!open && (
-          <Reveal className="beta">
-            <b>🎁 Free during the beta</b>
-            <span>Everything works without paying until launch. Install the extension and use it.</span>
-            <Link href="/extension" className="btn btn-glow btn-sm">
+          <Reveal className="card beta">
+            <b>Free during the beta.</b>
+            <span>Everything works without paying until launch.</span>
+            <span className="grow" />
+            <Link href="/extension" className="btn btn-go btn-sm">
               Get the extension
             </Link>
           </Reveal>
@@ -124,8 +119,12 @@ export default function Pricing() {
 
         <div className="plans">
           {(plans ?? []).map((p, i) => (
-            <Reveal key={p.id} className={`plan ${i === 1 ? "best" : ""}`} delay={i * 80}>
-              {i === 1 && <span className="plan-tag">Best value</span>}
+            <Reveal key={p.id} className={`card plan ${i === 1 ? "glow-edge" : ""}`} delay={i * 80}>
+              {i === 1 && (
+                <span className="chip tone t-up" style={{ position: "absolute", top: 16, right: 16 }}>
+                  Best value
+                </span>
+              )}
               <h3>{p.name}</h3>
               <div className="plan-price">
                 <b className="mono">{p.sol}</b>
@@ -137,22 +136,22 @@ export default function Pricing() {
                   <li key={f}>{f}</li>
                 ))}
               </ul>
-              <button className={`btn ${i === 1 ? "btn-glow" : "btn-ghost"}`} disabled={!open} onClick={() => void buy(p)}>
+              <button className={`btn ${i === 1 ? "btn-go" : ""}`} disabled={!open} onClick={() => void buy(p)}>
                 {open ? `Pay ${p.sol} SOL` : "Opens at launch"}
               </button>
             </Reveal>
           ))}
-          {!plans && <div className="plan skel-plan" />}
+          {!plans && <div className="skel" style={{ height: 300 }} />}
         </div>
 
-        {err && <p className="pay-err">{err}</p>}
+        {err && <p className="down small">{err}</p>}
 
         {order && (
-          <div className="checkout">
+          <div className="card checkout">
             {paid ? (
-              <div className="checkout-done">
-                <h2 className="disp">✅ Paid. Here is your key.</h2>
-                <div className="keybox">
+              <div>
+                <h2>Paid. Here is your key.</h2>
+                <div className="kv">
                   <b className="mono">{paid.key}</b>
                   <Copy text={paid.key} />
                 </div>
@@ -163,27 +162,27 @@ export default function Pricing() {
               </div>
             ) : (
               <>
-                <div className="checkout-qr">
+                <div style={{ display: "grid", gap: 10 }}>
                   <Qr text={order.url} />
-                  <a className="btn btn-glow btn-sm" href={order.url}>
+                  <a className="btn btn-go btn-sm" href={order.url}>
                     Open in my wallet
                   </a>
                 </div>
-                <div className="checkout-steps">
-                  <h2 className="disp">Send exactly {order.sol} SOL</h2>
-                  <p>Scan the code with Phantom, Solflare or Backpack, or send it by hand. The last digits identify your payment, so send the exact amount.</p>
-                  <div className="field">
+                <div style={{ flex: 1, minWidth: 240 }}>
+                  <h2 style={{ margin: "0 0 6px", fontSize: 20 }}>Send exactly {order.sol} SOL</h2>
+                  <p className="mute small">Scan with Phantom, Solflare or Backpack. Send the exact amount: the last digits identify you.</p>
+                  <div className="kv">
                     <span>Amount</span>
                     <b className="mono">{order.sol} SOL</b>
                     <Copy text={order.sol} />
                   </div>
-                  <div className="field">
+                  <div className="kv">
                     <span>To</span>
                     <b className="mono">{order.wallet}</b>
                     <Copy text={order.wallet} />
                   </div>
-                  <p className="waiting">
-                    <i className="dot" /> Waiting for the payment on the Solana chain. This page updates by itself.
+                  <p className="mute small" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <i className="live" /> Waiting for the payment. This page updates by itself.
                   </p>
                 </div>
               </>
@@ -191,14 +190,16 @@ export default function Pricing() {
           </div>
         )}
 
-        <div className="have-key">
-          <h3>Already have a key?</h3>
+        <div style={{ marginTop: 36, maxWidth: 520 }}>
+          <span className="label">Already have a key?</span>
           {mine?.ok ? (
             <p className="up">
               Your plan is active until {new Date(mine.until ?? 0).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}.
             </p>
           ) : (
             <form
+              className="field"
+              style={{ marginTop: 10 }}
               onSubmit={async (e) => {
                 e.preventDefault();
                 const k = keyIn.trim().toUpperCase();
@@ -209,12 +210,12 @@ export default function Pricing() {
               }}
             >
               <input value={keyIn} onChange={(e) => setKeyIn(e.target.value)} placeholder="YEP-XXXXX-XXXXX-XXXXX-XXXXX" spellCheck={false} />
-              <button className="btn btn-sm btn-ghost">Check</button>
+              <button className="btn btn-sm">Check</button>
             </form>
           )}
         </div>
 
-        <p className="pay-fine">
+        <p className="dim small" style={{ marginTop: 28, maxWidth: 620 }}>
           Payments go straight to yeppo&apos;s Solana wallet and are final. A plan unlocks the tool for the days paid; it does not renew by itself. See the{" "}
           <Link href="/terms">terms</Link> and the <Link href="/risk">risk disclosure</Link>.
         </p>

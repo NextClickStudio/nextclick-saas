@@ -1,32 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import "./globals.css";
-import "./v3.css";
-import "./v4.css";
-import Field from "@/components/Field";
+import "./y.css";
+import Backdrop from "@/components/Backdrop";
 import { SITE_URL } from "@/lib/config";
-import { display, mono, sans } from "@/lib/fonts";
+import { mono, sans } from "@/lib/fonts";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "yeppo · know when to get in, know when to get out",
-  description:
-    "yeppo reads every new memecoin from its first trade: a plain-words verdict, the red flags, and an exit plan tested on the 30 coins that looked most like it. Right inside your trading site.",
+  title: "yeppo · know who made it. catch the move.",
+  description: "Open any memecoin. In one second yeppo tells you if it's safe, what its creator did before, and if now is the moment.",
   openGraph: {
-    title: "yeppo · know when to get in, know when to get out",
-    description: "What happened next to the 30 coins that looked exactly like yours. Free, live, no wallet.",
+    title: "yeppo · know who made it. catch the move.",
+    description: "Safety, creator history and the live moment of any memecoin, right on pump.fun, GMGN and Axiom.",
     url: SITE_URL,
     siteName: "yeppo",
   },
-  twitter: { card: "summary_large_image", title: "yeppo oracle", description: "See the future of any memecoin." },
+  twitter: { card: "summary_large_image", title: "yeppo", description: "Know who made it. Catch the move." },
 };
 
-export const viewport: Viewport = { themeColor: "#06070b", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#07060e", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body>
-        <Field />
+        <Backdrop />
         {children}
       </body>
     </html>
