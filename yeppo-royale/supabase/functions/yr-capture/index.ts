@@ -1,6 +1,7 @@
-// yr-capture: called by pg_cron every minute. For ~50s it follows every new pump.fun
-// coin for its first WINDOW_MS:
-//   - launches (name, symbol, creator) come from PumpPortal's free creation feed;
+// yr-capture: called by pg_cron every 30 s and runs ~57 s, so two runs (two leases) always overlap.
+// It follows every new pump.fun coin for its first WINDOW_MS:
+//   - launches (name, symbol, creator) come from pump.fun's CreateEvent in the program logs, with
+//     PumpPortal's free creation feed as a backup;
 //   - trades come straight from the chain: pump.fun TradeEvents in the program logs,
 //     read through the public Solana RPC (logsSubscribe), no API key needed.
 // Wallets and tx signatures are reduced to 32-bit hashes before they are stored. The one exception is
@@ -20,6 +21,9 @@ const RPC_WS = "wss://api.mainnet-beta.solana.com";
 // base64 prefix of the anchor discriminator of pump.fun's TradeEvent
 const TRADE_B64 = "vdt/007mYe";
 const TRADE_DISC = [189, 219, 127, 211, 78, 230, 97, 238];
+// and of its CreateEvent: name, symbol, uri (borsh strings), mint, bonding curve, user, creator, ...
+const CREATE_B64 = "G3KpTd7rY3";
+const CREATE_DISC = [27, 114, 169, 77, 222, 235, 99, 118];
 
 type Ev = [string, number, number, number, number, number, number, number | "", number, number | ""];
 type Tracked = { mint: string; hex: string; created_ms: number; uri: string | null; meta_ok: boolean; n_events: number };
@@ -102,13 +106,46 @@ function solSide(b: Uint8Array, dv: DataView): { sol: number; vsol: number } | n
 }
 const str = (x: unknown) => (typeof x === "string" && x.trim() ? x.trim() : null);
 
+const dec = new TextDecoder();
+function parseCreate(b: Uint8Array): { mint: string; dev: string; name: string | null; symbol: string | null; uri: string | null } | null {
+  for (let i = 0; i < 8; i++) if (b[i] !== CREATE_DISC[i]) return null;
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  let o = 8;
+  const text = () => {
+    if (o + 4 > b.length) throw new Error("short");
+    const n = dv.getUint32(o, true);
+    if (n > 512 || o + 4 + n > b.length) throw new Error("bad string");
+    const v = dec.decode(b.subarray(o + 4, o + 4 + n));
+    o += 4 + n;
+    return str(v.slice(0, 200));
+  };
+  try {
+    const name = text();
+    const symbol = text();
+    const uri = text();
+    if (o + 128 > b.length) return null;
+    const mint = b58encode(b.slice(o, o + 32));
+    const dev = b58encode(b.slice(o + 96, o + 128)); // creator (after mint, bonding curve, user)
+    return { mint, dev, name, symbol, uri };
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
     auth: { persistSession: false },
   });
   const { data: keyRow } = await sb.from("yr_config").select("value").eq("key", "ingest_key").maybeSingle();
   if (!keyRow || req.headers.get("x-ingest-key") !== keyRow.value) return new Response("forbidden", { status: 403 });
-  const { data: lease } = await sb.rpc("yr_take_lease", { p_ms: RUN_MS + 3_000 });
+  let lease = false;
+  for (const k of ["capture_lease", "capture_lease_b"]) {
+    const { data } = await sb.rpc("yr_take_lease_k", { p_key: k, p_ms: RUN_MS + 3_000 });
+    if (data) {
+      lease = true;
+      break;
+    }
+  }
   if (!lease) return Response.json({ skipped: true });
 
   const started = Date.now();
@@ -206,7 +243,8 @@ Deno.serve(async (req) => {
   };
   rpc.onmessage = (m) => {
     const s = String(m.data);
-    if (!s.includes(TRADE_B64)) return; // most notifications carry no trade: skip before parsing
+    const hasCreate = s.includes(CREATE_B64);
+    if (!hasCreate && !s.includes(TRADE_B64)) return; // most notifications carry neither: skip before parsing
     stats.notes++;
     let v: { err: unknown; signature: string; logs: string[] };
     try {
@@ -216,6 +254,13 @@ Deno.serve(async (req) => {
     }
     if (v.err) return;
     const now = Date.now();
+    if (hasCreate) {
+      for (const line of v.logs) {
+        if (!line.startsWith("Program data: " + CREATE_B64)) continue;
+        const c = parseCreate(b64bytes(line.slice(14)));
+        if (c) births.push({ ...c, t: now });
+      }
+    }
     let ix = 0;
     for (const line of v.logs) {
       if (!line.startsWith("Program data: " + TRADE_B64)) continue;
