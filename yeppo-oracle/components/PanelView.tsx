@@ -92,7 +92,7 @@ export default function PanelView({ mint }: { mint: string | null }) {
 function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | null; lim: Limits; setLim: (l: Limits) => void }) {
   const sol = useSol() || 150;
   const now = useNow(2000);
-  const { data: fut } = usePoll<Future>(() => rpc<Future>("yr_future", { p_mint: mint }), 10_000, mint);
+  const { data: fut, error: futErr } = usePoll<Future>(() => rpc<Future>("yr_future", { p_mint: mint }), 10_000, mint);
   const { data: xr } = usePoll<Xray>(() => rpc<Xray>("yr_xray", { p_mint: mint }), 10_000, mint);
   // the last minute of trades, for "right now"
   const { data: tk } = usePoll<{ now: number; ticks: TickRow[] }>(
@@ -143,11 +143,13 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
   const symbol = meta?.[1] ?? null;
   const tone = v?.tone ?? "learn";
   const color = TONE_COLOR[tone];
-  const label = v ? v.label : !fut ? "Reading…" : !tr ? "Not followed" : tr.oracle?.old ? "Too old to read" : "Still learning";
+  const label = v ? v.label : !fut ? (futErr ? "Retrying…" : "Reading…") : !tr ? "Not followed" : tr.oracle?.old ? "Too old to read" : "Still learning";
   const line = v
     ? v.line
     : !fut
-      ? "Comparing it with every coin yeppo watched."
+      ? futErr
+        ? "yeppo is busy right now and keeps trying every 10 seconds."
+        : "Comparing it with every coin yeppo watched."
       : !tr
         ? "yeppo reads pump.fun coins it watched from their first trade. This one launched before, or elsewhere."
         : tr.oracle?.old
