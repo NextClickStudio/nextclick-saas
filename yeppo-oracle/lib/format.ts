@@ -32,6 +32,15 @@ export function age(ms: number) {
   return `${h}h ${String(m % 60).padStart(2, "0")}m`;
 }
 
+/** how long ago, in one unit: 40s, 25m, 3h, 2d */
+export function ago(ms: number) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+}
+
 export const short = (a: string | null | undefined) => (!a ? "–" : a.length > 12 ? `${a.slice(0, 4)}…${a.slice(-4)}` : a);
 
 export const isMint = (s: string) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s.trim());

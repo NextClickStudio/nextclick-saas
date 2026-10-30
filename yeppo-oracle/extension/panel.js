@@ -1,23 +1,15 @@
-// The side panel: yeppo's view of the coin in the tab in front (or none), with your wallet below.
+// The side panel: yeppo's read of the coin in the tab in front (or none).
 const SITE = "https://yeppo.it";
 const view = document.getElementById("view");
 const where = document.getElementById("where");
 let active = null;
 let saved = {};
-chrome.storage.local.get(["who", "limits", "lab", "paper"], (r) => {
+chrome.storage.local.get(["lab", "paper"], (r) => {
   saved = r;
   void follow();
 });
-// the view hands back the wallet and the limits the trader sets
-window.addEventListener("message", (e) => {
-  if (e.source !== view.contentWindow || e.data?.yeppo !== "keep") return;
-  if (e.data.key === "yo:guard") chrome.storage.local.set({ who: e.data.value });
-  if (e.data.key === "yo:limits") chrome.storage.local.set({ limits: e.data.value });
-});
 chrome.storage.onChanged.addListener((ch, area) => {
   if (area !== "local") return;
-  if (ch.who) saved.who = ch.who.newValue;
-  if (ch.limits) saved.limits = ch.limits.newValue;
   if (ch.lab || ch.paper) {
     if (ch.lab) saved.lab = ch.lab.newValue;
     if (ch.paper) saved.paper = ch.paper.newValue;
@@ -25,15 +17,10 @@ chrome.storage.onChanged.addListener((ch, area) => {
   }
 });
 
-/** the view's address: the coin, plus the wallet and the limits the extension remembers */
+/** the view's address: the coin, plus the owner's paper wallet when linked */
 function viewUrl(mint) {
   const q = new URLSearchParams();
   if (mint) q.set("mint", mint);
-  if (saved.who) q.set("who", saved.who);
-  if (saved.limits) {
-    q.set("risk", saved.limits.risk);
-    q.set("daily", saved.limits.daily);
-  }
   if (saved.lab && saved.paper) {
     q.set("lab", saved.lab);
     q.set("paper", saved.paper);
@@ -44,7 +31,7 @@ function viewUrl(mint) {
 let shown = undefined;
 function render(coin) {
   const mint = coin?.mint ?? null;
-  where.textContent = coin?.host ? `reading on ${coin.host.replace(/^www\./, "")}` : "no coin open";
+  where.textContent = coin?.host ? coin.host.replace(/^www\./, "") : "no coin open";
   if (mint === shown) return;
   shown = mint;
   view.src = viewUrl(mint);

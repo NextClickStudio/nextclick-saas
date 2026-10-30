@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import type { Fate } from "@/lib/decide";
 import { mins } from "@/lib/decide";
-import { age, mult, short, usd } from "@/lib/format";
+import { age, ago, mult, short, usd } from "@/lib/format";
 import { useNow, usePoll } from "@/lib/hooks";
 import { paperBuy, paperSell, paperState, type PaperState } from "@/lib/paper";
 import { readCoin, type Read } from "@/lib/read";
@@ -17,7 +17,8 @@ const FATE: Record<Fate, string> = { rug: "Rugged", dead: "Died", ran: "Ran", gr
 const x = (v: number) => `×${v >= 10 ? v.toFixed(0) : v.toFixed(1)}`;
 const sign = (v: number | null) => (v == null ? "–" : `${v >= 0 ? "+" : ""}${Math.round(v * 100)}%`);
 
-export default function CoinPanel({ mint, compact }: { mint: string; compact?: boolean }) {
+/** paper: the owner's paper wallet, handed over by the extension (its frame cannot read yeppo.it's storage) */
+export default function CoinPanel({ mint, compact, paper }: { mint: string; compact?: boolean; paper?: string | null }) {
   const { data: r, error } = usePoll<Read>(() => readCoin(mint), 5000, mint);
   const now = useNow(1000);
   if (!r)
@@ -133,7 +134,7 @@ export default function CoinPanel({ mint, compact }: { mint: string; compact?: b
                 {c.coins.map((k) => (
                   <a key={k.mint} className="cp-coin" href={`/c/${k.mint}`} target={compact ? "_blank" : undefined} rel="noreferrer">
                     <span>
-                      {k.sym ? `$${k.sym}` : short(k.mint)} <span className="when">{age(now - k.t0)} ago</span>
+                      {k.sym ? `$${k.sym}` : short(k.mint)} <span className="when">{ago(now - k.t0)}</span>
                     </span>
                     <span className="mono mute">{x(k.peak)}</span>
                     <span className="mono dim">{k.soldS != null ? `sold ${mins(k.soldS)}` : ""}</span>
@@ -165,7 +166,7 @@ export default function CoinPanel({ mint, compact }: { mint: string; compact?: b
         </div>
       </section>
 
-      <PaperBox mint={mint} />
+      <PaperBox mint={mint} given={paper ?? null} />
 
       <div className="cp-foot">
         <span>Short-term read. Not advice.</span>
@@ -186,13 +187,14 @@ export default function CoinPanel({ mint, compact }: { mint: string; compact?: b
 }
 
 /** the owner's paper trading, only where the lab key and paper wallet are saved */
-function PaperBox({ mint }: { mint: string }) {
+function PaperBox({ mint, given }: { mint: string; given: string | null }) {
   const [acct, setAcct] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => {
-    if (readLocal<string | null>("yo:lab", null)) setAcct(readLocal<string | null>("yo:paper", null));
-  }, []);
+    if (given) setAcct(given);
+    else if (readLocal<string | null>("yo:lab", null)) setAcct(readLocal<string | null>("yo:paper", null));
+  }, [given]);
   const { data: st, reload } = usePoll<PaperState>(acct ? () => paperState(acct) : null, 3000, acct ?? "");
   useEffect(() => setMsg(null), [mint]);
   if (!acct) return null;

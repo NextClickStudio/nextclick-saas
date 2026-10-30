@@ -1,8 +1,8 @@
-// yeppo oracle: remembers which coin each tab shows, fetches yeppo's read of it (shared by every tab,
+// yeppo: remembers which coin each tab shows, fetches yeppo's read of it (shared by every tab,
 // 5 s fresh) and puts the decision's colour on the toolbar button. The toolbar button opens the side panel.
 const SITE = "https://yeppo.it";
-const TONE = { up: "#22e39a", mid: "#ffb547", down: "#ff4d6d", learn: "#8b5cff" };
-const MARK = { up: "BUY", mid: "RISK", down: "NO", learn: "" };
+const TONE = { up: "#1fd47c", mid: "#ffb23e", down: "#ff5b3d", learn: "#9a85ff" };
+const MARK = { up: "GO", mid: "WAIT", down: "NO", learn: "" };
 const cache = new Map(); // mint -> { at, data }
 
 chrome.runtime.onInstalled.addListener(() => chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {}));
@@ -25,7 +25,7 @@ async function read(mint) {
 function badge(tabId, data) {
   const d = data?.decision;
   chrome.action.setBadgeText({ tabId, text: d ? MARK[d.tone] ?? "" : "" }).catch(() => {});
-  if (d) chrome.action.setBadgeBackgroundColor({ tabId, color: TONE[d.tone] ?? "#8b5cff" }).catch(() => {});
+  if (d) chrome.action.setBadgeBackgroundColor({ tabId, color: TONE[d.tone] ?? "#9a85ff" }).catch(() => {});
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {

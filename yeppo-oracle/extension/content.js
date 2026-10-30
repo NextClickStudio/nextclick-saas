@@ -1,4 +1,4 @@
-// yeppo oracle: finds the coin on the trading page and shows a small badge with yeppo's read of it.
+// yeppo: finds the coin on the trading page and shows a small badge with yeppo's read of it.
 // Click the badge for the full read in a card on the page; the toolbar button opens it in the side panel.
 (() => {
   if (window.top !== window || window.__yeppo) return;
@@ -92,41 +92,37 @@
   root.innerHTML = `
     <style>
       :host { all: initial; }
-      * { box-sizing: border-box; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-      .pill { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 6px 0 10px; border-radius: 999px; cursor: pointer;
-        background: rgba(10, 11, 18, .92); color: #eef1f8; border: 1px solid rgba(139, 92, 255, .45);
-        box-shadow: 0 10px 30px -8px rgba(0, 0, 0, .7), 0 0 0 1px rgba(255, 255, 255, .04) inset; backdrop-filter: blur(12px);
-        user-select: none; transition: transform .15s ease, border-color .2s ease; font-size: 13px; white-space: nowrap; }
-      .pill:hover { transform: translateY(-1px); }
-      .pill b { font-weight: 800; letter-spacing: -.01em; }
-      .lbl { font-weight: 700; }
-      .sc { font: 700 12px ui-monospace, "JetBrains Mono", monospace; padding: 3px 7px; border-radius: 999px; background: rgba(255,255,255,.07); }
-      .x { width: 24px; height: 24px; border-radius: 50%; border: 0; background: transparent; color: #8d95a9; font-size: 15px; cursor: pointer; }
-      .x:hover { background: rgba(255,255,255,.08); color: #eef1f8; }
-      .t-up { border-color: rgba(34, 227, 154, .6); } .t-up .lbl { color: #22e39a; }
-      .t-mid .lbl { color: #ffb547; }
-      .t-flat .lbl { color: #8d95a9; }
-      .t-down, .t-rug { border-color: rgba(255, 77, 109, .65); } .t-down .lbl, .t-rug .lbl { color: #ff4d6d; }
-      .t-rug { animation: pulse 1.6s ease-in-out infinite; }
-      @keyframes pulse { 50% { box-shadow: 0 0 0 6px rgba(255, 77, 109, .18), 0 10px 30px -8px rgba(0,0,0,.7); } }
-      .t-learn .lbl { color: #b9a4ff; }
-      .card { position: absolute; right: 0; bottom: 50px; width: 380px; height: min(680px, calc(100vh - 90px)); border-radius: 18px; overflow: hidden;
-        border: 1px solid rgba(139, 92, 255, .35); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .85); background: #06070b; display: none; }
-      .card.on { display: block; animation: rise .18s ease-out; }
-      @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+      * { box-sizing: border-box; font-family: Geist, Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .pill { --t: #9a85ff; display: flex; align-items: center; gap: 9px; height: 36px; padding: 0 4px 0 12px; border-radius: 12px;
+        cursor: pointer; background: rgba(9, 8, 18, .86); color: #f3f3f6; border: 1px solid rgba(255, 255, 255, .1);
+        box-shadow: 0 12px 34px -10px rgba(0, 0, 0, .8), inset 0 1px 0 rgba(255, 255, 255, .05);
+        backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+        user-select: none; transition: transform .2s cubic-bezier(.2,.8,.2,1), border-color .3s; font-size: 13px; white-space: nowrap; }
+      .pill:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--t) 55%, transparent); }
+      .mark { width: 14px; height: 14px; border-radius: 4px; flex: none; position: relative;
+        background: conic-gradient(from 210deg, #5b6cff, #ff5fd2, #45d6ff, #5b6cff); }
+      .mark::after { content: ""; position: absolute; inset: 3.5px; border-radius: 2px; background: #09081a; }
+      .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--t); flex: none; animation: ping 1.8s ease-out infinite; }
+      @keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--t) 60%, transparent); } 80%, 100% { box-shadow: 0 0 0 7px transparent; } }
+      .lbl { font-weight: 600; letter-spacing: -.01em; color: var(--t); }
+      .x { width: 26px; height: 26px; border-radius: 8px; border: 0; background: transparent; color: #5f5f74; font-size: 14px; cursor: pointer; }
+      .x:hover { background: rgba(255,255,255,.07); color: #f3f3f6; }
+      .t-up { --t: #1fd47c; } .t-mid { --t: #ffb23e; } .t-down { --t: #ff5b3d; } .t-learn { --t: #9a85ff; }
+      .t-down { border-color: rgba(255, 91, 61, .4); }
+      .card { position: absolute; right: 0; bottom: 46px; width: 380px; height: min(700px, calc(100vh - 80px)); border-radius: 16px; overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, .1); box-shadow: 0 40px 90px -20px rgba(0, 0, 0, .9); background: #07060e; display: none; }
+      .card.on { display: block; animation: rise .28s cubic-bezier(.2,.8,.2,1); }
+      @keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.98); } }
       iframe { width: 100%; height: 100%; border: 0; display: block; }
-      svg { flex: none; }
     </style>
     <div class="card"></div>
-    <div class="pill t-learn" title="yeppo oracle: click for the full read">
-      <svg width="22" height="22" viewBox="0 0 64 64"><path d="M6 32c6.5-11 15-16.5 26-16.5S51.5 21 58 32c-6.5 11-15 16.5-26 16.5S12.5 43 6 32z" fill="none" stroke="#8b5cff" stroke-width="5"/><circle cx="32" cy="32" r="11" fill="#7c4dff"/><circle cx="35.5" cy="28.5" r="3.4" fill="#fff"/></svg>
-      <b>yeppo</b><span class="lbl">reading…</span><span class="sc" hidden></span>
+    <div class="pill t-learn" title="yeppo: click for the full read">
+      <i class="mark"></i><i class="dot"></i><span class="lbl">Reading…</span>
       <button class="x" title="Hide on this tab">×</button>
     </div>`;
   const pill = root.querySelector(".pill");
   const card = root.querySelector(".card");
   const lbl = root.querySelector(".lbl");
-  const sc = root.querySelector(".sc");
 
   let mint = null;
   let tabId = null;
@@ -153,18 +149,9 @@
   }
 
   function paint(r) {
-    const d = r?.decision;
-    let tone = "learn";
-    let text = "reading…";
-    if (r && !r.error) {
-      if (d) [tone, text] = [d.tone === "down" && r.verdict?.tone === "rug" ? "rug" : d.tone, d.word];
-      else if (r.old) text = "too old to read";
-      else if (!r.tracked) text = "not followed";
-      else text = "too early";
-    }
-    pill.className = `pill t-${tone}`;
-    lbl.textContent = text;
-    sc.hidden = true;
+    const d = r && !r.error ? r.decision : null;
+    pill.className = `pill t-${d?.tone ?? "learn"}`;
+    lbl.textContent = d ? d.word : r?.error ? "Retrying…" : "Reading…";
     pill.title = d ? `${d.word}: ${d.why}` : "yeppo: click for the full read";
   }
 

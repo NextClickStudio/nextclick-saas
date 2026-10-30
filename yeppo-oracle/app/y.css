@@ -1061,7 +1061,7 @@ img {
   background: var(--card);
   border: 1px solid var(--line);
 }
-.cp-stat span {
+.cp-stat > span {
   display: block;
   font-size: 10.5px;
   color: var(--dim);

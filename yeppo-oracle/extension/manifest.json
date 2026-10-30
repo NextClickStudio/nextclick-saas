@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "yeppo oracle",
-  "version": "1.3.0",
-  "description": "Reads the memecoin you are looking at: a plain-words verdict, red flags, an exit plan, and alarms on your own bags.",
+  "name": "yeppo",
+  "version": "2.0.0",
+  "description": "Safety, creator history and the live moment of the memecoin you are looking at. Momentum, Wait or Don't buy.",
   "icons": {
     "16": "icons/16.png",
     "32": "icons/32.png",
@@ -10,7 +10,7 @@
     "128": "icons/128.png"
   },
   "action": {
-    "default_title": "yeppo oracle",
+    "default_title": "yeppo",
     "default_icon": {
       "16": "icons/16.png",
       "32": "icons/32.png"

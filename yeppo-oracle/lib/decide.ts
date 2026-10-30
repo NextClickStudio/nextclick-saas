@@ -67,9 +67,9 @@ export function fateOf(r: CoinRow, now: number): Fate | null {
   const peak = ath / LAUNCH_MC;
   if (now - t0 < 20 * 60_000) return null; // still running: no verdict yet
   if (peak >= 3) return "ran";
-  // the creator got out around the top and the price fell hard after: a rug
-  if (outS != null && (athS == null || outS <= athS + 180) && (mc ?? 0) <= ath * 0.5 && peak >= 1.15) return "rug";
-  if (soldS != null && outS != null && n >= 5 && (mc ?? 0) <= ath * 0.4) return "rug";
+  // the creator sold around the top and the price halved after: a rug
+  const first = outS ?? soldS;
+  if (first != null && n >= 5 && (mc ?? 0) <= ath * 0.5 && (athS == null || first <= athS + 180)) return "rug";
   return "dead";
 }
 
@@ -87,7 +87,8 @@ export function creatorOf(dev: string, total: number, rows: CoinRow[], now: numb
       peakS: r[5],
       soldS: r[9],
       soldX: r[10] != null ? r[10] / LAUNCH_MC : null,
-      path: r[13]?.length ? r[13].map((v) => v / LAUNCH_MC) : null,
+      // a path that never moved carries no information (a coin nobody traded, or missing data)
+      path: r[13]?.length && Math.max(...r[13]) - Math.min(...r[13]) > 0.6 ? r[13].map((v) => v / LAUNCH_MC) : null,
     });
   }
   const rugs = coins.filter((c) => c.fate === "rug").length;
@@ -98,11 +99,15 @@ export function creatorOf(dev: string, total: number, rows: CoinRow[], now: numb
   const sellX = med(sells.filter((c) => c.soldX != null).map((c) => c.soldX!));
   let line: string;
   if (!coins.length) line = total > 1 ? "Their other coins are too new to judge." : "First coin yeppo has seen from this creator.";
-  else if (rugs >= 2 && rugs >= coins.length / 2) line = `Serial rugger: rugged ${rugs} of ${coins.length} coins.`;
-  else if (ran > 0 && rugs === 0) line = `${ran} of ${coins.length} coins ran. No rugs.`;
-  else line = `${coins.length} coins: ${rugs} rugged, ${dead} died, ${ran} ran.`;
+  else if (isRugger({ rugs, coins })) line = `Serial rugger: rugged ${rugs} of ${coins.length} coins.`;
+  else if (isSpammer({ rugs, dead, coins })) line = `Coin spammer: ${rugs + dead} of ${coins.length} coins died or rugged.`;
+  else line = `${coins.length} coin${coins.length > 1 ? "s" : ""}: ${rugs} rugged, ${dead} died, ${ran} ran.`;
   return { dev, total, coins, rugs, dead, ran, sellS, sellX, line };
 }
+
+const isRugger = (c: { rugs: number; coins: unknown[] }) => c.rugs >= 2 && c.rugs >= c.coins.length / 2;
+/** launches coin after coin and almost all of them die: the next one most likely too */
+const isSpammer = (c: { rugs: number; dead: number; coins: unknown[] }) => c.rugs + c.dead >= 5 && (c.rugs + c.dead) / c.coins.length >= 0.85;
 
 /** the market of the last 5 minutes, from 10 s steps [step, close, high, low, buys, sells, SOL in, SOL out] */
 export function pulseOf(steps: number[][], nowStep: number, wallets1m: number | null, solUsd: number): Pulse {
@@ -162,8 +167,11 @@ export function decide(a: {
   const bad = a.checks.find((c) => !c.ok);
   if (bad) return { word: "Don't buy", tone: "down", why: bad.label };
   const c = a.creator;
-  if (c && c.rugs >= 2 && c.rugs >= c.coins.length / 2) return { word: "Don't buy", tone: "down", why: `This creator rugged ${c.rugs} of their last ${c.coins.length} coins.` };
-  if (a.dev?.out && (a.ageS ?? 1e9) < 3600) return { word: "Don't buy", tone: "down", why: "The creator already sold everything." };
+  if (c && isRugger(c)) return { word: "Don't buy", tone: "down", why: `This creator rugged ${c.rugs} of their last ${c.coins.length} coins.` };
+  if (c && isSpammer(c)) return { word: "Don't buy", tone: "down", why: `This creator made ${c.coins.length} coins. ${c.rugs + c.dead} died or rugged.` };
+  // a creator who sold out early leaves the crowd: only a live push is worth a look, and then only short
+  const devOut = !!a.dev?.out && (a.ageS ?? 1e9) < 3600;
+  if (devOut && a.pulse?.state !== "hot") return { word: "Don't buy", tone: "down", why: "The creator already sold everything." };
   if (a.outsideNo) return { word: "Don't buy", tone: "down", why: a.outsideNo };
   if (a.priceX != null && a.athX != null && a.athX > 1.5 && a.priceX < a.athX * 0.4)
     return { word: "Don't buy", tone: "down", why: `Already dumped ${Math.round((1 - a.priceX / a.athX) * 100)}% from its high.` };
@@ -171,8 +179,9 @@ export function decide(a: {
   if ((a.ageS ?? 1e9) < 30 || !a.pulse) return { word: "Too early", tone: "learn", why: "Just launched. Give it 30 seconds." };
   const p = a.pulse;
   // the creator's habit, when there is one: where they usually sell, against where the price is now
-  const habit =
-    c?.sellX != null && c.sellS != null && a.priceX != null
+  const habit = devOut
+    ? " Creator already sold: it's the crowd now. Keep it short."
+    : c?.sellX != null && c.sellS != null && a.priceX != null
       ? a.priceX >= c.sellX * 0.85
         ? ` Careful: this creator usually sells around ${x(c.sellX)}. It's at ${x(a.priceX)}.`
         : ` This creator usually sells around ${x(c.sellX)}, after ${mins(c.sellS)}.`
