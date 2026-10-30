@@ -2,7 +2,8 @@
 --  runner potential: 20%+ of the look-alikes went up 50% and at most 10% dumped
 --  likely dump:      25%+ of the look-alikes dumped 50%
 -- (thresholds picked from the first backtest; red flags such as bot ladders and serial ruggers are not
--- replayed here, they only make the site more careful). Additive, and fills the record once now.
+-- replayed here, they only make the site more careful). Additive. The hourly job uses 80 tests per
+-- checkpoint so a refresh stays around a minute.
 
 create or replace function yr_otrack_refresh(p_n int default 150) returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -39,4 +40,4 @@ begin
 end $$;
 revoke all on function yr_otrack_refresh(int) from public, anon, authenticated;
 
-select yr_otrack_refresh(150);
+select cron.alter_job((select jobid from cron.job where jobname = 'yr-otrack'), command := 'select yr_otrack_refresh(80)');
