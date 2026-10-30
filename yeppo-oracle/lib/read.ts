@@ -6,7 +6,7 @@ export type Read = {
   mint: string;
   tracked: boolean;
   old: boolean;
-  src: "board" | "live";
+  src: "board" | "live" | "market";
   /** the last 2 minutes on the pump.fun curve (market caps in SOL) */
   market?: { mc: number; ath: number; ageS: number; trades2: number; buys2: number; wallets2: number } | null;
   symbol: string | null;

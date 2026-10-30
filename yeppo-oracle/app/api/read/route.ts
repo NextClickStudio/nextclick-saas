@@ -2,7 +2,9 @@
 // checks, the verdict, the red flags and the Exit Plan, the same logic as the coin page.
 //  * a pump.fun coin yeppo followed from its first trade: the look-alikes and the checks, then the market of the
 //    last 2 minutes can still make it a no (already dumped, nobody trading, a single bot, a sell-off);
-//  * any other coin (graduated to PumpSwap, or launched elsewhere): DexScreener's live market and the market rules.
+//  * any other coin (graduated to PumpSwap, or launched elsewhere): DexScreener's live market and the market rules;
+//  * when the database is too slow to answer, the same market rules on DexScreener, so the trader always gets an
+//    answer in a second or two instead of waiting.
 // Worked out on demand for the coin that is open, cached at the edge for 5 s and shared by everyone.
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/config";
 import { isMint } from "@/lib/format";
@@ -69,13 +71,41 @@ export async function GET(req: Request) {
   const headers = { ...CORS, "cache-control": "public, s-maxage=5, stale-while-revalidate=10" };
   try {
     const [fut, xr, track, tk] = await Promise.all([
-      call<Future>("yr_future", { p_mint: mint }),
-      call<Xray>("yr_xray", { p_mint: mint }),
+      call<Future>("yr_future", { p_mint: mint }).catch(() => null),
+      call<Xray>("yr_xray", { p_mint: mint }).catch(() => null),
       call<Track | null>("yr_otrack", {}).catch(() => null),
       call<{ now: number; ticks: TickRow[] }>("yr_ticks", { p_mints: [mint], p_since: Date.now() - 120_000 }).catch(() => null),
     ]);
+    // the database did not answer in time: read the market from DexScreener instead
+    if (!fut) {
+      const out = await outside(mint);
+      if (!out) throw new Error("no data");
+      const d = decideOutside(out, DEX[out.dex] ?? out.dex);
+      return Response.json(
+        {
+          mint,
+          tracked: false,
+          old: false,
+          src: "market",
+          symbol: out.symbol,
+          name: out.name,
+          uri: null,
+          t0: out.born,
+          mc: null,
+          market: null,
+          decision: d.tone === "mid" ? { ...d, why: "yeppo's full read is busy right now: this answer comes from the live market only. Buy small and keep a stop." } : d,
+          checks: [],
+          verdict: null,
+          odds: null,
+          flags: [],
+          plan: null,
+          outside: out,
+        },
+        { headers: { ...CORS, "cache-control": "no-store" } },
+      );
+    }
     const tr = fut.tracked ? fut : null;
-    const sig = signalsOf(xr.tracked ? xr : null);
+    const sig = signalsOf(xr?.tracked ? xr : null);
     const o = tr?.oracle && !tr.oracle.old ? tr.oracle : null;
     const ready = !!o && o.n >= MIN_N && o.odds?.k > 0;
     const v = ready && o ? verdict(o.odds, o.base, sig, track) : null;
