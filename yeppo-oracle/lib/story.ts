@@ -1,4 +1,4 @@
-import { LAUNCH_MC, short, usd } from "./format";
+import { short, usd } from "./format";
 import type { Kind, TickRow } from "./types";
 
 export type StoryTone = "up" | "down" | "info" | "gold";
@@ -64,7 +64,7 @@ export class Story {
       if (mc > this.ath) {
         const wasAth = this.ath;
         this.ath = mc;
-        if (wasAth > 0 && mc > LAUNCH_MC * 1.6 && t - this.athAt > 15_000) {
+        if (wasAth > 0 && mc > wasAth * 1.03 && t - this.athAt > 15_000) {
           this.athAt = t;
           say(t, "📈", `New high: ${usd(mc * this.solUsd())} market cap`, "gold", undefined, `ath-${t}`);
         }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { age, LAUNCH_MC, mult, short, usd } from "@/lib/format";
+import { age, mult, short, usd } from "@/lib/format";
 import { usePoll, useNow, useSol } from "@/lib/hooks";
 import { cone, exitView, tradeLinks, verdict, type Verdict } from "@/lib/oracle";
 import { blip } from "@/lib/sound";
@@ -141,7 +141,7 @@ export default function Scan({ mint, mini }: { mint: string; mini?: boolean }) {
   const past: Pt[] = useMemo(() => {
     if (!t0) return [];
     if (tr?.path?.length) {
-      const pts: Pt[] = [{ s: 0, mc: LAUNCH_MC }];
+      const pts: Pt[] = [];
       for (const b of tr.path) pts.push({ s: b[0] * 10 + 10, mc: b[1] });
       const lastB = tr.path[tr.path.length - 1][0];
       for (const t of ticks) if (t[1] > t0 + (lastB + 1) * 10000 && t[6] > 0) pts.push({ s: (t[1] - t0) / 1000, mc: (t[5] / t[6]) * 1e9 });
