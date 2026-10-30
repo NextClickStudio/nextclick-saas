@@ -1316,3 +1316,13 @@ body {
   color: var(--dim);
   font-weight: 600;
 }
+.x-pop {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 860px) {
+  .x-pop {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -7,6 +7,8 @@ export type Read = {
   tracked: boolean;
   old: boolean;
   src: "board" | "live";
+  /** the last 2 minutes on the pump.fun curve (market caps in SOL) */
+  market?: { mc: number; ath: number; ageS: number; trades2: number; buys2: number; wallets2: number } | null;
   symbol: string | null;
   name: string | null;
   uri: string | null;
@@ -27,6 +29,8 @@ export type Read = {
     m5: { buys: number; sells: number } | null;
     h1: { buys: number; sells: number } | null;
     vol1h: number | null;
+    ch5?: number | null;
+    ch1?: number | null;
     born: number | null;
   } | null;
 };

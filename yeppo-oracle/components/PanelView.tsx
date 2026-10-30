@@ -14,7 +14,6 @@ import { paperBuy, paperSell, paperState, type PaperState } from "@/lib/paper";
 import { readLocal, rpc, writeLocal } from "@/lib/supabase";
 import type { Guard, TickRow, Track, Xray } from "@/lib/types";
 import { CoinImg } from "./Bits";
-import RadarBoard from "./Radar";
 
 /** saves a setting here and, inside the extension, hands it to the extension too: each trading site keeps its
  *  own storage for this frame, so the extension is the one place the wallet and the limits are remembered */
@@ -69,9 +68,11 @@ export default function PanelView({ mint }: { mint: string | null }) {
       {mint ? (
         <CoinRead mint={mint} track={track ?? null} lim={lim} setLim={setLim} />
       ) : (
-        <div className="pv-body pv-radar">
-          <h3>No coin open · the radar right now</h3>
-          <RadarBoard limit={8} compact />
+        <div className="pv-body">
+          <div className="pv-empty">
+            <h2>Open a coin and yeppo reads it</h2>
+            <p>Go to any coin on pump.fun, GMGN, Axiom, Photon, BullX or DexScreener. yeppo spots it by itself and says OK to buy, Risky or Don&apos;t buy, and why.</p>
+          </div>
         </div>
       )}
       <div id="wallet" className="pv-sep">

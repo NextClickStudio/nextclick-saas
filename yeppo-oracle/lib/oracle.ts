@@ -69,6 +69,33 @@ export function decide(v: Verdict | null, checks: Check[]): Decision {
   return { word: "Risky", tone: "mid", why: "No scam signs, but no clear upside. If you buy, buy small and keep the stop." };
 }
 
+/** what the market of a coin says right now, whatever its checks: [market cap and high in SOL, age, trades,
+ *  buys and different wallets in the last 2 minutes] */
+export type Market = { mc: number; ath: number; ageS: number; trades2: number; buys2: number; wallets2: number };
+
+/** the market reasons a coin is a no: already dumped, back under its launch price, nobody trading it, traded by
+ *  a bot (pump.fun's Mayhem agent trades its coin by itself), or being sold off right now */
+export function gate(m: Market): string | null {
+  if (m.ath > 0 && m.mc < m.ath * 0.4) return `Already dumped: ${Math.round((1 - m.mc / m.ath) * 100)}% below its high`;
+  if (m.mc < 30 && m.ageS > 120) return "Back under its launch price: the buyers left";
+  if (m.ageS < 60) return null;
+  if (m.trades2 < 5) return "Almost nobody traded it in the last 2 minutes: you may not find a buyer when you sell";
+  if (m.wallets2 < 8) return `Only ${m.wallets2} wallets traded it in 2 minutes: bots, not people`;
+  if (m.trades2 / Math.max(1, m.wallets2) > 8) return "A few wallets trade it over and over: a bot, not demand";
+  if (m.trades2 >= 20 && m.buys2 / m.trades2 < 0.35) return "Heavy selling right now: far more sells than buys";
+  return null;
+}
+
+/** a coin past pump.fun's curve (graduated, or from another launchpad): no scam checks, only its market */
+export function decideOutside(o: { liq: number | null; m5: { buys: number; sells: number } | null; ch1: number | null }, where: string): Decision {
+  if (o.liq != null && o.liq < 10_000) return { word: "Don't buy", tone: "down", why: "Liquidity under $10K: selling will cost you a lot, or be impossible." };
+  if (o.ch1 != null && o.ch1 <= -50) return { word: "Don't buy", tone: "down", why: `Already dumped: ${Math.round(-o.ch1)}% down in the last hour.` };
+  const n = o.m5 ? o.m5.buys + o.m5.sells : 0;
+  if (n < 5) return { word: "Don't buy", tone: "down", why: "Almost nobody traded it in the last 5 minutes: you may not find a buyer when you sell." };
+  if (o.m5 && n >= 20 && o.m5.sells > o.m5.buys * 2) return { word: "Don't buy", tone: "down", why: "Heavy selling right now: far more sells than buys." };
+  return { word: "Risky", tone: "mid", why: `It trades on ${where}, past pump.fun's curve: yeppo can't run its scam checks, only read the market. Buy small and keep a stop.` };
+}
+
 /** one word and one sentence, from the look-alikes and the red flags */
 export function verdict(o: Odds, base: Base, sig: Signals, track?: Track | null): Verdict {
   const k = o.k || 1;

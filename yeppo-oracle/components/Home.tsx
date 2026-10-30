@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Eye } from "./Bits";
-import RadarBoard from "./Radar";
 import TopBar from "./TopBar";
 
 /** fades its children in the first time they scroll into view */
@@ -40,7 +39,7 @@ export default function Home() {
         <section className="x-hero x-hero-radar wrap">
           <div className="x-hero-copy">
             <span className="x-pill">
-              <i className="dot" /> Live radar of every new pump.fun coin
+              <i className="dot" /> Reads every new pump.fun coin, live
             </span>
             <h1 className="disp">
               Find the coin worth a shot.
@@ -48,28 +47,44 @@ export default function Home() {
               <span className="shine">Skip the scams.</span>
             </h1>
             <p className="x-lead">
-              yeppo watches every launch, throws out the ones that fail the scam checks, and ranks the rest by who is buying, the post on X
-              they ride and the meme of the hour.
+              Open a coin on pump.fun, GMGN or Axiom. The yeppo extension tells you in a second: OK to buy, Risky or Don&apos;t buy, and
+              why.
             </p>
             <div className="x-cta">
               <Link href="/extension" className="btn btn-glow btn-lg">
                 Get the extension
               </Link>
               <a href="#how" className="btn btn-lg btn-ghost">
-                How it picks
+                How it decides
               </a>
             </div>
           </div>
         </section>
 
         <section className="wrap x-radar">
-          <RadarBoard limit={12} />
+          <div className="x-pop">
+            <div className="pv-decide d-down">
+              <b>⛔ Don&apos;t buy</b>
+              <p>Creator rugged their earlier coins.</p>
+              <span className="pv-decide-sub">Seen on $MOON, 3 min old.</span>
+            </div>
+            <div className="pv-decide d-mid">
+              <b>⚠️ Risky</b>
+              <p>No scam signs, but no clear upside. If you buy, buy small and keep the stop.</p>
+              <span className="pv-decide-sub">Seen on $PEPEFOE, 2 min old.</span>
+            </div>
+            <div className="pv-decide d-up">
+              <b>✅ OK to buy</b>
+              <p>No scam signs, and coins like this one usually went up. Follow the exit plan.</p>
+              <span className="pv-decide-sub">Seen on $RK, 3 min old: sell at +45%, cut at −20%, out within 4 min.</span>
+            </div>
+          </div>
         </section>
 
         <section id="how" className="wrap x-sec">
           <Reveal className="x-head">
-            <h2 className="disp">How yeppo picks</h2>
-            <p>Three steps, every 30 seconds, on the 30 most traded young coins.</p>
+            <h2 className="disp">How yeppo decides</h2>
+            <p>Three steps, every time you open a coin.</p>
           </Reveal>
           <div className="x-bento">
             <Reveal className="x-tile big">
@@ -82,8 +97,8 @@ export default function Home() {
             </Reveal>
             <Reveal className="x-tile" delay={80}>
               <MeterArt />
-              <h3>2 · Rank what is left</h3>
-              <p>Buyers right now, the post on X it was launched from, the meme of the hour, paid promotion. Similar past coins count, a little.</p>
+              <h3>2 · Read the market right now</h3>
+              <p>Already dumped, nobody trading, a single bot trading it, a sell-off: no, whatever the hype.</p>
             </Reveal>
             <Reveal className="x-tile" delay={160}>
               <PlanArt />
@@ -93,7 +108,7 @@ export default function Home() {
             <Reveal className="x-tile big" delay={120}>
               <LadderArt />
               <h3>In your browser</h3>
-              <p>Open a coin on pump.fun, GMGN or Axiom: the extension says OK to buy, Risky or Don&apos;t buy, and why. No coin open: it shows the radar.</p>
+              <p>Open a coin on pump.fun, GMGN or Axiom: the extension says OK to buy, Risky or Don&apos;t buy, and why, on the page and in the side panel.</p>
             </Reveal>
           </div>
         </section>
@@ -141,9 +156,8 @@ export default function Home() {
           <div className="faq">
             {[
               ["Will I win every trade?", "No one can promise that. yeppo throws out the coins that look like scams and gives you a plan with limits, so losing big gets much harder."],
-              ["Does yeppo read X?", "It reads the post on X a coin was launched from, through X's public embed. It does not log in to X or scrape it."],
               ["Do I connect my wallet?", "Never. yeppo reads public chain data. For the Safety Net you paste a public address. Nothing to sign."],
-              ["Which coins does it read?", "pump.fun coins it watched from their first trade, in their first 40 minutes. Coins from other launchpads get the market numbers only."],
+              ["Which coins does it read?", "pump.fun coins it watched from their first trade get the full read. Graduated coins and coins from other launchpads get the market rules: liquidity, trades, sell-offs."],
               ["How do I pay?", "In SOL, from any wallet. No account, no card."],
             ].map(([q, a]) => (
               <details key={q}>
