@@ -60,7 +60,8 @@ export function checksOf(f: number[] | null | undefined, sig: Signals): Check[] 
  *  needs every check passed and the look-alikes going up. */
 export function decide(v: Verdict | null, checks: Check[]): Decision {
   const bad = checks.find((c) => !c.ok);
-  if (v?.tone === "rug") return { word: "Don't buy", tone: "down", why: bad?.label ?? "Scam signs: coins like this one get dumped on buyers." };
+  if (v?.tone === "rug")
+    return { word: "Don't buy", tone: "down", why: bad?.label ?? "The creator sold out, and coins like this one usually got dumped on buyers." };
   if (bad) return { word: "Don't buy", tone: "down", why: bad.label };
   if (v?.tone === "down") return { word: "Don't buy", tone: "down", why: "Coins like this one usually crashed in the next 10 minutes." };
   if (!v) return { word: "Too early", tone: "learn", why: "Too few trades to judge yet. Wait a minute." };
