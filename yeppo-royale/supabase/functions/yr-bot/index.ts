@@ -1,5 +1,5 @@
 // yr-bot: yeppo's own paper traders, the live test of the tool. Called by pg_cron every 30 s with the ingest key.
-// Each run reads the most traded young coins exactly as the extension does (yeppo.it/api/read) and paper-trades
+// The four paper wallets (1000 SOL each) are listed in yr_config 'paper_bots'. Each run reads the most traded young coins exactly as the extension does (yeppo.it/api/read) and paper-trades
 // them with 0.1 SOL, once per coin, at the real curve price with fees (yr_paper_buy). The cron yr_paper_auto
 // sells each position when its take profit, stop or time limit hits.
 //   bot:yeppo   buys what yeppo calls "Runner potential" with a plan that worked on the look-alikes
@@ -21,17 +21,9 @@ Deno.serve(async (req) => {
   const { data: cfg } = await sb.from("yr_config").select("key,value").in("key", ["ingest_key", "paper_bots"]);
   if (req.headers.get("x-ingest-key") !== cfg?.find((r) => r.key === "ingest_key")?.value) return new Response("forbidden", { status: 403 });
 
-  // the bots' paper wallets, made on the first run (1000 SOL each, so they never run dry)
-  let ids = JSON.parse(cfg?.find((r) => r.key === "paper_bots")?.value ?? "{}") as Record<Bot, string>;
-  if (BOTS.some((b) => !ids[b])) {
-    for (const b of BOTS) {
-      if (ids[b]) continue;
-      const { data, error } = await sb.from("yr_paper_acct").insert({ name: b, sol: 1000, start_sol: 1000 }).select("id").single();
-      if (error) throw new Error(error.message);
-      ids = { ...ids, [b]: data.id };
-    }
-    await sb.from("yr_config").upsert({ key: "paper_bots", value: JSON.stringify(ids) });
-  }
+  // the bots' paper wallets, made once (by the first run) and kept in yr_config 'paper_bots'
+  const ids = JSON.parse(cfg?.find((r) => r.key === "paper_bots")?.value ?? "{}") as Record<Bot, string>;
+  if (BOTS.some((b) => !ids[b])) return Response.json({ error: "paper_bots is not set up" }, { status: 500 });
 
   const { data: hot } = await sb.rpc("yr_oracle_hot");
   const coins = ((hot?.coins ?? []) as unknown[][]).map((c) => c[0] as string);
