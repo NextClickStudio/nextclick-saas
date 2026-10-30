@@ -1,41 +1,79 @@
 import { mult, pct } from "./format";
-import type { Base, Kind, Match, Odds, Xray } from "./types";
+import type { Base, DevHist, Kind, Match, Odds, Track, Xray } from "./types";
 
-export type Tone = "up" | "mid" | "down" | "rug";
+export type Tone = "up" | "mid" | "flat" | "down" | "rug";
 export type Verdict = { score: number; tone: Tone; label: string; line: string; sub: string };
+export type Signals = { ladder: boolean; devSold: boolean; dev: DevHist | null };
+export type Flag = { icon: string; text: string; tone: "down" | "up" | "warn" };
 
 const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
 
-/** one number, one word and one sentence from the look-alikes' odds */
-export function verdict(o: Odds, base: Base, devSold: boolean): Verdict {
+export const MIN_N = 25; // look-alike pool needed before odds are shown
+
+export const TONE_COLOR = { up: "#22e39a", mid: "#ffb547", flat: "#8d95a9", down: "#ff4d6d", rug: "#ff4d6d", learn: "#8b5cff" } as const;
+
+/** a dev who rugged at least two coins and most of the ones yeppo followed, or dumped two live ones */
+export const isRugger = (d: DevHist | null) => !!d && ((d.rugs >= 2 && d.rugs / Math.max(1, d.coins) >= 0.5) || d.live_sold >= 2);
+
+/** the red-flag inputs from a coin's x-ray: the dev counts as sold once less than 10% of their buy is left */
+export function signalsOf(x: Extract<Xray, { tracked: true }> | null): Signals {
+  const dp = x?.devpos;
+  return { ladder: !!x?.pattern?.ladder, devSold: !!dp && dp[4] > 0 && dp[1] < dp[0] * 0.1, dev: x?.devhist ?? null };
+}
+
+/** red (and green) flags a trader must see before anything else */
+export function flags(sig: Signals): Flag[] {
+  const out: Flag[] = [];
+  const d = sig.dev;
+  if (sig.ladder) out.push({ icon: "🪜", text: "Bot ladder: a straight climb made only of buys. Coins that climb like this almost always dump.", tone: "down" });
+  if (d && isRugger(d)) {
+    const parts = [d.rugs ? `rugged ${d.rugs} of ${d.coins} coins yeppo followed` : "", d.live_sold ? `already dumped ${d.live_sold} other coin${d.live_sold > 1 ? "s" : ""} today` : ""].filter(Boolean);
+    out.push({ icon: "🚩", text: `Serial rugger: this dev ${parts.join(" and ")}.`, tone: "down" });
+  }
+  if (sig.devSold) out.push({ icon: "🚨", text: "The dev sold their bag.", tone: "down" });
+  if (d && !isRugger(d) && d.coins >= 3 && d.rugs === 0 && d.grads >= 1)
+    out.push({ icon: "✅", text: `Clean dev: ${d.grads} of ${d.coins} coins went big, no rugs.`, tone: "up" });
+  if (d && d.live >= 3 && !isRugger(d)) out.push({ icon: "🏭", text: `This dev launched ${d.live} other coins in the last hours.`, tone: "warn" });
+  return out;
+}
+
+/** one word and one sentence, from the look-alikes and the red flags */
+export function verdict(o: Odds, base: Base, sig: Signals, track?: Track | null): Verdict {
   const k = o.k || 1;
   const n50 = Math.round(o.p50 * k);
   const n2 = Math.round(o.p2x * k);
   const nd = Math.round(o.dump * k);
-  // the typical result 10 minutes later, on a log scale: x2 and -50% weigh the same
   const drift = clamp(Math.log(Math.max(o.med, 0.05)), -1, 1);
   let score = Math.round(clamp(50 + (o.p50 - o.dump) * 55 + drift * 45, 1, 99));
-  const quiet = o.p50 + o.dump < 0.1 && Math.abs(o.med - 1) < 0.1;
-  let tone: Tone = quiet ? "mid" : score >= 60 ? "up" : score >= 42 ? "mid" : "down";
-  if (devSold && (o.dump >= 0.4 || o.med < 0.6)) {
-    tone = "rug";
-    score = Math.min(score, 25);
-  }
-  const label = quiet ? "Sideways" : tone === "up" ? "Strong setup" : tone === "mid" ? "Coin flip" : tone === "down" ? "Likely dump" : "Rug risk";
-  const line = quiet
-    ? `The ${k} coins that looked like this barely moved in the next 10 minutes.`
-    : tone === "up"
-      ? n50 >= Math.max(3, nd)
-        ? `${n50} of the ${k} coins that looked like this went up 50%+ in the next 10 minutes${n2 ? `, ${n2} doubled` : ""}.`
-        : `The typical look-alike was ${mult(o.med)} 10 minutes later.`
-      : tone === "mid"
-        ? `${n50} of the ${k} look-alikes pumped 50%, ${nd} dumped 50%. The typical one ended ${mult(o.med)}.`
-        : tone === "down"
-          ? nd >= Math.max(3, n50)
-            ? `${nd} of the ${k} coins that looked like this fell 50% within 10 minutes.`
-            : `Most look-alikes bled out: the typical one was ${mult(o.med)} 10 minutes later.`
-          : `The dev already sold, and the typical look-alike was ${mult(o.med)} 10 minutes later.`;
-  const sub = `An average coin at this age: ${pct(base.p50)} pump 50%, ${pct(base.dump)} dump 50%.`;
+  const rugger = isRugger(sig.dev);
+  const red = sig.ladder || rugger || (sig.devSold && o.dump >= 0.15);
+  // thresholds from the backtest: a look-alike dump rate of 25%+ meant a real dump about half the time,
+  // a pump rate of 20%+ with few dumps meant a real +50% about 4x more often than an average coin
+  const danger = red || o.dump >= 0.25;
+  const runner = !danger && o.p50 >= 0.2 && o.dump <= 0.1;
+  const quiet = !danger && !runner && o.p50 + o.dump < 0.1;
+  const tone: Tone = red ? "rug" : danger ? "down" : runner ? "up" : quiet ? "flat" : "mid";
+  if (danger) score = Math.min(score, 30);
+  if (runner) score = Math.max(score, 65);
+  const label = sig.ladder ? "Bot ladder" : rugger ? "Serial rugger" : red ? "Rug risk" : danger ? "Likely dump" : runner ? "Runner potential" : quiet ? "Going nowhere" : "Coin flip";
+  const line = sig.ladder
+    ? "A straight climb made only of buys: fake volume from bots. Coins that climb like this almost always dump."
+    : rugger
+      ? `This dev rugged before${sig.dev?.coins ? `: ${sig.dev.rugs} of ${sig.dev.coins} coins yeppo followed` : ""}.`
+      : red
+        ? `The dev sold, and ${nd} of the ${k} look-alikes fell 50% within 10 minutes.`
+        : danger
+          ? `${nd} of the ${k} coins that looked like this fell 50% within 10 minutes.`
+          : runner
+            ? `${n50} of the ${k} look-alikes went up 50%+ in the next 10 minutes${n2 ? ` (${n2} doubled)` : ""}, only ${nd} dumped.`
+            : quiet
+              ? "The look-alikes barely moved in the next 10 minutes: most likely fading out."
+              : `${n50} of the ${k} look-alikes pumped 50%, ${nd} dumped 50%. No edge either way.`;
+  let sub = `An average coin at this age: ${pct(base.p50)} pump 50%, ${pct(base.dump)} dump 50%.`;
+  if (track && danger && track.down?.n >= 20 && track.down.dump50 != null)
+    sub = `When yeppo said this, ${pct(track.down.dump50)} of coins really dumped 50% (any coin: ${pct(track.all.dump50)}).`;
+  if (track && runner && track.up?.n >= 20 && track.up.hit50 != null)
+    sub = `When yeppo said this, ${pct(track.up.hit50)} of coins really went +50% (any coin: ${pct(track.all.hit50)}).`;
   return { score, tone, label, line, sub };
 }
 

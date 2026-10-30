@@ -4,17 +4,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { age, mult, short, usd } from "@/lib/format";
 import { usePoll, useNow, useSol } from "@/lib/hooks";
-import { cone, exitView, tradeLinks, verdict, type Verdict } from "@/lib/oracle";
+import { cone, exitView, flags, MIN_N, signalsOf, TONE_COLOR, tradeLinks, verdict, type Flag, type Verdict } from "@/lib/oracle";
 import { namesOf, type Names } from "@/lib/meta";
+import { plainWords, type Plain } from "@/lib/plain";
 import { blip } from "@/lib/sound";
 import { Story, type StoryEvent } from "@/lib/story";
 import { rpc } from "@/lib/supabase";
-import type { Future, Kind, Match, TickRow, Xray } from "@/lib/types";
+import type { Future, Kind, Match, TickRow, Track, Xray } from "@/lib/types";
 import { CoinImg, Ring } from "./Bits";
 import FutureChart, { type Pt } from "./FutureChart";
 import { Footer } from "./Home";
-import { MIN_N } from "./HotBoard";
-import { ExitClock, Holders, LearningBanner, OddsGrid, StoryFeed, VerdictBanner } from "./Panels";
+import { DevCard, ExitClock, Flags, Holders, LearningBanner, OddsGrid, PlainBox, StoryFeed, VerdictBanner } from "./Panels";
 import TopBar from "./TopBar";
 
 type Tracked = Extract<Future, { tracked: true }>;
@@ -47,18 +47,21 @@ async function openPip(width: number, height: number): Promise<Window | null> {
   return win;
 }
 
-export default function Scan({ mint, mini }: { mint: string; mini?: boolean }) {
+export default function Scan({ mint, mini, panel }: { mint: string; mini?: boolean; panel?: boolean }) {
   const sol = useSol() || 150;
   const solRef = useRef(sol);
   solRef.current = sol;
   const now = useNow(1000);
   const { data: fut, error: futErr } = usePoll<Future>(() => rpc<Future>("yr_future", { p_mint: mint }), 10_000, mint);
   const { data: xr } = usePoll<Xray>(() => rpc<Xray>("yr_xray", { p_mint: mint }), 10_000, mint);
+  const { data: track } = usePoll<Track | null>(() => rpc<Track | null>("yr_otrack"), 300_000, "track");
   const [ticks, setTicks] = useState<TickRow[]>([]);
   const [events, setEvents] = useState<StoryEvent[]>([]);
   const [hi, setHi] = useState<number | null>(null);
   const [pip, setPip] = useState<Window | null>(null);
   const [copied, setCopied] = useState(false);
+  const [canPip, setCanPip] = useState(false);
+  useEffect(() => setCanPip("documentPictureInPicture" in window), []);
   const [gotAt, setGotAt] = useState(0);
   const skew = useRef(0);
   const tagsRef = useRef<Record<string, Kind> | null>(null);
@@ -157,9 +160,9 @@ export default function Scan({ mint, mini }: { mint: string; mini?: boolean }) {
   const ready = !!o && o.n >= MIN_N && o.odds?.k > 0;
   const matches: Match[] | null = ready && o?.matches?.length ? o.matches : null;
   const cn = useMemo(() => (matches ? cone(matches) : null), [matches]);
-  const dp = x?.devpos;
-  const devSold = !!dp && dp[4] > 0 && dp[1] < dp[0] * 0.1;
-  const v: Verdict | null = ready && o ? verdict(o.odds, o.base, devSold) : null;
+  const sig = signalsOf(x);
+  const v: Verdict | null = ready && o ? verdict(o.odds, o.base, sig, track) : null;
+  const fl = x ? flags(sig) : [];
   const [named, setNamed] = useState<Names | null>(null);
   useEffect(() => {
     setNamed(null);
@@ -171,6 +174,27 @@ export default function Scan({ mint, mini }: { mint: string; mini?: boolean }) {
   const name = meta?.[0] ?? null;
   const ev = x ? exitView(x) : null;
   const soon = ev ? ev.overdue + ev.s30 + ev.s60 : 0;
+  // the last minute of trades, for the plain words
+  const minute = useMemo(() => {
+    const from = nowMs - 60_000;
+    let buys = 0;
+    let sells = 0;
+    let before: number | null = null;
+    let first: number | null = null;
+    for (const t of ticks) {
+      if (t[6] <= 0) continue;
+      const mc = (t[5] / t[6]) * 1e9;
+      if (t[1] < from) before = mc;
+      else {
+        if (first == null) first = mc;
+        if (t[2] === 1) buys++;
+        else sells++;
+      }
+    }
+    return { buys, sells, ago: before ?? first };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticks, Math.floor(nowMs / 5000)]);
+  const plain = plainWords({ mcNow, mcMinuteAgo: minute.ago, buys: minute.buys, sells: minute.sells, x, odds: ready && o ? o.odds : null, soon });
 
   const popOut = async () => {
     const w = await openPip(360, 470).catch(() => null);
@@ -194,6 +218,11 @@ export default function Scan({ mint, mini }: { mint: string; mini?: boolean }) {
       soon={soon}
       events={events}
       now={nowMs}
+      flags={fl}
+      plain={plain}
+      panel={panel}
+      notTracked={!!fut && !fut.tracked}
+      loading={!fut}
     />
   );
   if (mini) return hud;
@@ -223,12 +252,7 @@ export default function Scan({ mint, mini }: { mint: string; mini?: boolean }) {
               >
                 {copied ? "copied ✓" : `${short(mint)} ⧉`}
               </button>
-              {t0 && <span>{age(nowMs - t0)} old</span>}
-              {tr?.dev && (
-                <a href={`https://gmgn.ai/sol/address/${tr.dev}`} target="_blank" rel="noreferrer">
-                  dev {short(tr.dev)} ↗
-                </a>
-              )}
+              {tr && <span>{age(nowMs - tr.t0)} old</span>}
             </div>
           </div>
           <div className="coin-stats">
@@ -251,9 +275,11 @@ export default function Scan({ mint, mini }: { mint: string; mini?: boolean }) {
                 {l.label}
               </a>
             ))}
-            <button className="btn btn-glow btn-sm" onClick={popOut} title="Keep the oracle on top of your trading app">
-              ⧉ Pop out
-            </button>
+            {canPip && (
+              <button className="btn btn-glow btn-sm" onClick={popOut} title="Keep the oracle on top of your trading app">
+                ⧉ Pop out
+              </button>
+            )}
           </div>
         </div>
 
@@ -268,18 +294,19 @@ export default function Scan({ mint, mini }: { mint: string; mini?: boolean }) {
               <div className="skel" style={{ height: 150 }} />
             ) : notTracked ? (
               <div className="notice glass">
-                <h2 className="disp">yeppo did not see this coin being born</h2>
-                <p>
-                  The oracle reads coins it watched from their very first trade: every pump.fun coin launched since yeppo started recording. Older
-                  coins, coins that already left pump.fun and other launchpads are not covered yet.
-                </p>
-                <p className="small">Live trades below still work for any pump.fun coin traded in the last 20 minutes.</p>
+                <h2 className="disp">No oracle for this coin</h2>
+                <p>yeppo reads pump.fun coins it watched from their first trade, up to a few hours old. This one launched before, or elsewhere.</p>
+                <p className="small dim">Its live trades still show below.</p>
               </div>
             ) : v && o && ready ? (
               <VerdictBanner v={v} k={o.odds.k} n={o.n} ageS={o.age_b * 10} fresh={(now - gotAt) / 1000} />
             ) : (
               <LearningBanner n={o?.n ?? 0} need={MIN_N} old={!!tr?.oracle?.old} />
             )}
+
+            <Flags list={fl} />
+
+            <PlainBox lines={plain} />
 
             {o && ready && <OddsGrid o={o.odds} base={o.base} />}
 
@@ -335,15 +362,18 @@ export default function Scan({ mint, mini }: { mint: string; mini?: boolean }) {
             </div>
 
             {x && (
-              <div className="panel glass">
-                <h3>🔍 Who holds it</h3>
-                <p className="hint">The 20 biggest wallets from the trades yeppo saw, with their habits across every coin they traded.</p>
+              <details className="panel glass more">
+                <summary>
+                  <h3>🔍 The 20 biggest wallets</h3>
+                  <span className="small dim">and how each one usually trades</span>
+                </summary>
                 <Holders x={x} />
-              </div>
+              </details>
             )}
           </div>
 
           <div className="scan-side">
+            {x && <DevCard dev={x.dev} d={x.devhist} sol={sol} />}
             {x && <ExitClock x={x} />}
             <div className="panel glass">
               <h3>
@@ -373,6 +403,11 @@ function MiniHud({
   soon,
   events,
   now,
+  flags: fl,
+  plain,
+  panel,
+  notTracked,
+  loading,
 }: {
   mint: string;
   symbol: string | null;
@@ -385,27 +420,63 @@ function MiniHud({
   soon: number;
   events: StoryEvent[];
   now: number;
+  flags: Flag[];
+  plain: Plain[];
+  panel?: boolean;
+  notTracked: boolean;
+  loading: boolean;
 }) {
-  const color = v ? { up: "#22e39a", mid: "#ffb547", down: "#ff4d6d", rug: "#ff4d6d" }[v.tone] : "#8b5cff";
+  const color = TONE_COLOR[v?.tone ?? "learn"];
+  const label = v ? v.label : loading ? "Reading…" : notTracked ? "No oracle for this coin" : learning ? "Still learning" : "–";
+  const line = v
+    ? v.line
+    : loading
+      ? "Comparing it with every coin yeppo watched."
+      : notTracked
+        ? "yeppo reads pump.fun coins it watched from their first trade. This one launched before, or elsewhere."
+        : "The oracle needs more coins of this age.";
   return (
-    <div className="mini">
+    <div className={`mini ${panel ? "mini-panel" : ""}`}>
       <div className="mini-top">
         <CoinImg uri={uri} symbol={symbol} size={28} />
         <b>{symbol ? `$${symbol.replace(/^\$/, "")}` : short(mint)}</b>
         <span className="mono dim">{mc ? usd(mc) : "–"}</span>
         <span className="dim" style={{ marginLeft: "auto" }}>
-          {age(ageS * 1000)}
+          {ageS > 1 ? age(ageS * 1000) : ""}
         </span>
       </div>
       <div className={`mini-verdict t-${v?.tone ?? "learn"}`}>
         <Ring value={v ? v.score / 100 : 0} color={color} label="score" size={50} stroke={5} />
         <div>
-          <b style={{ color, fontSize: 15 }}>{v ? v.label : learning ? "Still learning" : "–"}</b>
+          <b style={{ color, fontSize: 15 }}>{label}</b>
           <div className="dim" style={{ fontSize: 11, lineHeight: 1.35 }}>
-            {v ? v.line : "The oracle needs more coins of this age."}
+            {line}
           </div>
         </div>
       </div>
+      {fl.length > 0 && (
+        <div className="flags">
+          {fl.slice(0, panel ? 4 : 2).map((f) => (
+            <div key={f.text} className={`flag f-${f.tone}`}>
+              <span className="ic">{f.icon}</span>
+              <span>{f.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {panel && plain.length > 0 && (
+        <div className="plain-rows">
+          {plain.map((l) => (
+            <div key={l.title} className={`plain-row p-${l.tone}`}>
+              <span className="ic">{l.icon}</span>
+              <div>
+                <span className="lbl">{l.title}</span>
+                <p>{l.text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="mini-odds">
         <div>
           <b className="up mono">{odds ? `${Math.round(odds.p50 * 100)}%` : "–"}</b>
@@ -420,7 +491,12 @@ function MiniHud({
           <span className="dim">sell in 60s</span>
         </div>
       </div>
-      <StoryFeed events={events} now={now} limit={9} compact />
+      <StoryFeed events={events} now={now} limit={panel ? 14 : 6} compact />
+      {panel && (
+        <a className="mini-full" href={`/c/${mint}`} target="_blank" rel="noreferrer">
+          Open the full scan with the chart ↗
+        </a>
+      )}
     </div>
   );
 }

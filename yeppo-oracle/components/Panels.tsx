@@ -1,12 +1,12 @@
 "use client";
 
 import { age, mult, pct, short } from "@/lib/format";
-import { exitView, KIND, type Verdict } from "@/lib/oracle";
+import { exitView, isRugger, KIND, TONE_COLOR, type Flag, type Verdict } from "@/lib/oracle";
+import { inTen, type Plain } from "@/lib/plain";
 import type { StoryEvent } from "@/lib/story";
-import type { Base, Kind, Odds, Xray } from "@/lib/types";
+import type { Base, DevHist, Kind, Odds, Xray } from "@/lib/types";
 import { Num, Ring } from "./Bits";
 
-const TONE_COLOR = { up: "#22e39a", mid: "#ffb547", down: "#ff4d6d", rug: "#ff4d6d", learn: "#8b5cff" } as const;
 
 export function VerdictBanner({ v, k, n, ageS, fresh }: { v: Verdict; k: number; n: number; ageS: number; fresh: number }) {
   return (
@@ -57,28 +57,50 @@ export function LearningBanner({ n, need, old }: { n: number; need: number; old?
 
 export function OddsGrid({ o, base }: { o: Odds; base: Base }) {
   const cards: { label: string; v: number; b: number; color: string; tip: string }[] = [
-    { label: "Pumps 50%+", v: o.p50, b: base.p50, color: "#22e39a", tip: "Look-alikes that were up 50% at some point in the next 10 minutes" },
-    { label: "Doubles", v: o.p2x, b: base.p2x, color: "#ffd36b", tip: "Look-alikes that doubled at some point in the next 10 minutes" },
-    { label: "Dumps 50%", v: o.dump, b: base.dump, color: "#ff4d6d", tip: "Look-alikes that were down 50% at some point in the next 10 minutes" },
+    { label: "went up by half", v: o.p50, b: base.p50, color: "#22e39a", tip: "Look-alikes that were up 50% at some point in the next 10 minutes" },
+    { label: "doubled", v: o.p2x, b: base.p2x, color: "#ffd36b", tip: "Look-alikes that doubled at some point in the next 10 minutes" },
+    { label: "crashed by half", v: o.dump, b: base.dump, color: "#ff4d6d", tip: "Look-alikes that were down 50% at some point in the next 10 minutes" },
   ];
   return (
     <div className="odds">
       {cards.map((c) => (
         <div key={c.label} className="odd glass" title={c.tip}>
-          <span className="lbl">{c.label}</span>
+          <span className="lbl">In 10 minutes</span>
           <b className="mono" style={{ color: c.color }}>
-            <Num value={c.v * 100} fmt={(x) => `${x.toFixed(0)}%`} />
+            {inTen(c.v)}
           </b>
-          <span className="vs">vs {pct(c.b)} for any coin this age</span>
+          <span className="small">{c.label}</span>
+          <span className="vs">a random coin: {inTen(c.b)}</span>
           <i className="meter" style={{ width: `${c.v * 100}%`, background: c.color, boxShadow: `0 0 12px ${c.color}` }} />
         </div>
       ))}
-      <div className="odd glass" title="The middle result of the look-alikes after 10 minutes, and their middle best moment">
-        <span className="lbl">Typical in 10 min</span>
+      <div className="odd glass" title="The middle result of the look-alikes after 10 minutes">
+        <span className="lbl">Typical result</span>
         <b className="mono" style={{ color: o.med >= 1 ? "#22e39a" : "#ff4d6d" }}>
           {mult(o.med)}
         </b>
-        <span className="vs">typical best moment {mult(Math.max(1, o.best))}</span>
+        <span className="small">10 minutes later</span>
+        <span className="vs">best moment on the way {mult(Math.max(1, o.best))}</span>
+      </div>
+    </div>
+  );
+}
+
+export function PlainBox({ lines }: { lines: Plain[] }) {
+  if (!lines.length) return null;
+  return (
+    <div className="panel glass plain">
+      <h3>💬 In plain words</h3>
+      <div className="plain-rows">
+        {lines.map((l) => (
+          <div key={l.title} className={`plain-row p-${l.tone}`}>
+            <span className="ic">{l.icon}</span>
+            <div>
+              <span className="lbl">{l.title}</span>
+              <p>{l.text}</p>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -104,12 +126,12 @@ export function ExitClock({ x }: { x: Extract<Xray, { tracked: true }> }) {
   return (
     <div className="panel glass">
       <h3>⏱ Exit clock</h3>
-      <p className="hint">Wallets yeppo already knows, and when they usually sell, from their past trades.</p>
+      <p className="hint">How much of the coin belongs to wallets that usually sell soon, based on how they traded before.</p>
       <div className="clock-big">
         <b className="mono" style={{ color: soon >= 10 ? "#ff4d6d" : soon >= 4 ? "#ffb547" : "#22e39a" }}>
           <Num value={soon} fmt={(s) => `${s.toFixed(1)}%`} />
         </b>
-        <span className="small dim">of the supply could be sold in the next 60 seconds</span>
+        <span className="small dim">of all the coins could be sold in the next minute</span>
       </div>
       <div className="timeline">
         {COLS.map((c) => (
@@ -219,6 +241,68 @@ export function Holders({ x }: { x: Extract<Xray, { tracked: true }> }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+export function Flags({ list }: { list: Flag[] }) {
+  if (!list.length) return null;
+  return (
+    <div className="flags">
+      {list.map((f) => (
+        <div key={f.text} className={`flag f-${f.tone}`}>
+          <span className="ic">{f.icon}</span>
+          <span>{f.text}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** the creator's record: every coin of theirs yeppo followed to the end, and the ones live now */
+export function DevCard({ dev, d, sol }: { dev: string | null; d: DevHist | null; sol: number }) {
+  if (!dev) return null;
+  const rugger = isRugger(d);
+  const done = d?.coins ?? 0;
+  return (
+    <div className={`panel glass devcard ${rugger ? "bad" : ""}`}>
+      <h3>👤 Dev record</h3>
+      <p className="hint">
+        Every coin from this creator that yeppo followed to the end{d?.since ? `, since ${new Date(d.since).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}.
+      </p>
+      <div className="dev-stats">
+        <div>
+          <b className="mono">{done}</b>
+          <span>coins</span>
+        </div>
+        <div>
+          <b className={`mono ${d?.rugs ? "down" : ""}`}>{d?.rugs ?? 0}</b>
+          <span>rugged</span>
+        </div>
+        <div>
+          <b className="mono">{d?.dead ?? 0}</b>
+          <span>died</span>
+        </div>
+        <div>
+          <b className={`mono ${d?.grads ? "up" : ""}`}>{d?.grads ?? 0}</b>
+          <span>went big</span>
+        </div>
+      </div>
+      <p className="small" style={{ margin: "10px 0 0", lineHeight: 1.5 }}>
+        {rugger ? (
+          <b className="down">Serial rugger. Stay away.</b>
+        ) : done === 0 ? (
+          <span className="dim">No finished coin from this dev yet{d?.live ? `, ${d.live} other live now` : ""}. First coin or a new wallet.</span>
+        ) : (
+          <span className="dim">
+            Best high {d?.best ? `$${Math.round((d.best * sol) / 1000)}k` : "–"}
+            {d?.live ? ` · ${d.live} other coin${d.live > 1 ? "s" : ""} live now${d.live_sold ? `, ${d.live_sold} already sold by the dev` : ""}` : ""}.
+          </span>
+        )}
+      </p>
+      <a className="small dim" href={`https://gmgn.ai/sol/address/${dev}`} target="_blank" rel="noreferrer">
+        {short(dev)} on GMGN ↗
+      </a>
     </div>
   );
 }

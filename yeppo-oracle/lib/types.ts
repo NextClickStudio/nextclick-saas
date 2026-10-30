@@ -45,11 +45,49 @@ export type Xray =
       /** [seconds until the holder's usual exit (negative: overdue), supply %, kind] */
       exit: [number, number, Kind][] | null;
       tags: Record<string, Kind> | null;
+      pattern: Pattern | null;
+      devhist: DevHist | null;
     };
 
-/** [mint, name, symbol, uri, born ms, mc SOL, ath SOL, trades 2m, buys 2m, SOL 2m, oracle] */
-export type HotCoin = [string, string | null, string | null, string | null, number, number | null, number, number, number, number, Oracle | null];
+/** the shape of the last 2 minutes; ladder = a straight climb made of buys (bots) */
+export type Pattern = { er: number | null; bshare: number | null; n: number; drift: number | null; cv: number | null; fresh: number | null; ladder: boolean };
+/** the creator's record: retired coins yeppo followed, plus their other coins live now */
+export type DevHist = { coins: number; rugs: number; grads: number; dead: number; best: number | null; since: number | null; live: number; live_sold: number; live_dead: number };
+
+/** [mint, name, symbol, uri, born ms, mc SOL, ath SOL, trades 2m, buys 2m, SOL 2m, oracle, pattern, dev record] */
+export type HotCoin = [
+  string, string | null, string | null, string | null, number, number | null, number, number, number, number,
+  Oracle | null, (Pattern | null)?, (DevHist | null)?,
+];
+
+/** the oracle's record, replayed hourly on past coins it could not have seen the end of */
+export type Track = {
+  at: number;
+  tests: number;
+  coins: number;
+  calls: { up: number; mid: number; down: number; flat: number };
+  up: { n: number; hit50: number | null; higher: number | null; win: number | null; ret: number | null };
+  down: { n: number; dump50: number | null; lower: number | null };
+  all: { n: number; hit50: number; dump50: number; higher: number; lower: number; win: number; ret: number };
+  direction: number | null;
+  calib: [number, number, number, number][];
+};
 export type Hot = { now: number; recorded: number | null; coins: HotCoin[] };
 
 /** [mint, ms, 1 buy | 2 sell, SOL, tokens, virtual SOL, virtual tokens, wallet, signature] */
 export type TickRow = [string, number, 1 | 2, number, number, number, number, string, string];
+
+/** [mint, name, symbol, uri, born, supply %, SOL in, SOL out, first trade, last trade, mc SOL, ath SOL,
+ *  oracle, pattern, dev record, dev sold, supply % that could sell within 60 s] */
+export type Bag = [
+  string, string | null, string | null, string | null, number, number, number, number, number, number, number | null, number,
+  Oracle | null, Pattern | null, DevHist | null, boolean | null, number,
+];
+export type Guard = {
+  now: number;
+  who: string;
+  habits: { n: number; hold: number | null; win: number | null; quick: number | null; pnl: number; last: number } | null;
+  bags: Bag[];
+  /** [mint, symbol, SOL in, SOL out, first trade, last trade] */
+  closed: [string, string | null, number, number, number, number][];
+};

@@ -17,16 +17,22 @@ export default function TopBar({ live, search = true }: { live?: string | null; 
           <b>yeppo</b>
           <span className="tag">ORACLE</span>
         </Link>
+        <nav className="top-nav">
+          <Link href="/guard">Bag Guard</Link>
+          <Link href="/extension">Extension</Link>
+        </nav>
         <div className="grow" />
         {search && (
           <div className="top-search">
             <Search small />
           </div>
         )}
-        <div className="live-pill">
-          <i className={`dot ${live ? "" : "off"}`} />
-          <span className="txt">{live ?? "connecting…"}</span>
-        </div>
+        {live !== undefined && (
+          <div className="live-pill">
+            <i className={`dot ${live ? "" : "off"}`} />
+            <span className="txt">{live ?? "connecting…"}</span>
+          </div>
+        )}
         <button
           className="icon-btn"
           title={snd ? "Sound on" : "Sound off"}
