@@ -1,7 +1,8 @@
 -- yeppo paper trading: a pretend wallet with 10 SOL that buys and sells at the real price of the coin's
 -- pump.fun curve (latest trade yeppo saw), with fees and slippage, so the whole tool can be tested with no real
 -- money. A position can carry its Exit Plan (take profit, stop, time limit): the cron sells it when one hits.
--- The account id is the secret: whoever holds it owns the paper wallet. Additive.
+-- Private: only for the owner's tests, never shown to users. A paper wallet is made with the lab key
+-- (yr_config 'lab_key'), then its id is the secret that trades it. Additive.
 
 create table if not exists yr_paper_acct (
   id uuid primary key default gen_random_uuid(),
@@ -53,17 +54,15 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function yr_paper_curve(text) from public, anon, authenticated;
 
-create or replace function yr_paper_new(p_name text default null) returns uuid
+create or replace function yr_paper_new(p_key text, p_name text default null) returns uuid
 language plpgsql security definer set search_path = public as $$
 declare v uuid;
 begin
-  if (select count(*) from yr_paper_acct where created_at > now() - interval '1 minute') > 60 then
-    raise exception 'Too many new paper wallets right now, try again in a minute';
-  end if;
+  if p_key is null or p_key <> (select value from yr_config where key = 'lab_key') then raise exception 'Wrong lab key'; end if;
   insert into yr_paper_acct (name) values (left(p_name, 40)) returning id into v;
   return v;
 end $$;
-grant execute on function yr_paper_new(text) to anon, authenticated;
+grant execute on function yr_paper_new(text, text) to anon, authenticated;
 
 create or replace function yr_paper_buy(p_acct uuid, p_mint text, p_sol double precision, p_tp real default null, p_stop real default null, p_minutes real default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
