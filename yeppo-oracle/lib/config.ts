@@ -1,5 +1,5 @@
 // Public values only. The anon key is safe to ship: the browser only calls read-only RPCs.
-export const SUPABASE_URL = "https://djzzjybrcknrvvovvlpq.supabase.co";
+export const SUPABASE_URL = "https://qyobtgubvopzfmomzeuj.supabase.co";
 export const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqenpqeWJyY2tucnZ2b3Z2bHBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMzc3NDgsImV4cCI6MjEwNTgxMzc0OH0.zfGX4ut9qgY04L6tnrxtchpjgf28blV9ISrg7c5rueo";
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5b2J0Z3Vidm9wemZtb216ZXVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNDU2NTMsImV4cCI6MjEwODkyMTY1M30.ive4HTtn_DYstwrSPYQervq7KlpPWIuVIsH4ZWpUhWw";
 export const SITE_URL = "https://yeppo.it";
