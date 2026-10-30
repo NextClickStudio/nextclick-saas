@@ -9,7 +9,7 @@ export type Pt = { s: number; mc: number }; // seconds since birth, market cap i
 
 const FUTURE_S = 600; // the look-alikes' next 10 minutes
 const STEP_S = 20;
-const PAST_W = 0.58; // share of the width for the past
+const pastW = (w: number) => (w < 640 ? 0.45 : 0.58); // share of the width for the past
 
 type Props = {
   past: Pt[];
@@ -50,6 +50,7 @@ export default function FutureChart({ past, nowS, mcNow, matches, cone, sol, hi,
   // geometry shared by drawing and hovering
   const geo = useMemo(() => {
     const { w, h } = size;
+    const PAST_W = pastW(w);
     const padL = 8;
     const padR = 66;
     const padT = 16;
@@ -85,7 +86,7 @@ export default function FutureChart({ past, nowS, mcNow, matches, cone, sol, hi,
     const lh = Math.log(hiV);
     const yOf = (mc: number) => padT + H - ((Math.log(Math.max(mc, 1e-6)) - ll) / (lh - ll)) * H;
     const mcOf = (y: number) => Math.exp(ll + ((padT + H - y) / H) * (lh - ll));
-    return { padL, padR, padT, padB, W, H, x0, xOf, yOf, mcOf, lo, hi: hiV, xNow: padL + W * PAST_W };
+    return { padL, padR, padT, padB, W, H, x0, xOf, yOf, mcOf, lo, hi: hiV, xNow: padL + W * PAST_W, narrow: w < 640 };
   }, [size, past, nowS, mcNow, cone]);
 
   // re-draw the ghosts from scratch when the set of look-alikes changes
@@ -109,7 +110,7 @@ export default function FutureChart({ past, nowS, mcNow, matches, cone, sol, hi,
     const from = prog.current;
 
     const draw = () => {
-      const { padL, padT, W, H, xOf, yOf, x0, lo, hi: hiV, xNow } = geo;
+      const { padL, padT, W, H, xOf, yOf, x0, lo, hi: hiV, xNow, narrow } = geo;
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       g.clearRect(0, 0, size.w, size.h);
 
@@ -269,7 +270,7 @@ export default function FutureChart({ past, nowS, mcNow, matches, cone, sol, hi,
       g.textBaseline = "top";
       g.fillText("NOW", xNow + 6, padT + 2);
       g.fillStyle = "rgba(185,164,255,0.55)";
-      g.fillText("THE NEXT 10 MINUTES OF THE LOOK-ALIKES", Math.min(xNow + 6, padL + W - 250), padT + 16);
+      g.fillText(narrow ? "NEXT 10 MIN" : "THE NEXT 10 MINUTES OF THE LOOK-ALIKES", xNow + 6, padT + 16);
       if (mcNow > 0) {
         const y = yOf(mcNow);
         const t = performance.now() / 1000;

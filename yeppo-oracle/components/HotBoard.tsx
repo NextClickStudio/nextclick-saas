@@ -51,7 +51,7 @@ export function OracleCard({ c, now, sol, i }: { c: HotCoin; now: number; sol: n
       <div className="ocard-foot">
         <span className={`verdict-chip t-${tone}`}>{v ? v.label : o?.old ? "Too old" : "Learning"}</span>
         <span className="mono">
-          {n2} trades/2m · {n2 ? Math.round((b2 / n2) * 100) : 0}% buys
+          {n2} trades · {n2 ? Math.round((b2 / n2) * 100) : 0}% buys
         </span>
       </div>
     </Link>

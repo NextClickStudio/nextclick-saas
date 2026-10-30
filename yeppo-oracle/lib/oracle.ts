@@ -1,4 +1,4 @@
-import { pct } from "./format";
+import { mult, pct } from "./format";
 import type { Base, Kind, Match, Odds, Xray } from "./types";
 
 export type Tone = "up" | "mid" | "down" | "rug";
@@ -12,21 +12,29 @@ export function verdict(o: Odds, base: Base, devSold: boolean): Verdict {
   const n50 = Math.round(o.p50 * k);
   const n2 = Math.round(o.p2x * k);
   const nd = Math.round(o.dump * k);
-  let score = Math.round(clamp(50 + (o.p50 - o.dump) * 70 + (o.med - 1) * 60, 1, 99));
-  let tone: Tone = score >= 62 ? "up" : score >= 42 ? "mid" : "down";
-  if (devSold && o.dump >= 0.4) {
+  // the typical result 10 minutes later, on a log scale: x2 and -50% weigh the same
+  const drift = clamp(Math.log(Math.max(o.med, 0.05)), -1, 1);
+  let score = Math.round(clamp(50 + (o.p50 - o.dump) * 55 + drift * 45, 1, 99));
+  const quiet = o.p50 + o.dump < 0.1 && Math.abs(o.med - 1) < 0.1;
+  let tone: Tone = quiet ? "mid" : score >= 60 ? "up" : score >= 42 ? "mid" : "down";
+  if (devSold && (o.dump >= 0.4 || o.med < 0.6)) {
     tone = "rug";
     score = Math.min(score, 25);
   }
-  const label = tone === "up" ? "Strong setup" : tone === "mid" ? "Coin flip" : tone === "down" ? "Likely dump" : "Rug risk";
-  const line =
-    tone === "up"
-      ? `${n50} of the ${k} coins that looked like this went up 50%+ in the next 10 minutes${n2 ? `. ${n2} doubled` : ""}.`
+  const label = quiet ? "Sideways" : tone === "up" ? "Strong setup" : tone === "mid" ? "Coin flip" : tone === "down" ? "Likely dump" : "Rug risk";
+  const line = quiet
+    ? `The ${k} coins that looked like this barely moved in the next 10 minutes.`
+    : tone === "up"
+      ? n50 >= Math.max(3, nd)
+        ? `${n50} of the ${k} coins that looked like this went up 50%+ in the next 10 minutes${n2 ? `, ${n2} doubled` : ""}.`
+        : `The typical look-alike was ${mult(o.med)} 10 minutes later.`
       : tone === "mid"
-        ? `${n50} of the ${k} look-alikes pumped 50%, ${nd} dumped 50%. Nobody knows, and neither do they.`
+        ? `${n50} of the ${k} look-alikes pumped 50%, ${nd} dumped 50%. The typical one ended ${mult(o.med)}.`
         : tone === "down"
-          ? `${nd} of the ${k} coins that looked like this fell 50% within 10 minutes.`
-          : `The dev already sold, and ${nd} of the ${k} look-alikes fell 50% within 10 minutes.`;
+          ? nd >= Math.max(3, n50)
+            ? `${nd} of the ${k} coins that looked like this fell 50% within 10 minutes.`
+            : `Most look-alikes bled out: the typical one was ${mult(o.med)} 10 minutes later.`
+          : `The dev already sold, and the typical look-alike was ${mult(o.med)} 10 minutes later.`;
   const sub = `An average coin at this age: ${pct(base.p50)} pump 50%, ${pct(base.dump)} dump 50%.`;
   return { score, tone, label, line, sub };
 }

@@ -46,7 +46,7 @@ export class Story {
         else say(t, "👤", `Dev bought more: ${amt}`, "info", who);
       } else if (kind === "sniper" && k === 2) say(t, "🎯", `Sniper ${short(who)} sold ${share.toFixed(1)}% (${amt})`, "down", who);
       else if (kind === "smart") {
-        if (k === 1) say(t, "🧠", `Smart money ${short(who)} bought ${amt}`, "gold", who);
+        if (k === 1 && solAmt >= 0.3) say(t, "🧠", `Smart money ${short(who)} bought ${amt}`, "gold", who);
         else if (big) say(t, "🧠", `Smart money ${short(who)} took profit: ${amt}`, "down", who);
       } else if (kind === "flipper" && k === 1 && big) say(t, "⚡", `Flipper ${short(who)} bought ${amt}. They usually sell within a minute`, "info", who);
       else if (big) {

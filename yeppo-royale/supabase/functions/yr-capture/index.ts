@@ -322,7 +322,9 @@ Deno.serve(async (req) => {
     }
     const meta = final ? await fetchMeta() : [];
     if (!coins.length && !events.length && !meta.length && !migr.length) return;
-    const batch = events;
+    // the trade-by-trade history of followed coins (yr_events) fed the old 1v1 game; the oracle builds its
+    // own from yr_ticks, so it is no longer stored
+    const batch: Ev[] = [];
     const mg = migr;
     events = [];
     migr = [];

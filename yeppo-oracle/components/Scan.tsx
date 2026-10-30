@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { age, mult, short, usd } from "@/lib/format";
 import { usePoll, useNow, useSol } from "@/lib/hooks";
 import { cone, exitView, tradeLinks, verdict, type Verdict } from "@/lib/oracle";
+import { namesOf, type Names } from "@/lib/meta";
 import { blip } from "@/lib/sound";
 import { Story, type StoryEvent } from "@/lib/story";
 import { rpc } from "@/lib/supabase";
@@ -159,7 +160,13 @@ export default function Scan({ mint, mini }: { mint: string; mini?: boolean }) {
   const dp = x?.devpos;
   const devSold = !!dp && dp[4] > 0 && dp[1] < dp[0] * 0.1;
   const v: Verdict | null = ready && o ? verdict(o.odds, o.base, devSold) : null;
-  const meta = tr?.meta;
+  const [named, setNamed] = useState<Names | null>(null);
+  useEffect(() => {
+    setNamed(null);
+    if (fut && !(fut.tracked && fut.meta?.[1])) void namesOf([mint]).then((n) => n[mint] && setNamed(n[mint]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mint, !!fut]);
+  const meta = tr?.meta?.[1] ? tr.meta : named ? [named.name, named.symbol, named.uri] : tr?.meta;
   const symbol = meta?.[1] ?? null;
   const name = meta?.[0] ?? null;
   const ev = x ? exitView(x) : null;

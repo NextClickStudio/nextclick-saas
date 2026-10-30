@@ -1,9 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { usePoll, useNow, useSol } from "@/lib/hooks";
+import { namesOf, type Names } from "@/lib/meta";
 import { rpc } from "@/lib/supabase";
-import type { Hot } from "@/lib/types";
+import type { Hot, HotCoin } from "@/lib/types";
 import { Num } from "./Bits";
 import HotBoard from "./HotBoard";
 import Search from "./Search";
@@ -15,7 +17,24 @@ export default function Home() {
   const now = useNow(1000);
   const sol = useSol() || 150;
   const recorded = data?.recorded ?? 0;
-  const coins = data?.coins ?? null;
+  const [names, setNames] = useState<Record<string, Names>>({});
+  useEffect(() => {
+    const missing = (data?.coins ?? []).filter((c) => !c[1] && !c[2]).map((c) => c[0]);
+    if (missing.length) void namesOf(missing).then((n) => setNames((p) => ({ ...p, ...n })));
+  }, [data]);
+  // dust coins (a few hundred dollars) are bots trading with bots: not worth a card
+  const coins: HotCoin[] | null = useMemo(
+    () =>
+      data
+        ? data.coins
+            .filter((c) => (c[5] ?? 0) >= 5)
+            .map((c) => {
+              const n = names[c[0]];
+              return n && !c[1] && !c[2] ? ([c[0], n.name, n.symbol, n.uri ?? c[3], ...c.slice(4)] as HotCoin) : c;
+            })
+        : null,
+    [data, names],
+  );
   const example = coins?.find((c) => c[10] && !c[10].old)?.[0] ?? coins?.[0]?.[0];
   return (
     <>

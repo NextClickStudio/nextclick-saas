@@ -1,3 +1,5 @@
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
+
 // Coin pictures and socials from the coin's metadata json (IPFS), and the SOL price, both free.
 
 export type CoinJson = { image: string | null; twitter: string | null; telegram: string | null; website: string | null; description: string | null };
@@ -6,9 +8,11 @@ const jsonWait = new Map<string, Promise<CoinJson | null>>();
 let jsonActive = 0;
 const jsonQueue: (() => void)[] = [];
 
-const gateway = (u: string) => {
+const GATEWAYS = ["https://pump.mypinata.cloud/ipfs/", "https://ipfs.io/ipfs/", "https://dweb.link/ipfs/"];
+/** the same IPFS file on every gateway, best first (or just the url when it is not on IPFS) */
+export const mirrors = (u: string) => {
   const cid = u.split("/ipfs/")[1];
-  return cid ? `https://pump.mypinata.cloud/ipfs/${cid}` : u;
+  return cid ? GATEWAYS.map((g) => g + cid) : [u];
 };
 const link = (v: unknown, kind: "x" | "tg" | "web") => {
   if (typeof v !== "string" || !v.trim()) return null;
@@ -34,19 +38,23 @@ export function coinJson(uri: string | null | undefined): Promise<CoinJson | nul
     const run = async () => {
       jsonActive++;
       let out: CoinJson | null = null;
-      try {
-        const r = await fetch(gateway(uri), { signal: AbortSignal.timeout(6000) });
-        const j = (await r.json()) as Record<string, unknown>;
-        const ext = (j.extensions ?? {}) as Record<string, unknown>;
-        out = {
-          image: typeof j.image === "string" && j.image ? gateway(j.image) : null,
-          twitter: link(j.twitter ?? ext.twitter, "x"),
-          telegram: link(j.telegram ?? ext.telegram, "tg"),
-          website: link(j.website ?? ext.website, "web"),
-          description: typeof j.description === "string" ? j.description.slice(0, 300) : null,
-        };
-      } catch {
-        out = null;
+      for (const u of mirrors(uri)) {
+        try {
+          const r = await fetch(u, { signal: AbortSignal.timeout(6000) });
+          if (!r.ok) continue;
+          const j = (await r.json()) as Record<string, unknown>;
+          const ext = (j.extensions ?? {}) as Record<string, unknown>;
+          out = {
+            image: typeof j.image === "string" && j.image ? j.image : null,
+            twitter: link(j.twitter ?? ext.twitter, "x"),
+            telegram: link(j.telegram ?? ext.telegram, "tg"),
+            website: link(j.website ?? ext.website, "web"),
+            description: typeof j.description === "string" ? j.description.slice(0, 300) : null,
+          };
+          break;
+        } catch {
+          /* next gateway */
+        }
       }
       jsonCache.set(uri, out);
       jsonActive--;
@@ -83,4 +91,31 @@ export function solPrice(): Promise<number> {
     return solUsd;
   })();
   return solWait;
+}
+
+export type Names = { name: string | null; symbol: string | null; uri: string | null };
+const nameCache = new Map<string, Names | null>();
+/** names of coins yeppo saw without one, read from their on-chain metadata by yr-term (cached) */
+export async function namesOf(mints: string[]): Promise<Record<string, Names>> {
+  const todo = mints.filter((m) => !nameCache.has(m)).slice(0, 20);
+  if (todo.length) {
+    todo.forEach((m) => nameCache.set(m, null));
+    try {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/yr-term`, {
+        method: "POST",
+        headers: { "content-type": "application/json", apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ action: "meta", mints: todo }),
+      });
+      const j = (await r.json()) as { metas?: ({ mint: string } & Names)[] };
+      for (const m of j.metas ?? []) nameCache.set(m.mint, { name: m.name, symbol: m.symbol, uri: m.uri });
+    } catch {
+      /* stays unnamed */
+    }
+  }
+  const out: Record<string, Names> = {};
+  for (const m of mints) {
+    const v = nameCache.get(m);
+    if (v) out[m] = v;
+  }
+  return out;
 }

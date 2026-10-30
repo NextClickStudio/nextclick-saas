@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTween } from "@/lib/hooks";
-import { coinJson } from "@/lib/meta";
+import { coinJson, mirrors } from "@/lib/meta";
 
 export function Eye({ size = 30 }: { size?: number }) {
   return (
@@ -25,22 +25,23 @@ export function Eye({ size = 30 }: { size?: number }) {
 
 /** a coin's picture from its metadata, or its initials on a gradient */
 export function CoinImg({ uri, symbol, size = 44 }: { uri: string | null | undefined; symbol: string | null | undefined; size?: number }) {
-  const [src, setSrc] = useState<string | null>(null);
-  const [bad, setBad] = useState(false);
+  const [srcs, setSrcs] = useState<string[]>([]);
+  const [i, setI] = useState(0);
   useEffect(() => {
     let alive = true;
-    setSrc(null);
-    setBad(false);
-    void coinJson(uri).then((j) => alive && setSrc(j?.image ?? null));
+    setSrcs([]);
+    setI(0);
+    void coinJson(uri).then((j) => alive && setSrcs(j?.image ? mirrors(j.image) : []));
     return () => {
       alive = false;
     };
   }, [uri]);
+  const src = srcs[i];
   return (
     <div className="cimg" style={{ width: size, height: size, fontSize: size * 0.34 }}>
-      {src && !bad ? (
+      {src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" loading="lazy" onError={() => setBad(true)} />
+        <img src={src} alt="" loading="lazy" onError={() => setI((n) => n + 1)} />
       ) : (
         (symbol ?? "?").replace(/^\$/, "").slice(0, 2).toUpperCase()
       )}

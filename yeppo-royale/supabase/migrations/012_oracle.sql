@@ -242,7 +242,7 @@ begin
     , g1 as (delete from yr_ob x using gone where x.mint = gone.mint)
     delete from yr_oh h using gone where h.mint = gone.mint;
     delete from yr_os where fut is null and at < now_ms - 1800000;   -- the coin was dropped before its outcome
-    delete from yr_os where at < now_ms - 7 * 86400000;
+    delete from yr_os where at < now_ms - 3 * 86400000;
     delete from yr_ow where last_t < now_ms - 3 * 86400000;
     delete from yr_obirth where t < now_ms - 86400000;
   end if;
@@ -313,7 +313,8 @@ begin
   end if;
   return jsonb_build_object('tracked', true, 'now', now_ms, 't0', o.t0, 'dev', o.dev, 'n', o.n, 'ath', o.ath,
     'recorded', (select v from yr_okv where k = 'recorded'),
-    'meta', (select jsonb_build_array(name, symbol, uri) from yr_obirth where mint = p_mint),
+    'meta', (select jsonb_build_array(coalesce(br.name, co.name, tm.name), coalesce(br.symbol, co.symbol, tm.symbol), coalesce(br.uri, co.uri, tm.uri))
+             from (select p_mint m) z left join yr_obirth br on br.mint = z.m left join yr_coins co on co.mint = z.m left join yr_tmeta tm on tm.mint = z.m),
     'path', (select jsonb_agg(jsonb_build_array(x.b, x.c, x.h, x.l, x.nb, x.ns, round(x.vb::numeric, 3), round(x.vs::numeric, 3)) order by x.b)
              from yr_ob x where x.mint = p_mint),
     'oracle', yr_ofuture_core(p_mint, 30));

@@ -543,11 +543,19 @@ input {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   margin-top: 12px;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--dim);
+  white-space: nowrap;
+}
+.ocard-foot .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .verdict-chip {
+  flex: none;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -784,6 +792,11 @@ footer .wrap {
   display: grid;
   gap: 14px;
   align-content: start;
+  min-width: 0;
+}
+.scan-main > *,
+.scan-side > * {
+  min-width: 0;
 }
 
 /* verdict */
@@ -792,7 +805,7 @@ footer .wrap {
   overflow: hidden;
   padding: 20px 22px;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 20px;
   align-items: center;
 }
@@ -880,7 +893,7 @@ footer .wrap {
 /* odds */
 .odds {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 .odd {
@@ -998,7 +1011,7 @@ footer .wrap {
 }
 .timeline {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
   align-items: end;
   height: 110px;
@@ -1022,7 +1035,7 @@ footer .wrap {
 }
 .timeline-x {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
   font-size: 10px;
   color: var(--dim);
@@ -1299,10 +1312,10 @@ footer .wrap {
 
 @media (max-width: 1020px) {
   .scan-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .odds {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 760px) {
@@ -1314,7 +1327,15 @@ footer .wrap {
     display: none;
   }
   .verdict {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 16px;
+    gap: 14px;
+  }
+  .odd b {
+    font-size: 24px;
+  }
+  .coin-stats div b {
+    font-size: 17px;
   }
   .verdict .v-side {
     grid-column: 1 / -1;
