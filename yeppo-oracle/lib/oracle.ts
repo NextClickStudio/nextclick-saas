@@ -93,6 +93,7 @@ export function decideOutside(o: { liq: number | null; m5: { buys: number; sells
   const n = o.m5 ? o.m5.buys + o.m5.sells : 0;
   if (n < 5) return { word: "Don't buy", tone: "down", why: "Almost nobody traded it in the last 5 minutes: you may not find a buyer when you sell." };
   if (o.m5 && n >= 20 && o.m5.sells > o.m5.buys * 2) return { word: "Don't buy", tone: "down", why: "Heavy selling right now: far more sells than buys." };
+  if (where === "pump.fun") return { word: "Risky", tone: "mid", why: "yeppo didn't see this coin's first trades, so it can't run its scam checks, only read the market. Buy small and keep a stop." };
   return { word: "Risky", tone: "mid", why: `It trades on ${where}, past pump.fun's curve: yeppo can't run its scam checks, only read the market. Buy small and keep a stop.` };
 }
 

@@ -14,7 +14,7 @@ import type { Future, TickRow, Track, Xray } from "@/lib/types";
 export const runtime = "edge";
 
 const CORS = { "access-control-allow-origin": "*" };
-const DEX: Record<string, string> = { pumpswap: "PumpSwap", meteora: "Meteora", raydium: "Raydium", orca: "Orca", launchlab: "Raydium LaunchLab", moonshot: "Moonshot" };
+const DEX: Record<string, string> = { pumpfun: "pump.fun", pumpswap: "PumpSwap", meteora: "Meteora", raydium: "Raydium", orca: "Orca", launchlab: "Raydium LaunchLab", moonshot: "Moonshot" };
 
 async function call<T>(fn: string, args: Record<string, unknown>): Promise<T> {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
