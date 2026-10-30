@@ -137,6 +137,9 @@ Deno.serve(async (req) => {
       let found: { sig: string; payer: string | null } | null = null;
       const byRef = await rpc<{ signature: string; err: unknown }[]>("getSignaturesForAddress", [o.ref, { limit: 5, commitment: "confirmed" }]);
       for (const s of byRef.filter((x) => !x.err)) {
+        // one payment pays one order: a transfer can carry several references
+        const { count: used } = await sb.from("yr_orders").select("id", { count: "exact", head: true }).eq("sig", s.signature);
+        if (used) continue;
         const tx = await rpc<Tx | null>("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }]);
         const r = received(tx, wallet);
         if (r.got >= o.lamports - 1000) {
@@ -162,6 +165,16 @@ Deno.serve(async (req) => {
       }
       if (!found) return json({ paid: false });
 
+      // claim the payment for this order before any license is issued or extended: the unique signature makes
+      // sure one payment can never pay (or extend a license) twice
+      const { data: claimed, error: ce } = await sb
+        .from("yr_orders")
+        .update({ paid_at: new Date().toISOString(), sig: found.sig, payer: found.payer })
+        .eq("id", o.id)
+        .is("paid_at", null)
+        .select("id");
+      if (ce || !claimed?.length) return json({ paid: false, error: "This payment was already used for another order" }, 409);
+
       const plan = plans.find((p) => p.id === o.plan) ?? { id: o.plan, name: "Pro", days: 30, sol: 0 };
       const days = plan.days * 86400_000;
       // the same payer with a running license gets it extended, so the key in their extension keeps working
@@ -180,7 +193,7 @@ Deno.serve(async (req) => {
         const { error } = await sb.from("yr_licenses").insert({ key, plan: plan.id, until: new Date(until).toISOString(), payer: found.payer });
         if (error) throw new Error(error.message);
       }
-      const { error: e2 } = await sb.from("yr_orders").update({ paid_at: new Date().toISOString(), sig: found.sig, payer: found.payer, license: key }).eq("id", o.id).is("paid_at", null);
+      const { error: e2 } = await sb.from("yr_orders").update({ license: key }).eq("id", o.id);
       if (e2) throw new Error(e2.message);
       return json({ paid: true, key, until });
     }
