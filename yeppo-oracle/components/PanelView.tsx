@@ -7,8 +7,9 @@ import { age, isMint, mult, short, usd } from "@/lib/format";
 import { ALARM, DEFAULT_LIMITS, readBag, safety, type Limits } from "@/lib/guard";
 import { usePoll, useNow, useSol } from "@/lib/hooks";
 import { namesOf, type Names } from "@/lib/meta";
-import { exitView, flags, maxBuy, MIN_N, plan, signalsOf, TONE_COLOR, verdict } from "@/lib/oracle";
+import { exitView, flags, maxBuy, MIN_N, plan, signalsOf, TONE_COLOR, verdict, type Plan } from "@/lib/oracle";
 import { plainWords } from "@/lib/plain";
+import { paperBuy, paperSell, paperState, type PaperState } from "@/lib/paper";
 import { readLocal, rpc, writeLocal } from "@/lib/supabase";
 import type { Future, Guard, TickRow, Track, Xray } from "@/lib/types";
 import { CoinImg, Ring } from "./Bits";
@@ -33,6 +34,11 @@ export default function PanelView({ mint }: { mint: string | null }) {
     const daily = Number(q.get("daily"));
     if (w && isMint(w)) writeLocal("yo:guard", w);
     if (risk > 0 && daily > 0) writeLocal("yo:limits", { risk, daily });
+    // the owner's lab: a paper wallet, shown only where the lab key is saved
+    const lab = q.get("lab");
+    const paper = q.get("paper");
+    if (lab) writeLocal("yo:lab", lab);
+    if (paper) writeLocal("yo:paper", paper);
     setLim(readLocal<Limits>("yo:limits", DEFAULT_LIMITS));
     setWho(readLocal<string | null>("yo:guard", null));
   }, []);
@@ -218,6 +224,8 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
           <RiskEdit lim={lim} setLim={setLim} />
         </section>
       )}
+
+      <PaperBox mint={mint} plan={p} />
 
       {fl.length > 0 && (
         <section className="pv-flags">
@@ -417,5 +425,60 @@ function WalletBox({
         Use another wallet
       </button>
     </div>
+  );
+}
+
+/** the owner's paper trade on this coin: only where the lab key and a paper wallet are saved */
+function PaperBox({ mint, plan: p }: { mint: string; plan: Plan | null }) {
+  const [acct, setAcct] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (readLocal<string | null>("yo:lab", null)) setAcct(readLocal<string | null>("yo:paper", null));
+  }, []);
+  const { data: st } = usePoll<PaperState>(acct ? () => paperState(acct) : null, 3000, acct ?? "");
+  if (!acct) return null;
+  const pos = st?.positions.find((x) => x[0] === mint);
+  const run = (f: () => Promise<unknown>) => {
+    setErr(null);
+    f().catch((e) => setErr(e instanceof Error ? e.message : "Something went wrong"));
+  };
+  return (
+    <section className="pv-paper">
+      <header>
+        <h3>Paper trade</h3>
+        <span className="pv-note">{st ? `${st.sol.toFixed(2)} paper SOL` : "…"}</span>
+      </header>
+      {pos ? (
+        <>
+          <div className="pv-plan-grid">
+            <div>
+              <span>In</span>
+              <b className="mono">{pos[3].toFixed(2)} SOL</b>
+            </div>
+            <div>
+              <span>Now</span>
+              <b className={`mono ${pos[7] >= 0 ? "up" : "down"}`}>{mult(pos[3] > 0 ? pos[6] / pos[3] : 1)}</b>
+            </div>
+          </div>
+          <p className="pv-note">{pos[8] ? `Exit plan on: sells by itself at ${mult(pos[8])}, ${mult(pos[9] ?? 0)} or the time limit.` : "No exit plan: sell by hand."}</p>
+          <div className="pv-paper-btns">
+            {[0.5, 1].map((f) => (
+              <button key={f} className="btn btn-sm btn-ghost" onClick={() => run(() => paperSell(acct, mint, f))}>
+                Sell {f * 100}%
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="pv-paper-btns">
+          {[0.1, 0.25, 0.5].map((v) => (
+            <button key={v} className="btn btn-sm btn-glow" onClick={() => run(() => paperBuy(acct, mint, v, p))}>
+              Buy {v} SOL{p ? " + plan" : ""}
+            </button>
+          ))}
+        </div>
+      )}
+      {err && <p className="pv-err">{err}</p>}
+    </section>
   );
 }

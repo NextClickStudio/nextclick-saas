@@ -186,3 +186,28 @@ iframe {
   color: var(--violet2);
   text-decoration: none;
 }
+.labform {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+}
+.labform input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font: 12px ui-monospace, monospace;
+}
+.labform button {
+  border: 0;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #7c5cff;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}

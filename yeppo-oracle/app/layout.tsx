@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./v3.css";
+import "./v4.css";
+import Field from "@/components/Field";
 import { SITE_URL } from "@/lib/config";
 import { display, mono, sans } from "@/lib/fonts";
 
@@ -24,9 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable}`}>
       <body>
-        <div className="bg">
-          <div className="grid" />
-        </div>
+        <Field />
         {children}
       </body>
     </html>

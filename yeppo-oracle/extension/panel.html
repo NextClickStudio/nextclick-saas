@@ -13,9 +13,14 @@
       <span id="where" class="dim"></span>
     </header>
     <iframe id="view" allow="clipboard-write"></iframe>
+    <form id="labform" class="labform" hidden>
+      <input id="labkey" placeholder="Lab key" spellcheck="false" />
+      <input id="labpaper" placeholder="Paper wallet id" spellcheck="false" />
+      <button>Save</button>
+    </form>
     <footer class="foot">
       <label><input type="checkbox" id="badge" /> Badge on trading sites</label>
-      <a href="https://yeppo.it" target="_blank" rel="noreferrer">yeppo.it ↗</a>
+      <span><a id="lab" href="#" title="Owner only">lab</a> · <a href="https://yeppo.it" target="_blank" rel="noreferrer">yeppo.it ↗</a></span>
     </footer>
     <script src="panel.js"></script>
   </body>

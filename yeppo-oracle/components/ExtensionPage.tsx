@@ -21,13 +21,12 @@ export default function ExtensionPage() {
             yeppo, <span className="shine">right next to your chart</span>
           </h1>
           <p className="lead">
-            Open any coin on your trading site. The extension spots it by itself and shows two things: what coins like it usually do, with an exit
-            plan, and below it your own wallet, with an alarm on every bag. Nothing to paste, nothing to sign.
+            Open a coin. yeppo reads it next to your chart, with an exit plan, and watches your bags below.
           </p>
           <a className="btn btn-glow btn-lg" href="/yeppo-extension.zip" download>
             ⬇ Download the extension
           </a>
-          <p className="small dim">Version 1.1 · 30 KB · installs in a minute</p>
+          <p className="small dim">Version 1.2 · 30 KB · installs in a minute</p>
         </div>
 
         <div className="ext-demo glass" aria-hidden>
@@ -66,24 +65,20 @@ export default function ExtensionPage() {
           </div>
           <div className="checks">
             <div className="check glass">
-              <span className="ic">👀</span>
               <h3>Spots the coin by itself</h3>
-              <p>No copy and paste. Open a coin and yeppo already knows which one it is, even on pages that only show the pool.</p>
+              <p>No copy and paste, even on pages that only show the pool.</p>
             </div>
             <div className="check glass">
-              <span className="ic">🚦</span>
               <h3>A badge with the verdict</h3>
-              <p>A small badge on the page says Runner potential, Coin flip or Likely dump, and turns red on bot ladders and serial ruggers.</p>
+              <p>Runner potential, Coin flip or Likely dump, right on the page.</p>
             </div>
             <div className="check glass">
-              <span className="ic">🎯</span>
               <h3>An exit plan before you buy</h3>
-              <p>Take profit, stop, time limit and the most to buy for your own risk limit, tested on the 30 coins most like this one.</p>
+              <p>Take profit, stop and time limit, tested on 30 look-alikes.</p>
             </div>
             <div className="check glass">
-              <span className="ic">🛡</span>
               <h3>Your wallet, right below</h3>
-              <p>Add your trading wallet once. Every bag gets GET OUT, WATCH or HOLD, and yeppo tells you when to stop for the day.</p>
+              <p>Every bag gets GET OUT, WATCH or HOLD.</p>
             </div>
           </div>
         </section>

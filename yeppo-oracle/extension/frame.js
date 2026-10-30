@@ -4,12 +4,16 @@ const p = new URLSearchParams(location.search);
 const mint = p.get("mint");
 const tab = Number(p.get("tab"));
 const view = document.getElementById("view");
-chrome.storage.local.get(["who", "limits"], (r) => {
+chrome.storage.local.get(["who", "limits", "lab", "paper"], (r) => {
   const q = new URLSearchParams({ mint });
   if (r.who) q.set("who", r.who);
   if (r.limits) {
     q.set("risk", r.limits.risk);
     q.set("daily", r.limits.daily);
+  }
+  if (r.lab && r.paper) {
+    q.set("lab", r.lab);
+    q.set("paper", r.paper);
   }
   view.src = `${SITE}/panel?${q}`;
 });
