@@ -14,6 +14,9 @@ const BOT_INFO: Record<string, string> = {
   "bot:random": "the control: at the same moment buys a random other coin of the board, same plan levels",
   "bot:avoid": "buys what yeppo says to avoid (Likely dump, Rug risk), with its plan levels",
   "bot:all": "buys every coin of the board that gets a verdict: what an average coin does",
+  "bot:scout": "scouts 60 young coins with the expert checks (holders, dev, snipers, activity), buys only when yeppo also says Runner",
+  "bot:expert": "the expert checks alone, without asking yeppo: what the checklist is worth by itself",
+  "bot:safe": "safety checks pass and yeppo does not flag it: measures how often a coin yeppo clears is not a scam",
 };
 const pct = (x: number | null | undefined) => (x == null ? "–" : `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)}%`);
 
@@ -71,7 +74,7 @@ export default function Lab() {
           ) : (
             <div className="lab-bots">
               {board.map((b) => (
-                <div key={b.bot} className={`lab-bot ${b.bot === "bot:yeppo" ? "main" : ""}`}>
+                <div key={b.bot} className={`lab-bot ${b.bot === "bot:yeppo" || b.bot === "bot:scout" ? "main" : ""}`}>
                   <header>
                     <b className="mono">{b.bot}</b>
                     <span className="dim">{b.open} open</span>
