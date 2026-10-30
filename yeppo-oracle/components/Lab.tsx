@@ -14,7 +14,7 @@ const BOT_INFO: Record<string, string> = {
   "bot:random": "the control: at the same moment buys a random other coin of the board, same plan levels",
   "bot:avoid": "buys what yeppo says to avoid (Likely dump, Rug risk), with its plan levels",
   "bot:all": "buys every coin of the board that gets a verdict: what an average coin does",
-  "bot:scout": "scouts 60 young coins with the expert checks (holders, dev, snipers, activity), buys only when yeppo also says Runner",
+  "bot:scout": "runs the expert checks (holders, dev, snipers, activity) on the board, buys only when yeppo also says Runner",
   "bot:expert": "the expert checks alone, without asking yeppo: what the checklist is worth by itself",
   "bot:safe": "safety checks pass and yeppo does not flag it: measures how often a coin yeppo clears is not a scam",
 };
