@@ -1,4 +1,5 @@
-// yr-pay: checkout in SOL, straight to the owner's wallet (yr_config 'pay_wallet').
+// yr-pay: checkout in SOL, straight to the owner's wallet (yr_config 'pay_wallet'). Checkout opens only when
+// yr_config 'pay_open' is 'true' as well, so the wallet can be set ahead of the launch.
 //  POST {action: "plans"}          the plans and whether checkout is open
 //  POST {action: "order", plan}    a new order: a unique amount and a Solana Pay reference
 //  POST {action: "check", id}      looks for the payment on-chain; once found, returns the license key
@@ -83,10 +84,10 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  const { data: cfg } = await sb.from("yr_config").select("key,value").in("key", ["pay_wallet", "pay_plans"]);
+  const { data: cfg } = await sb.from("yr_config").select("key,value").in("key", ["pay_wallet", "pay_plans", "pay_open"]);
   const wallet = cfg?.find((r) => r.key === "pay_wallet")?.value?.trim() ?? "";
   const plans = JSON.parse(cfg?.find((r) => r.key === "pay_plans")?.value ?? "[]") as Plan[];
-  const open = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(wallet);
+  const open = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(wallet) && cfg?.find((r) => r.key === "pay_open")?.value === "true";
 
   try {
     if (body.action === "plans") return json({ open, plans });

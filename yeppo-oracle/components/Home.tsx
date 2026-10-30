@@ -182,6 +182,7 @@ export default function Home() {
               ["down", "Don't buy", "A trap, a rugger, or already dumped. Walk away."],
             ].map(([t, w, p], i) => (
               <Reveal key={w} className={`card word t-${t}`} delay={i * 90}>
+                <WordViz tone={t} />
                 <b>
                   <i />
                   {w}
@@ -198,12 +199,14 @@ export default function Home() {
             <h2>live in a minute.</h2>
           </Reveal>
           <div className="steps">
+            <i className="steps-line" aria-hidden />
             {[
               ["Add yeppo to Chrome", "Free. Works in Chrome, Brave, Edge and Arc."],
               ["Open any coin", "On pump.fun, GMGN, Axiom, Photon or DexScreener."],
               ["Read the call", "A badge on the page. Click it for the full read."],
             ].map(([h, p], i) => (
               <Reveal key={h} className="card step" delay={i * 90}>
+                <StepIcon n={i} />
                 <span>0{i + 1}</span>
                 <h3>{h}</h3>
                 <p>{p}</p>
@@ -226,5 +229,51 @@ export default function Home() {
       </main>
       <Footer />
     </>
+  );
+}
+
+/** the little live chart on each of the three words: a run, a pause, a crash */
+function WordViz({ tone }: { tone: string }) {
+  const d =
+    tone === "up"
+      ? "M0 52 L22 48 L40 50 L58 38 L76 41 L96 26 L114 30 L136 14 L160 8"
+      : tone === "mid"
+        ? "M0 32 C20 22 30 42 50 32 S80 22 100 32 S130 42 160 32"
+        : "M0 40 L24 34 L46 24 L66 14 L84 12 L92 52 L112 56 L136 54 L160 57";
+  return (
+    <div className="wviz" aria-hidden>
+      <svg viewBox="0 0 160 64" preserveAspectRatio="none">
+        <path className="wviz-fill" d={`${d} L160 64 L0 64 Z`} />
+        <path className="wviz-line" pathLength={1} d={d} />
+      </svg>
+      <span className="wviz-dot" />
+    </div>
+  );
+}
+
+/** the three steps, each with a small looping animation */
+function StepIcon({ n }: { n: number }) {
+  return (
+    <div className={`sicon sicon-${n}`} aria-hidden>
+      {n === 0 && (
+        <svg viewBox="0 0 24 24" width="26" height="26">
+          <path d="M12 3v11m0 0-4.5-4.5M12 14l4.5-4.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+        </svg>
+      )}
+      {n === 1 && (
+        <>
+          <span className="sicon-coin">$</span>
+          <svg className="sicon-cursor" viewBox="0 0 24 24" width="18" height="18">
+            <path d="M5 3l14 7-6 2-2 6z" />
+          </svg>
+        </>
+      )}
+      {n === 2 && (
+        <span className="sicon-pill">
+          <i />
+          GO
+        </span>
+      )}
+    </div>
   );
 }
