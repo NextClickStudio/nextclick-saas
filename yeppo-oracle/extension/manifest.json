@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "yeppo oracle",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Reads the memecoin you are looking at: a plain-words verdict, red flags, an exit plan, and alarms on your own bags.",
   "icons": {
     "16": "icons/16.png",
@@ -44,6 +44,16 @@
       ],
       "js": [
         "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://yeppo.it/lab*",
+        "https://www.yeppo.it/lab*"
+      ],
+      "js": [
+        "link.js"
       ],
       "run_at": "document_idle"
     }

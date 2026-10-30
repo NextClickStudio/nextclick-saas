@@ -1,22 +1,33 @@
 "use client";
 
 import { age, mult, pct, short } from "@/lib/format";
-import { exitView, isRugger, KIND, TONE_COLOR, type Flag, type Verdict } from "@/lib/oracle";
+import { exitView, isRugger, KIND, TONE_COLOR, type Check, type Decision, type Flag, type Verdict } from "@/lib/oracle";
 import { inTen, type Plain } from "@/lib/plain";
 import type { StoryEvent } from "@/lib/story";
 import type { Base, DevHist, Kind, Odds, Xray } from "@/lib/types";
 import { Num, Ring } from "./Bits";
 
 
-export function VerdictBanner({ v, k, n, ageS, fresh }: { v: Verdict; k: number; n: number; ageS: number; fresh: number }) {
+export function VerdictBanner({ v, d, checks, k, n, ageS, fresh }: { v: Verdict; d: Decision; checks: Check[]; k: number; n: number; ageS: number; fresh: number }) {
   return (
-    <div className={`verdict glass t-${v.tone}`}>
-      <Ring value={v.score / 100} color={TONE_COLOR[v.tone]} label="score" size={92} stroke={8} />
+    <div className={`verdict glass t-${d.tone === "learn" ? "learn" : d.tone}`}>
+      <Ring value={v.score / 100} color={TONE_COLOR[d.tone]} label="score" size={92} stroke={8} />
       <div>
-        <span className="lbl">The oracle says</span>
-        <div className="v-label disp">{v.label}</div>
-        <p className="v-line">{v.line}</p>
-        <p className="v-sub">{v.sub}</p>
+        <span className="lbl">yeppo says</span>
+        <div className="v-label disp" style={{ color: TONE_COLOR[d.tone] }}>
+          {d.word}
+        </div>
+        <p className="v-line">{d.why}</p>
+        <p className="v-sub">{v.line}</p>
+        {checks.length > 0 && (
+          <div className="v-checks">
+            {checks.map((c) => (
+              <span key={c.label} className={c.ok ? "up" : "down"}>
+                {c.ok ? "✓" : "✗"} {c.label}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       <div className="v-side">
         <div>

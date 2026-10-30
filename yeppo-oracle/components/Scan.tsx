@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { age, mult, short, usd } from "@/lib/format";
 import { usePoll, useNow, useSol } from "@/lib/hooks";
-import { cone, exitView, flags, MIN_N, signalsOf, TONE_COLOR, tradeLinks, verdict, type Flag, type Verdict } from "@/lib/oracle";
+import { checksOf, cone, decide, exitView, flags, MIN_N, signalsOf, TONE_COLOR, tradeLinks, verdict, type Decision, type Flag, type Verdict } from "@/lib/oracle";
 import { namesOf, type Names } from "@/lib/meta";
 import { plainWords, type Plain } from "@/lib/plain";
 import { blip } from "@/lib/sound";
@@ -162,6 +162,8 @@ export default function Scan({ mint, mini, panel }: { mint: string; mini?: boole
   const cn = useMemo(() => (matches ? cone(matches) : null), [matches]);
   const sig = signalsOf(x);
   const v: Verdict | null = ready && o ? verdict(o.odds, o.base, sig, track) : null;
+  const checks = checksOf(o?.f, sig);
+  const d = v ? decide(v, checks) : null;
   const fl = x ? flags(sig) : [];
   const [named, setNamed] = useState<Names | null>(null);
   useEffect(() => {
@@ -213,6 +215,7 @@ export default function Scan({ mint, mini, panel }: { mint: string; mini?: boole
       mc={mcNow * sol}
       ageS={nowS}
       v={v}
+      d={d}
       learning={!ready}
       odds={o && ready ? o.odds : null}
       soon={soon}
@@ -299,7 +302,7 @@ export default function Scan({ mint, mini, panel }: { mint: string; mini?: boole
                 <p className="small dim">Its live trades still show below.</p>
               </div>
             ) : v && o && ready ? (
-              <VerdictBanner v={v} k={o.odds.k} n={o.n} ageS={o.age_b * 10} fresh={(now - gotAt) / 1000} />
+              <VerdictBanner v={v} d={d ?? decide(v, checks)} checks={checks} k={o.odds.k} n={o.n} ageS={o.age_b * 10} fresh={(now - gotAt) / 1000} />
             ) : (
               <LearningBanner n={o?.n ?? 0} need={MIN_N} old={!!tr?.oracle?.old} />
             )}
@@ -398,6 +401,7 @@ function MiniHud({
   mc,
   ageS,
   v,
+  d,
   learning,
   odds,
   soon,
@@ -415,6 +419,7 @@ function MiniHud({
   mc: number;
   ageS: number;
   v: Verdict | null;
+  d: Decision | null;
   learning: boolean;
   odds: { p50: number; dump: number } | null;
   soon: number;
@@ -426,9 +431,11 @@ function MiniHud({
   notTracked: boolean;
   loading: boolean;
 }) {
-  const color = TONE_COLOR[v?.tone ?? "learn"];
-  const label = v ? v.label : loading ? "Reading…" : notTracked ? "No oracle for this coin" : learning ? "Still learning" : "–";
-  const line = v
+  const color = TONE_COLOR[d?.tone ?? v?.tone ?? "learn"];
+  const label = d ? d.word : v ? v.label : loading ? "Reading…" : notTracked ? "No oracle for this coin" : learning ? "Still learning" : "–";
+  const line = d
+    ? d.why
+    : v
     ? v.line
     : loading
       ? "Comparing it with every coin yeppo watched."
@@ -445,7 +452,7 @@ function MiniHud({
           {ageS > 1 ? age(ageS * 1000) : ""}
         </span>
       </div>
-      <div className={`mini-verdict t-${v?.tone ?? "learn"}`}>
+      <div className={`mini-verdict t-${d?.tone ?? v?.tone ?? "learn"}`}>
         <Ring value={v ? v.score / 100 : 0} color={color} label="score" size={50} stroke={5} />
         <div>
           <b style={{ color, fontSize: 15 }}>{label}</b>

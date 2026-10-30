@@ -1,7 +1,8 @@
 // yeppo oracle: remembers which coin each tab shows, fetches yeppo's read of it (shared by every tab,
-// 10 s fresh) and puts the score on the toolbar button. The toolbar button opens the side panel.
+// 5 s fresh) and puts the decision's colour on the toolbar button. The toolbar button opens the side panel.
 const SITE = "https://yeppo.it";
-const TONE = { up: "#22e39a", mid: "#ffb547", flat: "#5d6478", down: "#ff4d6d", rug: "#ff4d6d" };
+const TONE = { up: "#22e39a", mid: "#ffb547", down: "#ff4d6d", learn: "#8b5cff" };
+const MARK = { up: "BUY", mid: "RISK", down: "NO", learn: "" };
 const cache = new Map(); // mint -> { at, data }
 
 chrome.runtime.onInstalled.addListener(() => chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {}));
@@ -9,7 +10,7 @@ chrome.runtime.onStartup.addListener(() => chrome.sidePanel.setPanelBehavior({ o
 
 async function read(mint) {
   const hit = cache.get(mint);
-  if (hit && Date.now() - hit.at < 10_000) return hit.data;
+  if (hit && Date.now() - hit.at < 5_000) return hit.data;
   try {
     const r = await fetch(`${SITE}/api/read?mint=${mint}`);
     const data = await r.json();
@@ -22,9 +23,9 @@ async function read(mint) {
 }
 
 function badge(tabId, data) {
-  const v = data?.verdict;
-  chrome.action.setBadgeText({ tabId, text: v ? String(v.score) : "" }).catch(() => {});
-  if (v) chrome.action.setBadgeBackgroundColor({ tabId, color: TONE[v.tone] ?? "#8b5cff" }).catch(() => {});
+  const d = data?.decision;
+  chrome.action.setBadgeText({ tabId, text: d ? MARK[d.tone] ?? "" : "" }).catch(() => {});
+  if (d) chrome.action.setBadgeBackgroundColor({ tabId, color: TONE[d.tone] ?? "#8b5cff" }).catch(() => {});
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {

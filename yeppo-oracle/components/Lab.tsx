@@ -32,6 +32,18 @@ export default function Lab() {
   const { data: board } = usePoll<BotRow[] | null>(key ? () => rpc<BotRow[] | null>("yr_paper_board", { p_key: key }) : null, 15_000, key ?? "");
   const { data: st, error } = usePoll<PaperState>(acct ? () => paperState(acct) : null, 4000, acct ?? "");
   const now = useNow(1000);
+  // the extension (1.3+) listens on this page: one click hands it the lab key and the paper wallet
+  const [ext, setExt] = useState<"none" | "here" | "linked">("none");
+  useEffect(() => {
+    const on = (e: MessageEvent) => {
+      if (e.source !== window) return;
+      if (e.data?.yeppo === "ext") setExt((x) => (x === "linked" ? x : "here"));
+      if (e.data?.yeppo === "linked") setExt("linked");
+    };
+    window.addEventListener("message", on);
+    window.postMessage({ yeppo: "ping" }, location.origin);
+    return () => window.removeEventListener("message", on);
+  }, []);
 
   if (!key)
     return (
@@ -153,10 +165,20 @@ export default function Lab() {
                   </b>
                 </div>
               </div>
-              <p className="small dim">
-                Paper wallet id <span className="mono">{acct}</span> · lab key <span className="mono">{key}</span>. To paper-trade inside the
-                extension, open its side panel, click &quot;lab&quot; at the bottom and paste both.
-              </p>
+              <div className="lab-link">
+                {ext === "linked" ? (
+                  <p className="up small">Linked ✓ The extension now paper-trades with this wallet: open any coin and use the Paper trade box.</p>
+                ) : ext === "here" ? (
+                  <button className="btn btn-glow btn-sm" onClick={() => window.postMessage({ yeppo: "link", lab: key, paper: acct }, location.origin)}>
+                    Use this paper wallet in the extension
+                  </button>
+                ) : (
+                  <p className="small dim">
+                    Install or reload the extension (1.3) and refresh this page to link it with one click. Paper wallet id{" "}
+                    <span className="mono">{acct}</span> · lab key <span className="mono">{key}</span>.
+                  </p>
+                )}
+              </div>
               <Buy acct={acct} onErr={setErr} />
               <h3>Open</h3>
               {st.positions.length ? (

@@ -26,7 +26,7 @@ export default function ExtensionPage() {
           <a className="btn btn-glow btn-lg" href="/yeppo-extension.zip" download>
             ⬇ Download the extension
           </a>
-          <p className="small dim">Version 1.2 · 30 KB · installs in a minute</p>
+          <p className="small dim">Version 1.3 · 30 KB · installs in a minute</p>
         </div>
 
         <div className="ext-demo glass" aria-hidden>
@@ -39,8 +39,7 @@ export default function ExtensionPage() {
             <div className="ext-pill t-up">
               <Eye size={18} />
               <b>yeppo</b>
-              <span>Runner potential</span>
-              <i className="mono">72</i>
+              <span>OK to buy</span>
             </div>
           </div>
           <div className="ext-side">
@@ -48,13 +47,13 @@ export default function ExtensionPage() {
               <Eye size={16} /> <b>yeppo</b>
             </div>
             <div className="ext-verdict">
-              <b>🔥 Runner potential</b>
-              <span>9 of the 30 look-alikes went up 50%+ in the next 10 minutes, only 2 dumped.</span>
+              <b>✅ OK to buy</b>
+              <span>No scam signs, and coins like this one usually went up. Follow the exit plan.</span>
             </div>
             <div className="ext-line">
               🎯 Exit plan: take profit <b className="up">+45%</b>, cut <b className="down">−25%</b>, out within 4 min
             </div>
-            <div className="ext-line">✅ Clean dev: 2 of 5 coins went big, no rugs.</div>
+            <div className="ext-line">✓ Top 10 wallets hold 14% · ✓ creator 1% · ✓ no fake bot climb</div>
             <div className="ext-line">🛡 My wallet: $WIF3 GET OUT, the dev sold.</div>
           </div>
         </div>
@@ -69,12 +68,12 @@ export default function ExtensionPage() {
               <p>No copy and paste, even on pages that only show the pool.</p>
             </div>
             <div className="check glass">
-              <h3>A badge with the verdict</h3>
-              <p>Runner potential, Coin flip or Likely dump, right on the page.</p>
+              <h3>A straight answer</h3>
+              <p>OK to buy, Risky or Don&apos;t buy, right on the page, with the reason.</p>
             </div>
             <div className="check glass">
-              <h3>An exit plan before you buy</h3>
-              <p>Take profit, stop and time limit, tested on 30 look-alikes.</p>
+              <h3>Scam checks and an exit plan</h3>
+              <p>Holders, creator, snipers and bots checked, then when to sell, tested on 30 similar coins.</p>
             </div>
             <div className="check glass">
               <h3>Your wallet, right below</h3>

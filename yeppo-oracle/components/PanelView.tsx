@@ -7,12 +7,13 @@ import { age, isMint, mult, short, usd } from "@/lib/format";
 import { ALARM, DEFAULT_LIMITS, readBag, safety, type Limits } from "@/lib/guard";
 import { usePoll, useNow, useSol } from "@/lib/hooks";
 import { namesOf, type Names } from "@/lib/meta";
-import { exitView, flags, maxBuy, MIN_N, plan, signalsOf, TONE_COLOR, verdict, type Plan } from "@/lib/oracle";
+import { exitView, maxBuy, type Plan } from "@/lib/oracle";
 import { plainWords } from "@/lib/plain";
+import { readCoin, type Read } from "@/lib/read";
 import { paperBuy, paperSell, paperState, type PaperState } from "@/lib/paper";
 import { readLocal, rpc, writeLocal } from "@/lib/supabase";
-import type { Future, Guard, TickRow, Track, Xray } from "@/lib/types";
-import { CoinImg, Ring } from "./Bits";
+import type { Guard, TickRow, Track, Xray } from "@/lib/types";
+import { CoinImg } from "./Bits";
 
 const SITES = ["pump.fun", "GMGN", "Axiom", "Photon", "BullX", "DexScreener"];
 
@@ -92,33 +93,27 @@ export default function PanelView({ mint }: { mint: string | null }) {
 function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | null; lim: Limits; setLim: (l: Limits) => void }) {
   const sol = useSol() || 150;
   const now = useNow(2000);
-  const { data: fut, error: futErr } = usePoll<Future>(() => rpc<Future>("yr_future", { p_mint: mint }), 10_000, mint);
-  const { data: xr } = usePoll<Xray>(() => rpc<Xray>("yr_xray", { p_mint: mint }), 10_000, mint);
-  // the last minute of trades, for "right now"
+  // the answer first: one fast call, answered from the board when the coin is on it
+  const { data: rd, error: rdErr } = usePoll<Read>(() => readCoin(mint), 5000, mint);
+  // the last minute of trades, for the live price and "right now"
   const { data: tk } = usePoll<{ now: number; ticks: TickRow[] }>(
     () => rpc("yr_ticks", { p_mints: [mint], p_since: Date.now() - 65_000 }),
-    5000,
+    4000,
     mint,
   );
+  // the holders, for the plain words below: slower, nothing waits on it
+  const { data: xr } = usePoll<Xray>(() => rpc<Xray>("yr_xray", { p_mint: mint }), 15_000, mint);
   const [named, setNamed] = useState<Names | null>(null);
   useEffect(() => {
     setNamed(null);
-    if (fut && !(fut.tracked && fut.meta?.[1])) void namesOf([mint]).then((n) => n[mint] && setNamed(n[mint]));
+    if (rd && !rd.symbol) void namesOf([mint]).then((n) => n[mint] && setNamed(n[mint]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mint, !!fut]);
+  }, [mint, !!rd]);
 
-  const tr = fut && fut.tracked ? fut : null;
   const x = xr && xr.tracked ? xr : null;
-  const o = tr?.oracle && !tr.oracle.old ? tr.oracle : null;
-  const ready = !!o && o.n >= MIN_N && o.odds?.k > 0;
-  const sig = signalsOf(x);
-  const v = ready && o ? verdict(o.odds, o.base, sig, track) : null;
-  const fl = x ? flags(sig) : [];
-  const p = useMemo(() => (ready && o?.matches?.length ? plan(o.matches) : null), [ready, o?.matches]);
   const ticks = tk?.ticks ?? [];
   const last = ticks[ticks.length - 1];
-  const bucket = tr?.path?.length ? tr.path[tr.path.length - 1][1] : 0;
-  const mc = last && last[6] > 0 ? (last[5] / last[6]) * 1e9 : bucket;
+  const mc = last && last[6] > 0 ? (last[5] / last[6]) * 1e9 : (rd?.mc ?? 0);
   const minute = (() => {
     const from = (tk?.now ?? Date.now()) - 60_000;
     let buys = 0;
@@ -136,34 +131,39 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
     }
     return { buys, sells, ago };
   })();
+  const lastAgo = last ? Math.max(0, (tk?.now ?? now) - last[1]) : null;
   const ev = x ? exitView(x) : null;
   const soon = ev ? ev.overdue + ev.s30 + ev.s60 : 0;
-  const plain = plainWords({ mcNow: mc, mcMinuteAgo: minute.ago, buys: minute.buys, sells: minute.sells, x, odds: ready && o ? o.odds : null, soon });
-  const meta = tr?.meta?.[1] ? tr.meta : named ? [named.name, named.symbol, named.uri] : tr?.meta;
-  const symbol = meta?.[1] ?? null;
-  const tone = v?.tone ?? "learn";
-  const color = TONE_COLOR[tone];
-  const label = v ? v.label : !fut ? (futErr ? "Retrying…" : "Reading…") : !tr ? "Not followed" : tr.oracle?.old ? "Too old to read" : "Still learning";
-  const line = v
-    ? v.line
-    : !fut
-      ? futErr
-        ? "yeppo is busy right now and keeps trying every 10 seconds."
-        : "Comparing it with every coin yeppo watched."
-      : !tr
-        ? "yeppo reads pump.fun coins it watched from their first trade. This one launched before, or elsewhere."
-        : tr.oracle?.old
-          ? "yeppo reads coins in their first 40 minutes, when most of the move happens."
-          : "The oracle needs a few more coins of this age before it gives odds.";
+  const plain = plainWords({ mcNow: mc, mcMinuteAgo: minute.ago, buys: minute.buys, sells: minute.sells, x, odds: rd?.odds ?? null, soon });
+  const symbol = rd?.symbol ?? named?.symbol ?? null;
+  const uri = rd?.uri ?? named?.uri ?? null;
+  const d = rd?.decision ?? null;
+  const p = rd?.plan ?? null;
   const buy = p ? maxBuy(lim.risk, p.stop) : 0;
+  // the flags the checks do not already say
+  const extra = (rd?.flags ?? []).filter((f) => !f.text.startsWith("Bot ladder") && !f.text.startsWith("Serial rugger"));
+  const word = d?.word ?? (!rd ? (rdErr ? "Retrying…" : "Reading…") : !rd.tracked ? "Not followed" : rd.old ? "Too old to read" : "Too early");
+  const why =
+    d?.why ??
+    (!rd
+      ? rdErr
+        ? "yeppo is busy right now and tries again every 5 seconds."
+        : "One moment."
+      : !rd.tracked
+        ? "yeppo reads pump.fun coins it saw from their first trade. This one launched before, or elsewhere."
+        : "yeppo reads coins in their first 40 minutes, when most of the move happens.");
+  const tone = d?.tone ?? "learn";
 
   return (
     <div className="pv-body">
       <div className="pv-coin">
-        <CoinImg uri={meta?.[2]} symbol={symbol} size={38} />
+        <CoinImg uri={uri} symbol={symbol} size={38} />
         <div>
           <b>{symbol ? `$${symbol.replace(/^\$/, "")}` : short(mint)}</b>
-          <span>{tr ? `${age(now - tr.t0)} old` : short(mint)}</span>
+          <span>
+            {rd?.t0 ? `${age(now - rd.t0)} old` : short(mint)}
+            {lastAgo != null ? ` · last trade ${lastAgo < 2000 ? "now" : `${age(lastAgo)} ago`}` : ""}
+          </span>
         </div>
         <div className="pv-mc">
           <b className="mono">{mc ? usd(mc * sol) : "–"}</b>
@@ -171,67 +171,65 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
         </div>
       </div>
 
-      <section className={`pv-verdict t-${tone}`}>
-        <Ring value={v ? v.score / 100 : 0} color={color} label="score" size={56} stroke={5} />
-        <div>
-          <b style={{ color }}>{label}</b>
-          <p>{line}</p>
-        </div>
+      <section className={`pv-decide d-${tone}`}>
+        <b>{d ? DECIDE_ICON[d.tone] : ""} {word}</b>
+        <p>{why}</p>
+        {rd?.verdict && <span className="pv-decide-sub">{rd.verdict.line}</span>}
       </section>
 
-      {p && (
-        <section className={`pv-plan ${p.go ? "go" : "skip"}`}>
+      {rd && rd.checks.length > 0 && (
+        <section className="pv-checks">
+          <h3>Scam checks</h3>
+          {rd.checks.map((c) => (
+            <div key={c.label} className={c.ok ? "ok" : "bad"}>
+              <span>{c.ok ? "✓" : "✗"}</span>
+              <p>{c.label}</p>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {p && d && d.tone !== "down" && (
+        <section className={`pv-plan ${d.tone === "up" ? "go" : "skip"}`}>
           <header>
-            <h3>Exit plan</h3>
-            <span>{p.go ? "Worked on the look-alikes" : p.avg <= 0 ? "Lost money on the look-alikes" : "Lost more often than it won"}</span>
+            <h3>{d.tone === "up" ? "Your exit plan" : "If you buy anyway"}</h3>
+            <span>{p.wins} of 30 similar coins won with it</span>
           </header>
-          {p.go ? (
-            <>
-              <div className="pv-plan-grid">
-                <div>
-                  <span>Take profit</span>
-                  <b className="up mono">+{Math.round((p.tp - 1) * 100)}%</b>
-                </div>
-                <div>
-                  <span>Cut the loss</span>
-                  <b className="down mono">−{Math.round((1 - p.stop) * 100)}%</b>
-                </div>
-                <div>
-                  <span>Get out within</span>
-                  <b className="mono">{p.minutes} min</b>
-                </div>
-                <div>
-                  <span>Buy at most</span>
-                  <b className="mono">{buy.toFixed(2)} SOL</b>
-                </div>
+          <div className="pv-plan-grid">
+            {d.tone === "up" && (
+              <div>
+                <span>Take profit</span>
+                <b className="up mono">+{Math.round((p.tp - 1) * 100)}%</b>
               </div>
-              <p className="pv-note">
-                Sell when it is up {Math.round((p.tp - 1) * 100)}%, or down {Math.round((1 - p.stop) * 100)}%, or after {p.minutes} minutes, whichever
-                comes first. Buying {buy.toFixed(2)} SOL means the stop costs you {lim.risk} SOL, your limit per trade.
-              </p>
-            </>
-          ) : (
-            <p className="pv-note">
-              {p.avg <= 0
-                ? "yeppo tried the best simple plan on the 30 coins that looked like this one and it lost money: skip this one, or wait for a Runner call."
-                : "yeppo tried the best simple plan on the 30 coins that looked like this one and it lost more often than it won: a few big wins hide many losses. Skip it, or wait for a Runner call."}
-            </p>
-          )}
-          <div className="pv-replay">
-            <span className="up">{p.wins} won</span>
-            <span className="down">{p.losses} lost</span>
-            <span>{p.even} even</span>
-            <span className={p.avg >= 0 ? "up" : "down"}>avg {p.avg >= 0 ? "+" : ""}{Math.round(p.avg * 100)}%</span>
+            )}
+            <div>
+              <span>Sell if it falls</span>
+              <b className="down mono">−{Math.round((1 - p.stop) * 100)}%</b>
+            </div>
+            <div>
+              <span>Get out within</span>
+              <b className="mono">{p.minutes} min</b>
+            </div>
+            <div>
+              <span>Buy at most</span>
+              <b className="mono">{buy.toFixed(2)} SOL</b>
+            </div>
           </div>
+          <p className="pv-note">
+            {d.tone === "up"
+              ? `Sell at +${Math.round((p.tp - 1) * 100)}%, at −${Math.round((1 - p.stop) * 100)}% or after ${p.minutes} minutes, whichever comes first.`
+              : `No upside is expected: if you still buy, sell at −${Math.round((1 - p.stop) * 100)}% or after ${p.minutes} minutes.`}{" "}
+            {buy.toFixed(2)} SOL means the stop costs you {lim.risk} SOL at most.
+          </p>
           <RiskEdit lim={lim} setLim={setLim} />
         </section>
       )}
 
       <PaperBox mint={mint} plan={p} />
 
-      {fl.length > 0 && (
+      {extra.length > 0 && (
         <section className="pv-flags">
-          {fl.map((f) => (
+          {extra.map((f) => (
             <div key={f.text} className={`pv-flag f-${f.tone}`}>
               <span>{f.icon}</span>
               <p>{f.text}</p>
@@ -255,18 +253,18 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
       )}
 
       <details className="pv-help">
-        <summary>What these words mean</summary>
+        <summary>How yeppo decides</summary>
         <dl>
-          <dt>Look-alikes</dt>
-          <dd>The 30 past coins that looked the most like this one at the same age: price moves, buyers, holders, creator.</dd>
-          <dt>Score</dt>
-          <dd>0 to 100. Above 65: most look-alikes went up. Below 30: most crashed.</dd>
+          <dt>✅ OK to buy</dt>
+          <dd>Every scam check passed and most of the 30 most similar past coins went up. Still a bet: follow the exit plan.</dd>
+          <dt>⚠️ Risky</dt>
+          <dd>No scam signs, but similar coins mostly went nowhere. Most coins are here. Skip it, or buy small with the stop.</dd>
+          <dt>⛔ Don&apos;t buy</dt>
+          <dd>A scam check failed, or similar coins usually crashed within 10 minutes.</dd>
+          <dt>Scam checks</dt>
+          <dd>What expert traders look at first: who holds the supply, the creator&apos;s record, bots faking a climb.</dd>
           <dt>Exit plan</dt>
-          <dd>Where to take profit, where to cut and how long to stay, picked from what the look-alikes did. A plan from past coins, not a promise.</dd>
-          <dt>Bot ladder</dt>
-          <dd>A straight climb made only of buys. Bots fake demand this way, then dump.</dd>
-          <dt>Serial rugger</dt>
-          <dd>A creator who dumped most of the coins yeppo saw them launch.</dd>
+          <dd>When to sell, picked from what the 30 most similar coins did. A plan from past coins, not a promise.</dd>
         </dl>
       </details>
 
@@ -276,6 +274,8 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
     </div>
   );
 }
+
+const DECIDE_ICON = { up: "✅", mid: "⚠️", down: "⛔", learn: "⏳" } as const;
 
 export function RiskEdit({ lim, setLim }: { lim: Limits; setLim: (l: Limits) => void }) {
   const [open, setOpen] = useState(false);
@@ -433,16 +433,27 @@ function WalletBox({
 /** the owner's paper trade on this coin: only where the lab key and a paper wallet are saved */
 function PaperBox({ mint, plan: p }: { mint: string; plan: Plan | null }) {
   const [acct, setAcct] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => {
     if (readLocal<string | null>("yo:lab", null)) setAcct(readLocal<string | null>("yo:paper", null));
   }, []);
-  const { data: st } = usePoll<PaperState>(acct ? () => paperState(acct) : null, 3000, acct ?? "");
+  const { data: st, reload } = usePoll<PaperState>(acct ? () => paperState(acct) : null, 3000, acct ?? "");
+  useEffect(() => setMsg(null), [mint]);
   if (!acct) return null;
   const pos = st?.positions.find((x) => x[0] === mint);
-  const run = (f: () => Promise<unknown>) => {
-    setErr(null);
-    f().catch((e) => setErr(e instanceof Error ? e.message : "Something went wrong"));
+  const run = async (what: string, f: () => Promise<unknown>, done: string) => {
+    if (busy) return;
+    setBusy(what);
+    setMsg(null);
+    try {
+      await f();
+      setMsg({ ok: true, text: done });
+      reload();
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : "Something went wrong" });
+    }
+    setBusy(null);
   };
   return (
     <section className="pv-paper">
@@ -465,8 +476,8 @@ function PaperBox({ mint, plan: p }: { mint: string; plan: Plan | null }) {
           <p className="pv-note">{pos[8] ? `Exit plan on: sells by itself at ${mult(pos[8])}, ${mult(pos[9] ?? 0)} or the time limit.` : "No exit plan: sell by hand."}</p>
           <div className="pv-paper-btns">
             {[0.5, 1].map((f) => (
-              <button key={f} className="btn btn-sm btn-ghost" onClick={() => run(() => paperSell(acct, mint, f))}>
-                Sell {f * 100}%
+              <button key={f} className="btn btn-sm btn-ghost" disabled={!!busy} onClick={() => void run(`s${f}`, () => paperSell(acct, mint, f), "Sold ✓")}>
+                {busy === `s${f}` ? "Selling…" : `Sell ${f * 100}%`}
               </button>
             ))}
           </div>
@@ -474,13 +485,13 @@ function PaperBox({ mint, plan: p }: { mint: string; plan: Plan | null }) {
       ) : (
         <div className="pv-paper-btns">
           {[0.1, 0.25, 0.5].map((v) => (
-            <button key={v} className="btn btn-sm btn-glow" onClick={() => run(() => paperBuy(acct, mint, v, p))}>
-              Buy {v} SOL{p ? " + plan" : ""}
+            <button key={v} className="btn btn-sm btn-glow" disabled={!!busy} onClick={() => void run(`b${v}`, () => paperBuy(acct, mint, v, p), "Bought ✓")}>
+              {busy === `b${v}` ? "Buying…" : `Buy ${v} SOL${p ? " + plan" : ""}`}
             </button>
           ))}
         </div>
       )}
-      {err && <p className="pv-err">{err}</p>}
+      {msg && <p className={msg.ok ? "pv-ok" : "pv-err"}>{msg.text}</p>}
     </section>
   );
 }

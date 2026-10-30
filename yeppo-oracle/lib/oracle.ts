@@ -37,6 +37,37 @@ export function flags(sig: Signals): Flag[] {
   return out;
 }
 
+export type Check = { ok: boolean; label: string };
+export type Decision = { word: "OK to buy" | "Risky" | "Don't buy" | "Too early"; tone: "up" | "mid" | "down" | "learn"; why: string };
+
+/** the scam checks expert traders run before a buy, on the coin's features (yr_ofeat, 0-based: f[9] creator's
+ *  share, f[10] top 10 wallets' share, f[11] snipers' share). On yeppo's coins, failing one of the first three
+ *  meant a 50% crash within 10 minutes 35 to 54% of the time, against 28% for any coin. */
+export function checksOf(f: number[] | null | undefined, sig: Signals): Check[] {
+  if (!f || f.length < 12) return [];
+  const p = (x: number) => `${Math.round(Math.max(0, x) * 100)}%`;
+  const rugger = isRugger(sig.dev);
+  return [
+    { ok: f[10] < 0.25, label: f[10] < 0.25 ? `Top 10 wallets hold ${p(f[10])}: spread out` : `Top 10 wallets hold ${p(f[10])}: a few can crash it` },
+    { ok: f[9] < 0.05, label: f[9] < 0.05 ? `Creator holds ${p(f[9])}` : `Creator still holds ${p(f[9])}: can dump on you` },
+    { ok: f[11] < 0.15, label: f[11] < 0.15 ? `Snipers hold ${p(f[11])}` : `Snipers hold ${p(f[11])}: early bots waiting to sell` },
+    { ok: !rugger, label: rugger ? "Creator rugged their earlier coins" : "Creator has no rug record" },
+    { ok: !sig.ladder, label: sig.ladder ? "Fake climb: bots buying in a straight line" : "No fake bot climb" },
+  ];
+}
+
+/** the answer a trader needs: buy, careful, or no. A failed scam check or a dump call is always a no; a yes
+ *  needs every check passed and the look-alikes going up. */
+export function decide(v: Verdict | null, checks: Check[]): Decision {
+  const bad = checks.find((c) => !c.ok);
+  if (v?.tone === "rug") return { word: "Don't buy", tone: "down", why: bad?.label ?? "Scam signs: coins like this one get dumped on buyers." };
+  if (bad) return { word: "Don't buy", tone: "down", why: bad.label };
+  if (v?.tone === "down") return { word: "Don't buy", tone: "down", why: "Coins like this one usually crashed in the next 10 minutes." };
+  if (!v) return { word: "Too early", tone: "learn", why: "Too few trades to judge yet. Wait a minute." };
+  if (v.tone === "up") return { word: "OK to buy", tone: "up", why: "No scam signs, and coins like this one usually went up. Follow the exit plan." };
+  return { word: "Risky", tone: "mid", why: "No scam signs, but no clear upside. If you buy, buy small and keep the stop." };
+}
+
 /** one word and one sentence, from the look-alikes and the red flags */
 export function verdict(o: Odds, base: Base, sig: Signals, track?: Track | null): Verdict {
   const k = o.k || 1;

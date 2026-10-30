@@ -153,22 +153,19 @@
   }
 
   function paint(r) {
-    const v = r?.verdict;
+    const d = r?.decision;
     let tone = "learn";
     let text = "reading…";
     if (r && !r.error) {
-      if (v) [tone, text] = [v.tone, v.label];
+      if (d) [tone, text] = [d.tone === "down" && r.verdict?.tone === "rug" ? "rug" : d.tone, d.word];
       else if (r.old) text = "too old to read";
       else if (!r.tracked) text = "not followed";
-      else text = "still learning";
-      const red = (r.flags || []).find((f) => f.tone === "down");
-      if (red && !v) [tone, text] = ["rug", red.text.split(":")[0]];
+      else text = "too early";
     }
     pill.className = `pill t-${tone}`;
     lbl.textContent = text;
-    sc.hidden = !v;
-    if (v) sc.textContent = String(v.score);
-    pill.title = v ? `${v.label}: ${v.line}` : "yeppo oracle: click for the full read";
+    sc.hidden = true;
+    pill.title = d ? `${d.word}: ${d.why}` : "yeppo: click for the full read";
   }
 
   function read() {
@@ -178,7 +175,7 @@
     chrome.runtime.sendMessage({ t: "read", mint: m }, (r) => {
       if (m !== mint) return;
       paint(r);
-      timer = setTimeout(read, document.hidden ? 60000 : 15000);
+      timer = setTimeout(read, document.hidden ? 60000 : 8000);
     });
   }
 

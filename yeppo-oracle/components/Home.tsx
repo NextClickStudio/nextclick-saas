@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePoll } from "@/lib/hooks";
-import { MIN_N, TONE_COLOR, verdict } from "@/lib/oracle";
+import { checksOf, decide, MIN_N, TONE_COLOR, verdict } from "@/lib/oracle";
 import { rpc } from "@/lib/supabase";
 import type { Hot, Track } from "@/lib/types";
 import { Eye, Num } from "./Bits";
@@ -46,8 +46,10 @@ function useLive(): { live: Live[]; recorded: number } {
     for (const c of hot?.coins ?? []) {
       const o = c[10];
       if (!o || o.old || o.n < MIN_N || !o.odds?.k) continue;
-      const v = verdict(o.odds, o.base, { ladder: !!c[11]?.ladder, devSold: false, dev: c[12] ?? null }, track ?? null);
-      out.push({ sym: c[2] ? `$${c[2].replace(/^\$/, "").slice(0, 10)}` : c[0].slice(0, 6), label: v.label, tone: v.tone, score: v.score, p50: o.odds.p50, dump: o.odds.dump });
+      const sig = { ladder: !!c[11]?.ladder, devSold: false, dev: c[12] ?? null };
+      const v = verdict(o.odds, o.base, sig, track ?? null);
+      const d = decide(v, checksOf(o.f, sig));
+      out.push({ sym: c[2] ? `$${c[2].replace(/^\$/, "").slice(0, 10)}` : c[0].slice(0, 6), label: d.word, tone: d.tone, score: v.score, p50: o.odds.p50, dump: o.odds.dump });
     }
     return out;
   }, [hot, track]);
@@ -139,7 +141,7 @@ export default function Home() {
           <div className="x-proof">
             <Reveal className="x-num">
               <b className="down mono">7/10</b>
-              <span>&quot;Likely dump&quot; calls that really lost half within 10 min</span>
+              <span>Dump calls that really lost half within 10 min</span>
             </Reveal>
             <Reveal className="x-num" delay={90}>
               <b className="mono">&lt;2/10</b>
@@ -192,9 +194,9 @@ export default function Home() {
 /** the hero's card: the live reads, one after the other, or a sample while they load */
 function HeroCard({ live }: { live: Live[] }) {
   const sample: Live[] = [
-    { sym: "$PEPE2", label: "Runner potential", tone: "up", score: 72, p50: 0.3, dump: 0.07 },
-    { sym: "$GIGA", label: "Likely dump", tone: "down", score: 18, p50: 0.1, dump: 0.47 },
-    { sym: "$CATZ", label: "Coin flip", tone: "mid", score: 51, p50: 0.23, dump: 0.2 },
+    { sym: "$PEPE2", label: "OK to buy", tone: "up", score: 72, p50: 0.3, dump: 0.07 },
+    { sym: "$GIGA", label: "Don't buy", tone: "down", score: 18, p50: 0.1, dump: 0.47 },
+    { sym: "$CATZ", label: "Risky", tone: "mid", score: 51, p50: 0.23, dump: 0.2 },
   ];
   const list = live.length >= 3 ? live : sample;
   const [i, setI] = useState(0);
@@ -334,7 +336,7 @@ function Story() {
               <line x1="150" x2="150" y1="0" y2="150" className="x-nowline" />
             </svg>
             <div className="x-badge">
-              <Eye size={14} /> yeppo <b>Runner potential</b> <span className="mono">72</span>
+              <Eye size={14} /> yeppo <b>OK to buy</b>
             </div>
             <div className="x-plan">
               <div>

@@ -925,3 +925,104 @@ body {
   gap: 6px;
   flex-wrap: wrap;
 }
+
+/* the extension's answer: buy, careful, or no */
+.pv-decide {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--line2);
+  background: var(--bg2);
+  display: grid;
+  gap: 6px;
+}
+.pv-decide b {
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.pv-decide p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.pv-decide-sub {
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.pv-decide.d-up {
+  border-color: rgba(46, 229, 157, 0.5);
+  background: rgba(46, 229, 157, 0.08);
+}
+.pv-decide.d-up b {
+  color: var(--up);
+}
+.pv-decide.d-mid {
+  border-color: rgba(255, 181, 71, 0.45);
+  background: rgba(255, 181, 71, 0.06);
+}
+.pv-decide.d-mid b {
+  color: var(--amber);
+}
+.pv-decide.d-down {
+  border-color: rgba(255, 84, 112, 0.55);
+  background: rgba(255, 84, 112, 0.08);
+}
+.pv-decide.d-down b {
+  color: var(--down);
+}
+.pv-decide.d-learn b {
+  color: var(--violet2);
+}
+.pv-checks {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line2);
+  background: var(--bg2);
+  display: grid;
+  gap: 6px;
+}
+.pv-checks h3 {
+  margin: 0 0 2px;
+  font-size: 13px;
+  color: var(--dim);
+  font-weight: 600;
+}
+.pv-checks div {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.pv-checks span {
+  font-weight: 700;
+  width: 14px;
+  flex: none;
+}
+.pv-checks p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.pv-checks .ok span {
+  color: var(--up);
+}
+.pv-checks .bad span,
+.pv-checks .bad p {
+  color: var(--down);
+}
+.pv-ok {
+  color: var(--up) !important;
+  font-size: 12px;
+  margin: 0 !important;
+}
+.pv-paper-btns .btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.v-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 10px;
+  font-size: 13px;
+}
