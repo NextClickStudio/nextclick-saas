@@ -120,7 +120,7 @@ export default function Home() {
               <ul className="cre-list">
                 <li>
                   <span>
-                    <b>Every coin they made</b> in the last 14 days, with how it ended: rugged, died or ran.
+                    <b>Every coin they made</b> in the last 14 days, with how it ended: dumped in seconds, faded or ran.
                   </span>
                 </li>
                 <li>
@@ -146,11 +146,11 @@ export default function Home() {
                 </section>
                 <div className="cp-coins">
                   {[
-                    ["$MOONDOG", "2h", "×2.6", "sold 3m", "rug"],
-                    ["$DOGMOON", "5h", "×2.2", "sold 3m", "rug"],
+                    ["$MOONDOG", "2h", "×2.6", "dump −91%", "rug"],
+                    ["$DOGMOON", "5h", "×2.2", "dump −88%", "rug"],
                     ["$PUPPER", "9h", "×1.4", "sold 2m", "dead"],
-                    ["$WOOFY", "1d", "×3.0", "sold 4m", "rug"],
-                    ["$BARK", "2d", "×2.4", "sold 3m", "rug"],
+                    ["$WOOFY", "1d", "×3.0", "dump −93%", "rug"],
+                    ["$BARK", "2d", "×2.4", "dump −90%", "rug"],
                   ].map(([s, a, p, so, f]) => (
                     <div key={s} className="cp-coin">
                       <span>
@@ -158,7 +158,7 @@ export default function Home() {
                       </span>
                       <span className="mono mute">{p}</span>
                       <span className="mono dim">{so}</span>
-                      <span className={`chip tone fate fate-${f}`}>{f === "rug" ? "Rugged" : "Died"}</span>
+                      <span className={`chip tone fate fate-${f}`}>{f === "rug" ? "Rugged" : "Faded"}</span>
                     </div>
                   ))}
                 </div>

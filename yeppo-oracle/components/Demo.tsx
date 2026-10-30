@@ -16,7 +16,7 @@ function path(peak: number, at: number, end: number, wobble = 0.05, seed = 1): n
     return Math.max(0.3, v * (1 + rnd() * wobble));
   });
 }
-const ghost = (id: string, fate: PastCoin["fate"], p: number[]): PastCoin => ({ mint: id, sym: null, t0: 0, fate, peak: Math.max(...p), peakS: null, soldS: null, soldX: null, path: p });
+const ghost = (id: string, fate: PastCoin["fate"], p: number[]): PastCoin => ({ mint: id, sym: null, t0: 0, fate, peak: Math.max(...p), peakS: null, soldS: null, soldX: null, rugS: null, rugDrop: null, path: p });
 const me = (p: number[], upTo: number): [number, number][] => p.slice(0, upTo).map((v, i) => [(i + 1) * 30, v]);
 
 const SCENES = [
@@ -30,7 +30,7 @@ const SCENES = [
     me: me(path(2.1, 330, 1.9, 0.04, 3), 8),
     ghosts: [ghost("a", "ran", path(4.2, 600, 2.8, 0.05, 5)), ghost("b", "dead", path(2.4, 260, 0.8, 0.06, 8)), ghost("c", "ran", path(3.1, 420, 2.2, 0.05, 11))],
     sell: [240, 2.6] as [number, number],
-    line: "4 coins: 0 rugged, 1 died, 3 ran.",
+    line: "4 coins: 3 ran, 0 rugged, 1 faded.",
   },
   {
     sym: "$MOONDOG",
@@ -42,7 +42,7 @@ const SCENES = [
     me: me(path(2.2, 300, 2, 0.03, 13), 7),
     ghosts: [ghost("d", "rug", path(2.6, 210, 0.35, 0.03, 17)), ghost("e", "rug", path(2.2, 180, 0.3, 0.03, 19)), ghost("f", "rug", path(3, 240, 0.32, 0.03, 23)), ghost("g", "rug", path(2.4, 200, 0.4, 0.03, 29))],
     sell: [205, 2.4] as [number, number],
-    line: "Serial rugger: rugged 6 of 7 coins.",
+    line: "Serial rugger: dumped 6 of 7 coins in seconds.",
   },
   {
     sym: "$SNEK",
@@ -54,7 +54,7 @@ const SCENES = [
     me: me(path(4.4, 420, 3.2, 0.05, 31), 18),
     ghosts: [ghost("h", "ran", path(5.1, 560, 3.8, 0.05, 37)), ghost("i", "dead", path(1.8, 150, 0.9, 0.05, 41))],
     sell: [480, 4.6] as [number, number],
-    line: "2 coins: 0 rugged, 1 died, 1 ran.",
+    line: "2 coins: 1 ran, 0 rugged, 1 faded.",
   },
 ];
 

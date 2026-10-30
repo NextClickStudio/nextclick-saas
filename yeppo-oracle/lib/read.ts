@@ -1,5 +1,5 @@
 // yeppo.it/api/read: the one call the extension and the coin page need (see app/api/read).
-import type { Check, Creator, Decision, DevNow, Pulse } from "./decide";
+import type { Check, Creator, Decision, DevNow, Outlook, Pulse } from "./decide";
 
 export type Read = {
   mint: string;
@@ -20,6 +20,7 @@ export type Read = {
   decision: Decision;
   checks: Check[];
   pulse: Pulse | null;
+  outlook: Outlook | null;
   creator: Creator | null;
   dev: DevNow | null;
   /** this coin's own price / launch: [seconds from launch, price] for its first 20 minutes */

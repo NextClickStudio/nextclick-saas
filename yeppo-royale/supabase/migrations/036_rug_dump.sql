@@ -5,6 +5,19 @@
 alter table yr_cc add column if not exists rug_s int;
 alter table yr_cc add column if not exists rug_drop real;
 
+-- The launch bundle: wallets (not the creator) that buy within 3 seconds of the launch, usually the creator's own
+-- wallets or bots, and dump together. yr_bw follows how many tokens they still hold; yr_cc.bun is their share of the
+-- supply now, bun0 the most they held.
+create table if not exists yr_bw (
+  mint text not null,
+  who text not null,
+  tok double precision not null default 0,
+  primary key (mint, who)
+);
+alter table yr_bw enable row level security;
+alter table yr_cc add column if not exists bun real;
+alter table yr_cc add column if not exists bun0 real;
+
 create or replace function yr_cc_roll() returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare wm bigint; hi bigint; now_ms bigint := yr_now(); n_t int; n_new int; n_fin int;
@@ -83,6 +96,22 @@ begin
     having max(1 - b.mc / nullif(a.pre, 0)) >= 0.6) d
   where d.mint = c.mint;
 
+  -- the launch bundle: its first buys, then everything those wallets do after
+  insert into yr_bw as w (mint, who, tok)
+  select x.mint, x.who, sum(x.tok) from _t x
+  where x.k = 1 and x.who <> x.dev and x.t <= x.t0 + 3000
+  group by x.mint, x.who
+  on conflict (mint, who) do update set tok = w.tok + excluded.tok;
+  update yr_bw w set tok = greatest(0, w.tok + a.d)
+  from (
+    select x.mint, x.who, sum(case when x.k = 1 then x.tok else -x.tok end) d
+    from _t x join yr_bw b on b.mint = x.mint and b.who = x.who
+    where x.t > x.t0 + 3000 group by x.mint, x.who) a
+  where w.mint = a.mint and w.who = a.who;
+  update yr_cc c set bun = a.s / 1e9, bun0 = greatest(coalesce(c.bun0, 0), a.s / 1e9)
+  from (select b.mint, sum(b.tok) s from yr_bw b where b.mint in (select distinct mint from _t) group by b.mint) a
+  where a.mint = c.mint;
+
   -- the 30 s steps of the first 20 minutes
   insert into yr_cb as s (mint, b, c)
   select x.mint, ((x.t - x.t0) / 30000)::smallint, (array_agg(x.mc order by x.t desc, x.ix desc))[1]
@@ -114,6 +143,7 @@ begin
     update yr_cc c set grad = true from yr_grad g where g.mint = c.mint and not c.grad;
     delete from yr_cc where t0 < now_ms - 14 * 86400000::bigint;
     delete from yr_cb cb where not exists (select 1 from yr_cc c where c.mint = cb.mint and c.p is null);
+    delete from yr_bw b where not exists (select 1 from yr_cc c where c.mint = b.mint and c.t0 > now_ms - 3600000);
     delete from yr_obirth where t < now_ms - 86400000;
     delete from yr_grad where t < now_ms - 86400000;
   end if;
@@ -134,7 +164,7 @@ begin
     'me', case when me.mint is null then null else jsonb_build_object(
       't0', me.t0, 'sym', me.sym, 'name', me.name, 'n', me.n, 'mc', me.mc, 'ath', me.ath, 'ath_s', me.ath_s,
       'dev_buy', me.dev_buy, 'dev_sell', me.dev_sell, 'dev_tok', me.dev_tok, 'dev_max', me.dev_max,
-      'sold_s', me.sold_s, 'sold_mc', me.sold_mc, 'out_s', me.out_s, 'grad', me.grad, 'p', me.p, 'mc0', me.mc0, 'rug_s', me.rug_s, 'rug_drop', me.rug_drop) end,
+      'sold_s', me.sold_s, 'sold_mc', me.sold_mc, 'out_s', me.out_s, 'grad', me.grad, 'p', me.p, 'mc0', me.mc0, 'rug_s', me.rug_s, 'rug_drop', me.rug_drop, 'bun', me.bun, 'bun0', me.bun0) end,
     'uri', (select b.uri from yr_obirth b where b.mint = p_mint),
     'total', (select count(*) from yr_cc where dev = d),
     'coins', coalesce((
@@ -158,3 +188,17 @@ begin
     'w120', (select count(distinct who) from yr_ticks where mint = p_mint and t > now_ms - 120000));
 end $$;
 
+
+-- open paper positions on coins with no curve trade in the last minute: refresh their DexScreener pool every 15 s,
+-- so take profit and stop fire even with no page open (the anon key is public)
+select cron.schedule('yr-px', '15 seconds', $job$
+  select net.http_post(
+    url := 'https://qyobtgubvopzfmomzeuj.supabase.co/functions/v1/yr-px',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization',
+      'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5b2J0Z3Vidm9wemZtb216ZXVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNDU2NTMsImV4cCI6MjEwODkyMTY1M30.ive4HTtn_DYstwrSPYQervq7KlpPWIuVIsH4ZWpUhWw'),
+    body := jsonb_build_object('mints', z.m),
+    timeout_milliseconds := 8000)
+  from (select jsonb_agg(distinct p.mint) m from yr_paper_pos p
+        where not exists (select 1 from yr_ticks x where x.mint = p.mint and x.t > yr_now() - 60000)) z
+  where z.m is not null
+$job$);

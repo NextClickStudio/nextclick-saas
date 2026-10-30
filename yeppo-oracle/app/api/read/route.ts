@@ -1,11 +1,13 @@
 // The read of one coin, for the extension and the coin page, in one call:
-//  * safety: RugCheck's free report (holders, creator, insiders, mint and freeze authority, locked liquidity);
+//  * safety: RugCheck's free report (holders, creator, insiders, mint and freeze authority, locked liquidity), plus
+//    the launch bundle yeppo saw itself (wallets that bought in the first 3 seconds and what they still hold);
 //  * the creator: their other coins from yeppo's index (yr_cc, 14 days) and how each one ended;
-//  * the moment: the last minute against the four before, from yeppo's own trades while the coin is on
-//    pump.fun's curve, from DexScreener once it trades elsewhere.
+//  * the moment and the outlook: the last minute against the four before, and the bigger picture over several
+//    timeframes, from yeppo's own trades while the coin is on pump.fun's curve, from DexScreener once it trades
+//    elsewhere.
 // Then one call: Momentum, Wait, Don't buy or Too early. Cached at the edge for 5 s and shared by everyone.
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/config";
-import { type CoinRow, creatorOf, decide, type DevNow, launchOf, pulseOf, pulseOutside } from "@/lib/decide";
+import { type Check, type CoinRow, creatorOf, decide, type DevNow, launchOf, outlookCurve, outlookOutside, pulseOf, pulseOutside } from "@/lib/decide";
 import { isMint } from "@/lib/format";
 import type { Read } from "@/lib/read";
 import { rugChecks, rugReport } from "@/lib/rugcheck";
@@ -32,6 +34,10 @@ type Me = {
   grad: boolean;
   p: number[] | null;
   mc0: number | null;
+  rug_s: number | null;
+  rug_drop: number | null;
+  bun: number | null;
+  bun0: number | null;
 };
 type CreatorRpc = { now: number; dev: string | null; me: Me | null; uri: string | null; total: number; coins: CoinRow[]; steps: number[][]; from: number; w60: number };
 
@@ -69,7 +75,7 @@ type Pair = {
   liquidity?: { usd?: number };
   txns?: { m5?: { buys: number; sells: number }; h1?: { buys: number; sells: number } };
   volume?: { m5?: number; h1?: number };
-  priceChange?: { m5?: number; h1?: number };
+  priceChange?: { m5?: number; h1?: number; h6?: number; h24?: number };
   pairCreatedAt?: number;
   marketCap?: number;
   baseToken?: { symbol?: string; name?: string };
@@ -93,6 +99,8 @@ async function dexscreener(mint: string) {
       vol5: p.volume?.m5 ?? null,
       ch5: p.priceChange?.m5 ?? null,
       ch1: p.priceChange?.h1 ?? null,
+      ch6: p.priceChange?.h6 ?? null,
+      ch24: p.priceChange?.h24 ?? null,
       born: p.pairCreatedAt ?? null,
       symbol: p.baseToken?.symbol ?? null,
       name: p.baseToken?.name ?? null,
@@ -116,7 +124,13 @@ export async function GET(req: Request) {
   const out = onCurve ? null : await dexscreener(mint);
   if (!rug && !cr && !out) return Response.json({ error: "yeppo is busy, retrying" }, { status: 503, headers: { ...CORS, "cache-control": "no-store" } });
 
-  const checks = rug ? rugChecks(rug) : [];
+  const checks: Check[] = rug ? rugChecks(rug) : [];
+  // the launch bundle, when yeppo saw the launch: buyers of the first 3 seconds still holding together
+  if (me?.bun0 != null && me.bun0 >= 0.03) {
+    const b = me.bun ?? 0;
+    const pc = `${Math.round(b * 100)}%`;
+    checks.push({ ok: b < 0.15, label: b < 0.15 ? `Launch bundle holds ${pc}` : `Launch bundle holds ${pc}. They can dump together.` });
+  }
   const creator = cr?.dev ? creatorOf(cr.dev, Number(cr.total) || 0, cr.coins ?? [], now) : null;
   const t0 = me?.t0 ?? out?.born ?? null;
   const ageS = t0 ? (now - t0) / 1000 : null;
@@ -128,6 +142,8 @@ export async function GET(req: Request) {
         out: me.out_s != null,
         soldS: me.sold_s,
         soldX: me.sold_mc != null ? me.sold_mc / base : null,
+        rugS: me.rug_s,
+        rugDrop: me.rug_drop,
       }
     : null;
 
@@ -139,8 +155,11 @@ export async function GET(req: Request) {
   const nowStep = cr ? Math.floor((now - cr.from) / 10_000) : 0;
   const pulse = onCurve ? pulseOf(steps, nowStep, cr?.w60 ?? null, sol) : out ? pulseOutside(out) : null;
   const priceMc = onCurve ? (steps[steps.length - 1]?.[1] ?? me?.mc ?? null) : null;
-  const priceX = priceMc != null ? priceMc / base : null;
-  const athX = me && onCurve ? Math.max(me.ath, priceMc ?? 0) / base : null;
+  // a pump.fun coin trading elsewhere now: its price from DexScreener, its high from what yeppo saw
+  const mcSol = priceMc ?? (out?.mcap && sol ? out.mcap / sol : null);
+  const priceX = me && mcSol != null ? mcSol / base : null;
+  const athX = me && mcSol != null ? Math.max(me.ath, mcSol) / base : null;
+  const outlook = onCurve ? outlookCurve(steps, nowStep, priceX, athX) : out ? outlookOutside(out) : null;
 
   let outsideNo: string | null = null;
   if (out && !onCurve) {
@@ -149,7 +168,7 @@ export async function GET(req: Request) {
     else if (out.ch1 != null && out.ch1 <= -50) outsideNo = `Down ${Math.round(-out.ch1)}% in the last hour.`;
     else if (n < 5 && (ageS ?? 1e9) > 600) outsideNo = "Nobody is trading it.";
   }
-  const decision = decide({ checks, creator, dev, ageS, priceX, athX, pulse, outsideNo });
+  const decision = decide({ checks, creator, dev, ageS, priceX, athX, pulse, outlook, outsideNo });
 
   const body: Read = {
     mint,
@@ -168,6 +187,7 @@ export async function GET(req: Request) {
     decision,
     checks,
     pulse,
+    outlook,
     creator,
     dev,
     path,

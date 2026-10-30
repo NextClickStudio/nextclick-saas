@@ -7,13 +7,13 @@ import type { Fate } from "@/lib/decide";
 import { mins } from "@/lib/decide";
 import { age, ago, mult, short, usd } from "@/lib/format";
 import { useNow, usePoll } from "@/lib/hooks";
-import { paperBuy, paperSell, paperState, type PaperState } from "@/lib/paper";
+import { paperBuy, paperSell, paperState, refreshPx, type PaperState } from "@/lib/paper";
 import { readCoin, type Read } from "@/lib/read";
 import { readLocal } from "@/lib/supabase";
 import { CoinImg } from "./Bits";
 import Overlay from "./Overlay";
 
-const FATE: Record<Fate, string> = { rug: "Rugged", dead: "Died", ran: "Ran", grad: "Graduated" };
+const FATE: Record<Fate, string> = { rug: "Rugged", dead: "Faded", ran: "Ran", grad: "Graduated" };
 const x = (v: number) => `×${v >= 10 ? v.toFixed(0) : v.toFixed(1)}`;
 const sign = (v: number | null) => (v == null ? "–" : `${v >= 0 ? "+" : ""}${Math.round(v * 100)}%`);
 
@@ -94,6 +94,29 @@ export default function CoinPanel({ mint, compact, paper }: { mint: string; comp
         </div>
       )}
 
+      {r.outlook && (
+        <section className="cp-box">
+          <header>
+            <h3>Outlook</h3>
+            <span className="grow" />
+            <span className={`chip tone ${r.outlook.bias === "bullish" ? "t-up" : r.outlook.bias === "bearish" ? "t-down" : "t-learn"}`}>
+              {r.outlook.bias === "bullish" ? "Bias up" : r.outlook.bias === "bearish" ? "Bias down" : "No trend"}
+            </span>
+          </header>
+          <div className="cp-tf">
+            {r.outlook.tf.map((t) => (
+              <div key={t.k}>
+                <span>{t.k}</span>
+                <b className={`mono ${t.v == null ? "dim" : t.v >= 0 ? "up" : "down"}`}>{sign(t.v)}</b>
+              </div>
+            ))}
+          </div>
+          <p className="cp-line mute" style={{ margin: "8px 0 0", fontSize: 12.5 }}>
+            {r.outlook.line}
+          </p>
+        </section>
+      )}
+
       <section className="cp-box">
         <header>
           <h3>vs. the creator&apos;s coins</h3>
@@ -120,7 +143,9 @@ export default function CoinPanel({ mint, compact, paper }: { mint: string; comp
             <p className="cp-line">{c.line}</p>
             {r.dev && (
               <p className="cp-line mute" style={{ fontSize: 12 }}>
-                {r.dev.out
+                {r.dev.rugS != null
+                  ? `On this coin: dumped it ${sign(-(r.dev.rugDrop ?? 0.6))} after ${mins(r.dev.rugS)}.`
+                  : r.dev.out
                   ? `On this coin: sold everything${r.dev.soldS != null ? ` after ${mins(r.dev.soldS)}` : ""}.`
                   : r.dev.sold
                     ? `On this coin: started selling${r.dev.soldX ? ` at ${x(r.dev.soldX)}` : ""}.`
@@ -136,8 +161,10 @@ export default function CoinPanel({ mint, compact, paper }: { mint: string; comp
                     <span>
                       {k.sym ? `$${k.sym}` : short(k.mint)} <span className="when">{ago(now - k.t0)}</span>
                     </span>
-                    <span className="mono mute">{x(k.peak)}</span>
-                    <span className="mono dim">{k.soldS != null ? `sold ${mins(k.soldS)}` : ""}</span>
+                    <span className="mono mute">{k.peak >= 0.5 ? x(k.peak) : "–"}</span>
+                    <span className="mono dim">
+                      {k.rugS != null ? `dump ${sign(-(k.rugDrop ?? 0.6))}` : k.soldS != null ? `sold ${mins(k.soldS)}` : ""}
+                    </span>
                     <span className={`chip tone fate fate-${k.fate}`}>{FATE[k.fate]}</span>
                   </a>
                 ))}
@@ -195,7 +222,17 @@ function PaperBox({ mint, given }: { mint: string; given: string | null }) {
     if (given) setAcct(given);
     else if (readLocal<string | null>("yo:lab", null)) setAcct(readLocal<string | null>("yo:paper", null));
   }, [given]);
-  const { data: st, reload } = usePoll<PaperState>(acct ? () => paperState(acct) : null, 3000, acct ?? "");
+  // coins past pump.fun's curve get their DexScreener price refreshed first, so the wallet can value them
+  const { data: st, reload } = usePoll<PaperState>(
+    acct
+      ? async () => {
+          await refreshPx([mint]);
+          return paperState(acct);
+        }
+      : null,
+    3000,
+    acct ?? "",
+  );
   useEffect(() => setMsg(null), [mint]);
   if (!acct) return null;
   const pos = st?.positions.find((q) => q[0] === mint);
@@ -226,7 +263,10 @@ function PaperBox({ mint, given }: { mint: string; given: string | null }) {
           </p>
           <div className="pp-row">
             {[0.5, 1].map((f) => (
-              <button key={f} className="btn btn-sm" disabled={!!busy} onClick={() => void run(`s${f}`, () => paperSell(acct, mint, f), "Sold ✓")}>
+              <button key={f} className="btn btn-sm" disabled={!!busy} onClick={() => void run(`s${f}`, async () => {
+                await refreshPx([mint]);
+                return paperSell(acct, mint, f);
+              }, "Sold ✓")}>
                 {busy === `s${f}` ? "Selling…" : `Sell ${f * 100}%`}
               </button>
             ))}
@@ -235,7 +275,10 @@ function PaperBox({ mint, given }: { mint: string; given: string | null }) {
       ) : (
         <div className="pp-row">
           {[0.1, 0.25, 0.5].map((v) => (
-            <button key={v} className="btn btn-sm btn-go" disabled={!!busy} onClick={() => void run(`b${v}`, () => paperBuy(acct, mint, v, null), "Bought ✓")}>
+            <button key={v} className="btn btn-sm btn-go" disabled={!!busy} onClick={() => void run(`b${v}`, async () => {
+                await refreshPx([mint]);
+                return paperBuy(acct, mint, v, null);
+              }, "Bought ✓")}>
               {busy === `b${v}` ? "Buying…" : `Buy ${v}`}
             </button>
           ))}

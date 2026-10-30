@@ -1,5 +1,6 @@
 // The owner's private paper wallet: pretend SOL, real curve prices (see 020_paper.sql). Never shown to users:
 // it only appears where the lab key is saved in this browser.
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 import { readLocal, rpc } from "./supabase";
 
 /** [mint, symbol, tokens, cost SOL, entry mc, mc now, value SOL, pnl SOL, tp, stop, until ms, opened ms] */
@@ -38,3 +39,18 @@ export const paperState = (id: string) => rpc<PaperState>("yr_paper_state", { p_
 export const paperBuy = (id: string, mint: string, sol: number, plan?: { tp: number; stop: number; minutes: number } | null) =>
   rpc("yr_paper_buy", { p_acct: id, p_mint: mint, p_sol: sol, p_tp: plan?.tp ?? null, p_stop: plan?.stop ?? null, p_minutes: plan?.minutes ?? null });
 export const paperSell = (id: string, mint: string, frac = 1) => rpc("yr_paper_sell", { p_acct: id, p_mint: mint, p_frac: frac, p_reason: "manual" });
+
+/** asks yr-px to read these coins' pools from DexScreener (coins past pump.fun's curve); never throws */
+export async function refreshPx(mints: string[]) {
+  if (!mints.length) return;
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/yr-px`, {
+      method: "POST",
+      headers: { "content-type": "application/json", apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ mints: mints.slice(0, 10) }),
+      signal: AbortSignal.timeout(6000),
+    });
+  } catch {
+    /* the curve price, or the last one, will do */
+  }
+}

@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { age, isMint, mult, short } from "@/lib/format";
 import { useNow, usePoll } from "@/lib/hooks";
-import { paperBuy, paperSell, paperState, type PaperState } from "@/lib/paper";
+import { paperBuy, paperSell, paperState, refreshPx, type PaperState } from "@/lib/paper";
 import { readLocal, rpc, writeLocal } from "@/lib/supabase";
 import Nav from "./Nav";
 
@@ -20,7 +20,18 @@ export default function Lab() {
     setKey(readLocal<string | null>("yo:lab", null));
     setAcct(readLocal<string | null>("yo:paper", null));
   }, []);
-  const { data: st, error } = usePoll<PaperState>(acct ? () => paperState(acct) : null, 4000, acct ?? "");
+  const { data: st, error } = usePoll<PaperState>(
+    acct
+      ? async () => {
+          const st0 = await paperState(acct);
+          // positions on coins past pump.fun's curve need their DexScreener price kept fresh
+          if (st0.positions.length) await refreshPx(st0.positions.map((p) => p[0]));
+          return st0;
+        }
+      : null,
+    4000,
+    acct ?? "",
+  );
   const now = useNow(1000);
   // the extension listens on this page: one click hands it the lab key and the paper wallet
   const [ext, setExt] = useState<"none" | "here" | "linked">("none");
@@ -195,6 +206,7 @@ function Buy({ acct, onErr }: { acct: string; onErr: (e: string | null) => void 
         setBusy(true);
         onErr(null);
         try {
+          await refreshPx([m]);
           await paperBuy(acct, m, Number(sol), null);
           setMint("");
         } catch (er) {
