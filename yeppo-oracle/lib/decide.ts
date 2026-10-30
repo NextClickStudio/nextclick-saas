@@ -51,8 +51,16 @@ export type Pulse = {
   vol1mUsd: number | null;
 };
 
-/** [mint, sym, t0, n, ath, ath_s, mc, dev_buy, dev_sell, sold_s, sold_mc, out_s, grad, p] from yr_creator */
-export type CoinRow = [string, string | null, number, number, number, number | null, number | null, number, number, number | null, number | null, number | null, boolean, number[] | null];
+/** [mint, sym, t0, n, ath, ath_s, mc, dev_buy, dev_sell, sold_s, sold_mc, out_s, grad, p, mc0] from yr_creator */
+export type CoinRow = [string, string | null, number, number, number, number | null, number | null, number, number, number | null, number | null, number | null, boolean, number[] | null, number | null];
+
+/** a coin's launch market cap: its own when yeppo saw it launch, else the usual pump.fun one (or its first price,
+ *  when the curve plainly started lower) */
+export function launchOf(mc0: number | null | undefined, p?: number[] | null) {
+  if (mc0 && mc0 > 0) return mc0;
+  if (p?.length && p[0] > 0 && p[0] < LAUNCH_MC * 0.8) return p[0];
+  return LAUNCH_MC;
+}
 
 const med = (a: number[]) => {
   if (!a.length) return null;
@@ -64,7 +72,7 @@ const med = (a: number[]) => {
 export function fateOf(r: CoinRow, now: number): Fate | null {
   const [, , t0, n, ath, athS, mc, , , soldS, , outS, grad] = r;
   if (grad) return "grad";
-  const peak = ath / LAUNCH_MC;
+  const peak = ath / launchOf(r[14], r[13]);
   if (now - t0 < 20 * 60_000) return null; // still running: no verdict yet
   if (peak >= 3) return "ran";
   // the creator sold around the top and the price halved after: a rug
@@ -78,17 +86,18 @@ export function creatorOf(dev: string, total: number, rows: CoinRow[], now: numb
   for (const r of rows) {
     const fate = fateOf(r, now);
     if (!fate) continue;
+    const base = launchOf(r[14], r[13]);
     coins.push({
       mint: r[0],
       sym: r[1],
       t0: r[2],
       fate,
-      peak: r[4] / LAUNCH_MC,
+      peak: r[4] / base,
       peakS: r[5],
       soldS: r[9],
-      soldX: r[10] != null ? r[10] / LAUNCH_MC : null,
+      soldX: r[10] != null ? r[10] / base : null,
       // a path that never moved carries no information (a coin nobody traded, or missing data)
-      path: r[13]?.length && Math.max(...r[13]) - Math.min(...r[13]) > 0.6 ? r[13].map((v) => v / LAUNCH_MC) : null,
+      path: r[13]?.length && Math.max(...r[13]) - Math.min(...r[13]) > 0.6 ? r[13].map((v) => v / base) : null,
     });
   }
   const rugs = coins.filter((c) => c.fate === "rug").length;

@@ -5,7 +5,7 @@
 //    pump.fun's curve, from DexScreener once it trades elsewhere.
 // Then one call: Momentum, Wait, Don't buy or Too early. Cached at the edge for 5 s and shared by everyone.
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/config";
-import { type CoinRow, creatorOf, decide, type DevNow, LAUNCH_MC, pulseOf, pulseOutside } from "@/lib/decide";
+import { type CoinRow, creatorOf, decide, type DevNow, launchOf, pulseOf, pulseOutside } from "@/lib/decide";
 import { isMint } from "@/lib/format";
 import type { Read } from "@/lib/read";
 import { rugChecks, rugReport } from "@/lib/rugcheck";
@@ -31,6 +31,7 @@ type Me = {
   out_s: number | null;
   grad: boolean;
   p: number[] | null;
+  mc0: number | null;
 };
 type CreatorRpc = { now: number; dev: string | null; me: Me | null; uri: string | null; total: number; coins: CoinRow[]; steps: number[][]; from: number; w60: number };
 
@@ -119,26 +120,27 @@ export async function GET(req: Request) {
   const creator = cr?.dev ? creatorOf(cr.dev, Number(cr.total) || 0, cr.coins ?? [], now) : null;
   const t0 = me?.t0 ?? out?.born ?? null;
   const ageS = t0 ? (now - t0) / 1000 : null;
+  const base = launchOf(me?.mc0, me?.p);
   const dev: DevNow | null = me
     ? {
         bought: me.dev_buy > 0,
         sold: me.sold_s != null,
         out: me.out_s != null,
         soldS: me.sold_s,
-        soldX: me.sold_mc != null ? me.sold_mc / LAUNCH_MC : null,
+        soldX: me.sold_mc != null ? me.sold_mc / base : null,
       }
     : null;
 
   // the coin's own first 20 minutes, as multiples of the launch price
   let path: [number, number][] = [];
-  if (me?.p?.length) path = me.p.map((v, i) => [(i + 1) * 30, v / LAUNCH_MC]);
-  else if (me && cr && cr.from === me.t0) path = steps.map((s) => [(s[0] + 1) * 10, s[1] / LAUNCH_MC]);
+  if (me?.p?.length) path = me.p.map((v, i) => [(i + 1) * 30, v / base]);
+  else if (me && cr && cr.from === me.t0) path = steps.map((s) => [(s[0] + 1) * 10, s[1] / base]);
 
   const nowStep = cr ? Math.floor((now - cr.from) / 10_000) : 0;
   const pulse = onCurve ? pulseOf(steps, nowStep, cr?.w60 ?? null, sol) : out ? pulseOutside(out) : null;
   const priceMc = onCurve ? (steps[steps.length - 1]?.[1] ?? me?.mc ?? null) : null;
-  const priceX = priceMc != null ? priceMc / LAUNCH_MC : null;
-  const athX = me && onCurve ? Math.max(me.ath, priceMc ?? 0) / LAUNCH_MC : null;
+  const priceX = priceMc != null ? priceMc / base : null;
+  const athX = me && onCurve ? Math.max(me.ath, priceMc ?? 0) / base : null;
 
   let outsideNo: string | null = null;
   if (out && !onCurve) {
