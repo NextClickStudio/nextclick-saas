@@ -17,6 +17,7 @@ const BOT_INFO: Record<string, string> = {
   "bot:scout": "runs the expert checks (holders, dev, snipers, activity) on the board, buys only when yeppo also says Runner",
   "bot:expert": "the expert checks alone, without asking yeppo: what the checklist is worth by itself",
   "bot:safe": "safety checks pass and yeppo does not flag it: measures how often a coin yeppo clears is not a scam",
+  "bot:radar": "buys the radar's top 3 when they score 55 or more, with their exit plan: the live test of the radar",
 };
 const pct = (x: number | null | undefined) => (x == null ? "–" : `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)}%`);
 
@@ -86,7 +87,7 @@ export default function Lab() {
           ) : (
             <div className="lab-bots">
               {board.map((b) => (
-                <div key={b.bot} className={`lab-bot ${b.bot === "bot:yeppo" || b.bot === "bot:scout" ? "main" : ""}`}>
+                <div key={b.bot} className={`lab-bot ${b.bot === "bot:radar" || b.bot === "bot:scout" ? "main" : ""}`}>
                   <header>
                     <b className="mono">{b.bot}</b>
                     <span className="dim">{b.open} open</span>

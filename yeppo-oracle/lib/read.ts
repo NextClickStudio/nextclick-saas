@@ -18,6 +18,17 @@ export type Read = {
   odds: Odds | null;
   flags: Flag[];
   plan: Plan | null;
+  /** a coin yeppo did not follow from birth: where it trades, from DexScreener */
+  outside?: {
+    dex: string;
+    url: string;
+    liq: number | null;
+    mcap: number | null;
+    m5: { buys: number; sells: number } | null;
+    h1: { buys: number; sells: number } | null;
+    vol1h: number | null;
+    born: number | null;
+  } | null;
 };
 
 export async function readCoin(mint: string): Promise<Read> {

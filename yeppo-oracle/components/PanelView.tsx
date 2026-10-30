@@ -14,8 +14,7 @@ import { paperBuy, paperSell, paperState, type PaperState } from "@/lib/paper";
 import { readLocal, rpc, writeLocal } from "@/lib/supabase";
 import type { Guard, TickRow, Track, Xray } from "@/lib/types";
 import { CoinImg } from "./Bits";
-
-const SITES = ["pump.fun", "GMGN", "Axiom", "Photon", "BullX", "DexScreener"];
+import RadarBoard from "./Radar";
 
 /** saves a setting here and, inside the extension, hands it to the extension too: each trading site keeps its
  *  own storage for this frame, so the extension is the one place the wallet and the limits are remembered */
@@ -70,16 +69,9 @@ export default function PanelView({ mint }: { mint: string | null }) {
       {mint ? (
         <CoinRead mint={mint} track={track ?? null} lim={lim} setLim={setLim} />
       ) : (
-        <div className="pv-body">
-          <div className="pv-empty">
-            <h2>Open a coin and yeppo reads it</h2>
-            <p>Go to any coin on your trading site. yeppo spots it by itself and tells you what usually happens next.</p>
-            <div className="pv-sites">
-              {SITES.map((s) => (
-                <span key={s}>{s}</span>
-              ))}
-            </div>
-          </div>
+        <div className="pv-body pv-radar">
+          <h3>No coin open · the radar right now</h3>
+          <RadarBoard limit={8} compact />
         </div>
       )}
       <div id="wallet" className="pv-sep">
@@ -142,10 +134,14 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
   const buy = p ? maxBuy(lim.risk, p.stop) : 0;
   // the flags the checks do not already say
   const extra = (rd?.flags ?? []).filter((f) => !f.text.startsWith("Bot ladder") && !f.text.startsWith("Serial rugger"));
-  const word = d?.word ?? (!rd ? (rdErr ? "Retrying…" : "Reading…") : !rd.tracked ? "Not followed" : rd.old ? "Too old to read" : "Too early");
+  const out = rd && !rd.tracked ? rd.outside : null;
+  const where = out ? (DEX[out.dex] ?? out.dex) : null;
+  const word = d?.word ?? (!rd ? (rdErr ? "Retrying…" : "Reading…") : out ? "Not checked" : !rd.tracked ? "Not followed" : rd.old ? "Too old to read" : "Too early");
   const why =
     d?.why ??
-    (!rd
+    (out
+      ? `Launched on ${where}. yeppo runs its scam checks on pump.fun coins it saw from their first trade, so here it can only show the market.`
+      : !rd
       ? rdErr
         ? "yeppo is busy right now and tries again every 5 seconds."
         : "One moment."
@@ -176,6 +172,37 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
         <p>{why}</p>
         {rd?.verdict && <span className="pv-decide-sub">{rd.verdict.line}</span>}
       </section>
+
+      {out && (
+        <section className="pv-outside">
+          <h3>The market on {where}</h3>
+          <div className="pv-plan-grid">
+            <div>
+              <span>Liquidity</span>
+              <b className={`mono ${out.liq != null && out.liq < 10_000 ? "down" : ""}`}>{out.liq != null ? usd(out.liq) : "–"}</b>
+            </div>
+            <div>
+              <span>Buys / sells, 5 min</span>
+              <b className="mono">{out.m5 ? `${out.m5.buys} / ${out.m5.sells}` : "–"}</b>
+            </div>
+            <div>
+              <span>Buys / sells, 1 h</span>
+              <b className="mono">{out.h1 ? `${out.h1.buys} / ${out.h1.sells}` : "–"}</b>
+            </div>
+            <div>
+              <span>Volume, 1 h</span>
+              <b className="mono">{out.vol1h != null ? usd(out.vol1h) : "–"}</b>
+            </div>
+          </div>
+          <p className="pv-note">
+            Bad signs: liquidity under $10K (hard to sell), more sells than buys, no trades in the last 5 minutes. No scam checks on this one:
+            treat it as Risky at best.
+          </p>
+          <a className="pv-link" href={out.url} target="_blank" rel="noreferrer">
+            Open on DexScreener ↗
+          </a>
+        </section>
+      )}
 
       {rd && rd.checks.length > 0 && (
         <section className="pv-checks">
@@ -276,6 +303,7 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
 }
 
 const DECIDE_ICON = { up: "✅", mid: "⚠️", down: "⛔", learn: "⏳" } as const;
+const DEX: Record<string, string> = { meteora: "Meteora", raydium: "Raydium", pumpswap: "PumpSwap (it left pump.fun)", pumpfun: "pump.fun", orca: "Orca", launchlab: "Raydium LaunchLab", moonshot: "Moonshot" };
 
 export function RiskEdit({ lim, setLim }: { lim: Limits; setLim: (l: Limits) => void }) {
   const [open, setOpen] = useState(false);

@@ -25,6 +25,31 @@ async function call<T>(fn: string, args: Record<string, unknown>): Promise<T> {
   return (await r.json()) as T;
 }
 
+/** a coin yeppo did not follow from birth (another launchpad, or launched before yeppo watched): DexScreener's
+ *  free public data, so the trader at least sees where it trades and how busy it is */
+async function outside(mint: string) {
+  try {
+    const r = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`, { signal: AbortSignal.timeout(4000) });
+    const j = (await r.json()) as { pairs?: { dexId: string; url: string; liquidity?: { usd?: number }; txns?: { m5?: { buys: number; sells: number }; h1?: { buys: number; sells: number } }; volume?: { h1?: number }; pairCreatedAt?: number; marketCap?: number; baseToken?: { symbol?: string; name?: string } }[] };
+    const p = j.pairs?.sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0];
+    if (!p) return null;
+    return {
+      dex: p.dexId,
+      url: p.url,
+      liq: p.liquidity?.usd ?? null,
+      mcap: p.marketCap ?? null,
+      m5: p.txns?.m5 ?? null,
+      h1: p.txns?.h1 ?? null,
+      vol1h: p.volume?.h1 ?? null,
+      born: p.pairCreatedAt ?? null,
+      symbol: p.baseToken?.symbol ?? null,
+      name: p.baseToken?.name ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function answer(mint: string, o: Oracle | null, sig: Signals, track: Track | null, meta: { symbol: string | null; name: string | null; uri: string | null; t0: number | null; mc: number | null }, extra: { tracked: boolean; old: boolean; src: string }) {
   const live = o && !o.old ? o : null;
   const ready = !!live && live.n >= MIN_N && live.odds?.k > 0;
@@ -60,14 +85,20 @@ export async function GET(req: Request) {
     const [fut, xr, track] = await Promise.all([call<Future>("yr_future", { p_mint: mint }), call<Xray>("yr_xray", { p_mint: mint }), trackP]);
     const tr = fut.tracked ? fut : null;
     const sig = signalsOf(xr.tracked ? xr : null);
-    const meta = {
+    const meta: { symbol: string | null; name: string | null; uri: string | null; t0: number | null; mc: number | null } = {
       symbol: tr?.meta?.[1] ?? null,
       name: tr?.meta?.[0] ?? null,
       uri: tr?.meta?.[2] ?? null,
       t0: tr?.t0 ?? null,
       mc: tr?.path?.length ? tr.path[tr.path.length - 1][1] : null,
     };
-    return Response.json(answer(mint, tr?.oracle ?? null, sig, track, meta, { tracked: !!tr, old: !!tr?.oracle?.old, src: "live" }), { headers });
+    const out = tr ? null : await outside(mint);
+    if (out) {
+      meta.symbol = out.symbol;
+      meta.name = out.name;
+      meta.t0 = out.born;
+    }
+    return Response.json({ ...answer(mint, tr?.oracle ?? null, sig, track, meta, { tracked: !!tr, old: !!tr?.oracle?.old, src: "live" }), outside: out }, { headers });
   } catch {
     return Response.json({ error: "The oracle is busy, retrying soon" }, { status: 503, headers: { ...CORS, "cache-control": "no-store" } });
   }

@@ -12,11 +12,12 @@
 //   bot:scout   expert checks pass AND yeppo calls it Runner potential, with its Exit Plan
 //   bot:expert  expert checks pass, yeppo not asked (default levels): what the checklist alone does
 //   bot:safe    safety checks pass AND yeppo does not flag it (no Likely dump, no Rug risk), with its plan
+//   bot:radar   the radar's top 3 (yeppo.it/api/radar) when they score 55+, with their Exit Plan
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 
 const SITE = "https://yeppo.it";
 const SIZE = 0.1;
-const BOTS = ["bot:yeppo", "bot:random", "bot:avoid", "bot:all", "bot:scout", "bot:expert", "bot:safe"] as const;
+const BOTS = ["bot:yeppo", "bot:random", "bot:avoid", "bot:all", "bot:scout", "bot:expert", "bot:safe", "bot:radar"] as const;
 type Bot = (typeof BOTS)[number];
 type Plan = { go: boolean; tp: number; stop: number; minutes: number };
 type Read = { mint: string; verdict: { tone: string; label: string } | null; plan: Plan | null; f: number[] | null; ladder: boolean };
@@ -42,12 +43,18 @@ Deno.serve(async (req) => {
   const ids = JSON.parse(cfg?.find((r) => r.key === "paper_bots")?.value ?? "{}") as Record<Bot, string>;
   if (BOTS.some((b) => !ids[b])) return Response.json({ error: "paper_bots is not set up" }, { status: 500 });
 
-  const board = (await fetch(`${SITE}/api/board`, { signal: AbortSignal.timeout(9000) })
-    .then((r) => (r.ok ? r.json() : null))
-    .catch(() => null)) as { coins: Read[] } | null;
+  const get = <T,>(path: string) =>
+    fetch(`${SITE}${path}`, { signal: AbortSignal.timeout(9000) })
+      .then((r) => (r.ok ? (r.json() as Promise<T>) : null))
+      .catch(() => null);
+  const [board, radar] = await Promise.all([
+    get<{ coins: Read[] }>("/api/board"),
+    get<{ picks: { mint: string; score: number; plan: Plan | null }[] }>("/api/radar"),
+  ]);
   const reads = (board?.coins ?? []).filter((r) => !!r.verdict);
   if (!reads.length) return Response.json({ ok: true, coins: 0 });
-  const coins = reads.map((r) => r.mint);
+  const top = (radar?.picks ?? []).slice(0, 3).filter((p) => p.score >= 55);
+  const coins = [...new Set([...reads.map((r) => r.mint), ...top.map((p) => p.mint)])];
 
   // coins each bot already traded: once per coin
   const { data: done } = await sb.from("yr_paper_fill").select("acct,mint").in("acct", Object.values(ids)).in("mint", coins).eq("side", 1);
@@ -60,6 +67,7 @@ Deno.serve(async (req) => {
     const { error } = await sb.rpc("yr_paper_buy", { p_acct: ids[bot], p_mint: mint, p_sol: SIZE, p_tp: p.tp, p_stop: p.stop, p_minutes: p.minutes });
     out.push(`${bot} ${mint.slice(0, 6)} ${why}${error ? ` ✗ ${error.message}` : ""}`);
   };
+  for (const t of top) await buy("bot:radar", t.mint, t.plan ?? DEFAULT, `radar ${t.score}`);
   for (const r of reads) {
     const p = r.plan ?? DEFAULT;
     const f = Array.isArray(r.f) && r.f.length >= 18 ? r.f : null;
