@@ -1,8 +1,9 @@
 // yr-bot: yeppo's own paper traders, the live test of the tool. Called by pg_cron every 30 s with the ingest key.
 // The four paper wallets (1000 SOL each) are listed in yr_config 'paper_bots'. Each run reads the most traded
-// young coins exactly as the extension does (yeppo.it/api/read) and paper-trades them with 0.1 SOL, once per coin, at the real curve price with fees (yr_paper_buy). The cron yr_paper_auto
-// sells each position when its take profit, stop or time limit hits.
-//   bot:yeppo   buys what yeppo calls "Runner potential" with a plan that worked on the look-alikes
+// young coins exactly as the extension does (yeppo.it/api/read) and paper-trades them with 0.1 SOL, once per
+// coin, at the real curve price with fees (yr_paper_buy). The cron yr_paper_auto sells each position when its
+// take profit, stop or time limit hits.
+//   bot:yeppo   buys what yeppo calls "Runner potential", with its Exit Plan levels
 //   bot:random  at the same moment buys a random other coin of the board, with the same plan levels
 //   bot:avoid   buys what yeppo calls "Likely dump" or "Rug risk", with its plan levels
 //   bot:all     buys every coin that gets a verdict, with its plan levels: what a coin of the board does
@@ -52,11 +53,11 @@ Deno.serve(async (req) => {
   for (const r of reads) {
     const p = r.plan ?? DEFAULT;
     await buy("bot:all", r.mint, p, r.verdict!.label);
-    if (r.verdict!.tone === "up" && r.plan?.go) {
-      await buy("bot:yeppo", r.mint, r.plan, "runner");
+    if (r.verdict!.tone === "up") {
+      await buy("bot:yeppo", r.mint, p, r.plan?.go ? "runner, plan go" : "runner");
       // the control: another coin of the same board, right now, with the same levels
       const others = reads.filter((o) => o.mint !== r.mint && !has.has(`${ids["bot:random"]}:${o.mint}`));
-      if (others.length) await buy("bot:random", others[Math.floor(Math.random() * others.length)].mint, r.plan, "control");
+      if (others.length) await buy("bot:random", others[Math.floor(Math.random() * others.length)].mint, p, "control");
     }
     if (r.verdict!.tone === "down" || r.verdict!.tone === "rug") await buy("bot:avoid", r.mint, p, r.verdict!.label);
   }
