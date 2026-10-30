@@ -1,7 +1,8 @@
 // yr-social: the social side of the board's coins, for yeppo's radar. Called by pg_cron every minute with the
 // ingest key. For each board coin not read yet it fetches the coin's metadata file (name, description, X link,
 // website, Telegram) and, when the X link is a post, the post's author and text through X's public oEmbed
-// endpoint (no key, no login). Every run it also notes which coins paid DexScreener for a boost or a profile
+// endpoint (no key, no login), and how far the post reached (likes, replies, a verified author) from the public
+// endpoint X's own embeds read. Every run it also notes which coins paid DexScreener for a boost or a profile
 // (DexScreener's free public API). Metadata, posts and descriptions are untrusted text: they are stored and
 // shown, never followed.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
@@ -53,6 +54,21 @@ async function postOf(handle: string, id: string) {
   return { author: o.author_name?.slice(0, 80) ?? null, handle: o.author_url?.split("/").pop() ?? handle, text: text.slice(0, 280) || null };
 }
 
+/** likes, replies and the author's badge, from the endpoint X's embedded posts read (token as X's embed computes it) */
+async function reachOf(id: string) {
+  const token = ((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\.)/g, "");
+  const t = await getJson<{ favorite_count?: number; conversation_count?: number; created_at?: string; user?: { is_blue_verified?: boolean; verified?: boolean } }>(
+    `https://cdn.syndication.twimg.com/tweet-result?id=${id}&lang=en&token=${token}`,
+  );
+  if (!t) return null;
+  return {
+    likes: t.favorite_count ?? null,
+    replies: t.conversation_count ?? null,
+    verified: !!(t.user?.is_blue_verified || t.user?.verified),
+    posted_at: t.created_at ? Date.parse(t.created_at) : null,
+  };
+}
+
 Deno.serve(async (req) => {
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
   const { data: cfg } = await sb.from("yr_config").select("value").eq("key", "ingest_key").single();
@@ -87,7 +103,7 @@ Deno.serve(async (req) => {
         const x = twitter?.match(/(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})(?:\/status(?:es)?\/(\d+))?/);
         const handle = x && x[1] !== "i" && x[1] !== "home" ? x[1] : null;
         const id = handle && x?.[2] ? x[2] : null;
-        const post = handle && id ? await postOf(handle, id) : null;
+        const [post, reach] = handle && id ? await Promise.all([postOf(handle, id), reachOf(id)]) : [null, null];
         let launcher: string | null = null;
         try {
           launcher = c.uri ? (c.uri.includes("/ipfs/") ? "pump.fun" : new URL(c.uri).hostname.replace(/^(metadata|meta|md|api)\./, "")) : null;
@@ -108,6 +124,10 @@ Deno.serve(async (req) => {
           descr: str(m?.description, 200),
           boost: boost.get(c.mint) ?? 0,
           dex_paid: paid.has(c.mint),
+          likes: reach?.likes ?? null,
+          replies: reach?.replies ?? null,
+          verified: reach?.verified ?? null,
+          posted_at: reach?.posted_at ?? null,
         };
       }),
     );

@@ -1028,11 +1028,20 @@ body {
 }
 
 /* the live radar */
-.x-hero-radar {
-  padding-bottom: 8px;
+.x-hero.x-hero-radar {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  padding: 56px 20px 18px;
 }
 .x-hero-radar .x-hero-copy {
-  max-width: 760px;
+  max-width: 980px;
+}
+.x-hero.x-hero-radar h1 {
+  font-size: clamp(40px, 6.2vw, 84px);
+  margin: 20px 0 18px;
+}
+.x-hero-radar .x-lead {
+  max-width: 720px;
 }
 .x-radar {
   margin-top: 8px;

@@ -8,8 +8,10 @@ import type { DevHist, Oracle, Pattern, Track } from "./types";
 
 export type BoardCoin = [string, string | null, string | null, string | null, number, number | null, number, number, number, number,
   Oracle | null, Pattern | null, DevHist | null, boolean?];
-/** [mint, tweet id, X handle, X author, post text, has website, has Telegram, launcher, boost, paid profile, X link] */
-export type SocialRow = [string, string | null, string | null, string | null, string | null, boolean, boolean, string | null, number, boolean, string | null];
+/** [mint, tweet id, X handle, X author, post text, has website, has Telegram, launcher, boost, paid profile, X link,
+ *  post likes, post replies, verified author, posted at (ms)] */
+export type SocialRow = [string, string | null, string | null, string | null, string | null, boolean, boolean, string | null, number, boolean, string | null,
+  (number | null)?, (number | null)?, (boolean | null)?, (number | null)?];
 /** [word, launches in the last hour, their trades, best market cap (SOL)] */
 export type Meta = [string, number, number, number];
 
@@ -28,12 +30,15 @@ export type RadarCoin = {
   parts: { momentum: number; attention: number; lookalike: number; fresh: number };
   decision: Decision;
   chips: Chip[];
-  post: { handle: string | null; author: string | null; text: string | null; url: string | null } | null;
+  post: { handle: string | null; author: string | null; text: string | null; url: string | null; likes: number | null; replies: number | null; verified: boolean } | null;
   plan: Plan | null;
 };
 export type Radar = { now: number; picks: RadarCoin[]; rejected: { n: number; reasons: [string, number][] }; metas: Meta[]; scanned: number };
 
 const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+// the same words the board leaves out (yr_oracle_hot_build): slurs and worse never show as a meme
+const BAD = /(nigg|n1gg|fag|rape|hitler|nazi|kkk|retard|kike|chink|spic|tranny|porn|nsfw|dick|cock|pussy|fuck|cunt|whore|slut|isis|jihad)/i;
+const k = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n));
 const words = (s: string | null) => (s ?? "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3);
 
 export function radar(coins: BoardCoin[], social: SocialRow[], metas: Meta[], track: Track | null, now: number): Radar {
@@ -45,6 +50,7 @@ export function radar(coins: BoardCoin[], social: SocialRow[], metas: Meta[], tr
     if (s[1]) perPost.set(s[1], (perPost.get(s[1]) ?? 0) + 1);
     if (s[2]) perHandle.set(s[2].toLowerCase(), (perHandle.get(s[2].toLowerCase()) ?? 0) + 1);
   }
+  metas = metas.filter((m) => !BAD.test(m[0]));
   const hot = new Map(metas.filter((m) => m[1] >= 3).map((m) => [m[0], m]));
   const topTrades = Math.max(1, ...metas.map((m) => m[2]));
   // within a post's coins, the most traded one carries the post
@@ -80,12 +86,21 @@ export function radar(coins: BoardCoin[], social: SocialRow[], metas: Meta[], tr
     let post: RadarCoin["post"] = null;
     if (s) {
       if (s[1]) {
-        attention += 10;
-        post = { handle: s[2], author: s[3], text: s[4], url: s[10] };
+        const likes = s[11] ?? null;
+        const replies = s[12] ?? null;
+        attention += 8;
+        // how far the post reached: likes on a log scale, 1,000 likes earn the most
+        if (likes) attention += 8 * clamp(Math.log10(1 + likes) / 3);
+        post = { handle: s[2], author: s[3], text: s[4], url: s[10], likes, replies, verified: !!s[13] };
         const n = perPost.get(s[1]) ?? 1;
         const lead = leader.get(s[1])?.mint === c[0];
-        if (n > 1 && lead) attention += 8;
-        chips.push({ icon: "𝕏", text: n > 1 ? `post by @${s[2]} · ${n} coins, ${lead ? "this one leads" : "not the leader"}` : `launched from a post by @${s[2]}`, tone: lead || n === 1 ? "up" : "mid" });
+        if (n > 1 && lead) attention += 6;
+        const reach = likes != null ? ` · ${k(likes)} likes${replies ? `, ${k(replies)} replies` : ""}` : "";
+        chips.push({
+          icon: "𝕏",
+          text: `${n > 1 ? `post by @${s[2]}${s[13] ? " ✓" : ""} · ${n} coins, ${lead ? "this one leads" : "not the leader"}` : `launched from a post by @${s[2]}${s[13] ? " ✓" : ""}`}${reach}`,
+          tone: lead || n === 1 ? "up" : "mid",
+        });
       } else if (s[2]) {
         attention += 3;
         const n = perHandle.get(s[2].toLowerCase()) ?? 1;
