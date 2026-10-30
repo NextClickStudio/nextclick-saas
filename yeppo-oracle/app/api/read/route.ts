@@ -5,14 +5,12 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/config";
 import { isMint } from "@/lib/format";
 import { checksOf, decide, flags, MIN_N, plan, signalsOf, verdict, type Signals } from "@/lib/oracle";
-import type { DevHist, Future, Oracle, Pattern, Track, Xray } from "@/lib/types";
+import { gateOf, type BoardCoin } from "@/lib/radar";
+import type { Future, Oracle, Track, Xray } from "@/lib/types";
 
 export const runtime = "edge";
 
 const CORS = { "access-control-allow-origin": "*" };
-
-type BoardCoin = [string, string | null, string | null, string | null, number, number | null, number, number, number, number,
-  Oracle | null, Pattern | null, DevHist | null, boolean?];
 
 async function call<T>(fn: string, args: Record<string, unknown>): Promise<T> {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
@@ -80,7 +78,10 @@ export async function GET(req: Request) {
     if (c) {
       const sig = { ladder: !!c[11]?.ladder, devSold: !!c[13], dev: c[12] ?? null };
       const meta = { symbol: c[2], name: c[1], uri: c[3], t0: c[4], mc: c[5] };
-      return Response.json(answer(mint, c[10], sig, await trackP, meta, { tracked: true, old: !!c[10]?.old, src: "board" }), { headers });
+      const r = answer(mint, c[10], sig, await trackP, meta, { tracked: true, old: !!c[10]?.old, src: "board" });
+      const gate = gateOf(c, one!.now);
+      if (gate && r.decision) r.decision = { word: "Don't buy", tone: "down", why: gate };
+      return Response.json(r, { headers });
     }
     const [fut, xr, track] = await Promise.all([call<Future>("yr_future", { p_mint: mint }), call<Xray>("yr_xray", { p_mint: mint }), trackP]);
     const tr = fut.tracked ? fut : null;

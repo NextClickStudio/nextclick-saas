@@ -140,7 +140,9 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
   const why =
     d?.why ??
     (out
-      ? `Launched on ${where}. yeppo runs its scam checks on pump.fun coins it saw from their first trade, so here it can only show the market.`
+      ? out.dex === "pumpswap"
+        ? "It graduated from pump.fun to PumpSwap. yeppo reads coins on the pump.fun curve, so here it can only show the market."
+        : `Launched on ${where}. yeppo runs its scam checks on pump.fun coins it saw from their first trade, so here it can only show the market.`
       : !rd
       ? rdErr
         ? "yeppo is busy right now and tries again every 5 seconds."
@@ -162,7 +164,7 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
           </span>
         </div>
         <div className="pv-mc">
-          <b className="mono">{mc ? usd(mc * sol) : "–"}</b>
+          <b className="mono">{mc ? usd(mc * sol) : out?.mcap ? usd(out.mcap) : "–"}</b>
           <span>market cap</span>
         </div>
       </div>
@@ -303,7 +305,7 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
 }
 
 const DECIDE_ICON = { up: "✅", mid: "⚠️", down: "⛔", learn: "⏳" } as const;
-const DEX: Record<string, string> = { meteora: "Meteora", raydium: "Raydium", pumpswap: "PumpSwap (it left pump.fun)", pumpfun: "pump.fun", orca: "Orca", launchlab: "Raydium LaunchLab", moonshot: "Moonshot" };
+const DEX: Record<string, string> = { meteora: "Meteora", raydium: "Raydium", pumpswap: "PumpSwap, where pump.fun coins go once they graduate", pumpfun: "pump.fun", orca: "Orca", launchlab: "Raydium LaunchLab", moonshot: "Moonshot" };
 
 export function RiskEdit({ lim, setLim }: { lim: Limits; setLim: (l: Limits) => void }) {
   const [open, setOpen] = useState(false);

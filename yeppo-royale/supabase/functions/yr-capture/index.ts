@@ -185,6 +185,7 @@ Deno.serve(async (req) => {
   let ticks: Record<string, unknown>[] = [];
   // every launch, with its creator, for the oracle (yr_obirth)
   let births: Record<string, unknown>[] = [];
+  let grads: { mint: string; t: number }[] = []; // every graduation to PumpSwap, for the radar
   // every wallet trading pump.fun during this run (any coin), for live-trader opponents
   const hot = new Map<string, { key: Uint8Array; n: number; buys: number; vol: number; coins: Set<string>; last: number }>();
 
@@ -228,6 +229,7 @@ Deno.serve(async (req) => {
       return;
     }
     if (d.txType === "migrate" || d.txType === "migration") {
+      grads.push({ mint, t: now });
       const t = tracked.get(hex(b58decode(mint)));
       if (t) migr.push({ mint: t.mint, t: now - t.created_ms });
     }
@@ -400,6 +402,12 @@ Deno.serve(async (req) => {
   let tickChain: Promise<void> = Promise.resolve();
   function flushTicks() {
     tickChain = tickChain.then(async () => {
+      if (grads.length) {
+        const rows = grads;
+        grads = [];
+        const { error } = await sb.from("yr_grad").upsert(rows, { onConflict: "mint", ignoreDuplicates: true });
+        if (error) stats.errors++;
+      }
       if (births.length) {
         const rows = births;
         births = [];

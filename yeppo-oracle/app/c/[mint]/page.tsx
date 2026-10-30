@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import PanelView from "@/components/PanelView";
 import Scan from "@/components/Scan";
 import { isMint, short } from "@/lib/format";
 
@@ -24,5 +25,8 @@ export default async function Page({ params, searchParams }: P) {
         </Link>
       </main>
     );
-  return <Scan mint={mint} mini={mini} panel={mini && q.panel === "1"} />;
+  // extension 1.0 opens its card at /c/<mint>?mini=1&panel=1: give it today's panel, so old installs get the
+  // current answer without reinstalling
+  if (mini && q.panel === "1") return <PanelView mint={mint} />;
+  return <Scan mint={mint} mini={mini} panel={false} />;
 }

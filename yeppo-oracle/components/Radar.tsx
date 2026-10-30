@@ -27,6 +27,8 @@ export default function RadarBoard({ limit = 10, compact = false }: { limit?: nu
       </div>
     );
   const picks = data.picks.slice(0, limit);
+  const grads = (data.graduated ?? []).slice(0, compact ? 4 : 8);
+  const f = data.filters;
   return (
     <div className={`rd ${compact ? "rd-compact" : ""}`}>
       <div className="rd-top">
@@ -34,10 +36,22 @@ export default function RadarBoard({ limit = 10, compact = false }: { limit?: nu
           <i className="dot" /> live · {Math.max(0, Math.round((now - data.now) / 1000))}s ago
         </span>
         <span className="rd-count">
-          <b className="mono">{data.scanned}</b> hottest coins scanned · <b className="mono down">{data.rejected.n}</b> thrown out ·{" "}
-          <b className="mono up">{data.picks.length}</b> left
+          <b className="mono">{data.scanned}</b> hottest coins scanned · <b className="mono down">{data.rejected.n}</b> scams or dumps ·{" "}
+          <b className="mono">{data.quiet?.n ?? 0}</b> under the filters · <b className="mono up">{data.picks.length}</b> left
         </span>
       </div>
+      {f && (
+        <div className="rd-filters" title="The screener filters memecoin traders set on pump.fun: a coin must pass all of them">
+          <span>Filters</span>
+          <i>MC ≥ {usd(f.mcSol * sol)}</i>
+          <i>{f.holders}+ holders</i>
+          <i>{f.trades2}+ trades / 2 min</i>
+          <i>{f.wallets2}+ wallets trading</i>
+          <i>more buys than sells</i>
+          <i>not dumped</i>
+          <i>scam checks passed</i>
+        </div>
+      )}
       {data.metas.length > 0 && (
         <div className="rd-metas" title="Words in the names of the last hour's launches, by how much those coins traded">
           <span>Memes being launched now</span>
@@ -55,7 +69,17 @@ export default function RadarBoard({ limit = 10, compact = false }: { limit?: nu
           ))}
         </ol>
       ) : (
-        <p className="rd-wait">Nothing passes the scam checks right now. That is an answer too: wait.</p>
+        <p className="rd-wait">No coin on the curve passes the filters right now. That is an answer too: wait.</p>
+      )}
+      {grads.length > 0 && (
+        <>
+          <h4 className="rd-h">🎓 Just graduated to PumpSwap</h4>
+          <ol className="rd-list">
+            {grads.map((c, i) => (
+              <Row key={c.mint} c={c} rank={i + 1} sol={sol} compact={compact} />
+            ))}
+          </ol>
+        </>
       )}
       {!compact && data.rejected.reasons.length > 0 && (
         <div className="rd-out">
@@ -82,7 +106,8 @@ function Row({ c, rank, sol, compact }: { c: RadarCoin; rank: number; sol: numbe
           <b>{sym}</b>
           {!compact && c.name && <span className="dim">{c.name.slice(0, 28)}</span>}
           <span className="dim mono">
-            {age(c.ageS * 1000)} · {c.mc ? usd(c.mc * sol) : "–"}
+            {age(c.ageS * 1000)} · {c.mcUsd ? usd(c.mcUsd) : c.mc ? usd(c.mc * sol) : "–"}
+            {c.liqUsd ? ` · liq ${usd(c.liqUsd)}` : ""}
           </span>
         </div>
         <div className="rd-chips">
@@ -108,9 +133,15 @@ function Row({ c, rank, sol, compact }: { c: RadarCoin; rank: number; sol: numbe
           <a href={`https://gmgn.ai/sol/token/${c.mint}`} target="_blank" rel="noreferrer">
             GMGN
           </a>
-          <a href={`https://pump.fun/coin/${c.mint}`} target="_blank" rel="noreferrer">
-            pump
-          </a>
+          {c.stage === "graduated" && c.url ? (
+            <a href={c.url} target="_blank" rel="noreferrer">
+              chart
+            </a>
+          ) : (
+            <a href={`https://pump.fun/coin/${c.mint}`} target="_blank" rel="noreferrer">
+              pump
+            </a>
+          )}
           {!compact && (
             <a href={`/c/${c.mint}`} target="_blank" rel="noreferrer">
               scan

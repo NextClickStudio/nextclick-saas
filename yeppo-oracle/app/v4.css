@@ -1292,3 +1292,27 @@ body {
   margin: 4px 0 8px;
   font-size: 14px;
 }
+.rd-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  font-size: 11.5px;
+}
+.rd-filters span {
+  color: var(--dim);
+  margin-right: 4px;
+}
+.rd-filters i {
+  font-style: normal;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line2);
+  color: var(--text);
+}
+.rd-h {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--dim);
+  font-weight: 600;
+}
