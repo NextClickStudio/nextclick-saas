@@ -233,7 +233,7 @@ begin
 
   -- once a minute: housekeeping
   if extract(second from clock_timestamp()) < 10 then
-    insert into yr_okv (k, v) values ('recorded', (select count(*) from yr_os where fut is not null))
+    insert into yr_okv (k, v) values ('recorded', (select count(distinct mint) from yr_os where fut is not null))
     on conflict (k) do update set v = excluded.v;
     with gone as (
       delete from yr_oc o
@@ -321,6 +321,7 @@ end $$;
 
 -- who holds a coin, by habit: [who, supply %, kind, first trade, SOL in, SOL out, closed positions, avg hold s, win rate, pnl]
 -- exit: holders with known habits, [seconds until their usual exit (negative: overdue), supply %, kind]
+-- tags: wallet -> kind for the dev, snipers, flippers and smart money that traded it (latest 400)
 create or replace function yr_xray(p_mint text) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare o yr_oc; now_ms bigint := yr_now(); res jsonb;
@@ -351,7 +352,9 @@ begin
                round(coalesce(wp, 0)::numeric, 2)) order by tok desc)
             from (select * from h where tok > 1 order by tok desc limit 20) t),
     'exit', (select jsonb_agg(jsonb_build_array(round(((t1 - now_ms) / 1000.0 + (wh / wn)::numeric)), round((tok / 1e7)::numeric, 3), cls))
-             from h where tok > 1 and wn >= 3))
+             from h where tok > 1 and wn >= 3),
+    'tags', (select jsonb_object_agg(who, cls) from (
+               select who, cls from h where cls in ('dev', 'sniper', 'flipper', 'smart') order by tl desc limit 400) t))
   into res;
   return res;
 end $$;
