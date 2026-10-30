@@ -16,6 +16,8 @@ export type Read = {
   mc: number | null;
   decision: Decision | null;
   checks: Check[];
+  /** wallets holding the coin, from RugCheck */
+  holders?: number | null;
   verdict: { label: string; tone: Tone; score: number; line: string } | null;
   odds: Odds | null;
   flags: Flag[];

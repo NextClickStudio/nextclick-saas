@@ -142,8 +142,8 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
     d?.why ??
     (out
       ? out.dex === "pumpswap"
-        ? "It graduated from pump.fun to PumpSwap. yeppo reads coins on the pump.fun curve, so here it can only show the market."
-        : `Launched on ${where}. yeppo runs its scam checks on pump.fun coins it saw from their first trade, so here it can only show the market.`
+        ? "It graduated from pump.fun to PumpSwap."
+        : `It trades on ${where}.`
       : !rd
       ? rdErr
         ? "yeppo is busy right now and tries again every 5 seconds."
@@ -176,6 +176,20 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
         {rd?.verdict && <span className="pv-decide-sub">{rd.verdict.line}</span>}
       </section>
 
+      {rd && rd.checks.length > 0 && (
+        <section className="pv-checks">
+          <h3>
+            Scam checks{rd.holders ? ` · ${rd.holders.toLocaleString("en-US")} holders` : ""}
+          </h3>
+          {rd.checks.map((c) => (
+            <div key={c.label} className={c.ok ? "ok" : "bad"}>
+              <span>{c.ok ? "✓" : "✗"}</span>
+              <p>{c.label}</p>
+            </div>
+          ))}
+        </section>
+      )}
+
       {out && (
         <section className="pv-outside">
           <h3>The market on {where}</h3>
@@ -198,24 +212,12 @@ function CoinRead({ mint, track, lim, setLim }: { mint: string; track: Track | n
             </div>
           </div>
           <p className="pv-note">
-            Bad signs: liquidity under $10K (hard to sell), more sells than buys, no trades in the last 5 minutes. No scam checks on this one:
-            treat it as Risky at best.
+            Bad signs: liquidity under $10K (hard to sell), more sells than buys, no trades in the last 5 minutes. yeppo has no history on
+            coins like this one, so Risky at best.
           </p>
           <a className="pv-link" href={out.url} target="_blank" rel="noreferrer">
             Open on DexScreener ↗
           </a>
-        </section>
-      )}
-
-      {rd && rd.checks.length > 0 && (
-        <section className="pv-checks">
-          <h3>Scam checks</h3>
-          {rd.checks.map((c) => (
-            <div key={c.label} className={c.ok ? "ok" : "bad"}>
-              <span>{c.ok ? "✓" : "✗"}</span>
-              <p>{c.label}</p>
-            </div>
-          ))}
         </section>
       )}
 
