@@ -33,4 +33,4 @@ $$;
 
 select yr_metas_build();
 select cron.schedule('yr-metas', '* * * * *', 'select yr_metas_build()');
-select cron.schedule('yr-ohot', '60 seconds', 'select yr_oracle_hot_build()');
+select cron.schedule('yr-ohot', '* * * * *', 'select yr_oracle_hot_build()');
