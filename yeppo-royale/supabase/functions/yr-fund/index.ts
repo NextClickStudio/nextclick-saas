@@ -71,9 +71,11 @@ async function firstFunder(addr: string): Promise<{ funder: string | null; kind:
     before = sigs[sigs.length - 1].signature;
   }
   if (!complete) return { funder: null, kind: "old", sol: null };
+  let read = 0;
   for (const sig of oldest) {
     const tx = await rpc<PTx>("getTransaction", [sig, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }]).catch(() => null);
     if (!tx) continue;
+    read++;
     const ixs = [...tx.transaction.message.instructions, ...(tx.meta?.innerInstructions ?? []).flatMap((x) => x.instructions)];
     for (const ix of ixs) {
       const info = ix.parsed?.info;
@@ -86,6 +88,8 @@ async function firstFunder(addr: string): Promise<{ funder: string | null; kind:
       }
     }
   }
+  // the RPC answered none of them: try again later rather than remember "no funder"
+  if (!read && oldest.length) throw new Error("rpc busy");
   return { funder: null, kind: "none", sol: null };
 }
 

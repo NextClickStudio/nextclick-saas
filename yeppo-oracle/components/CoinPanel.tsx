@@ -325,7 +325,7 @@ function PaperBox({ mint, given }: { mint: string; given: string | null }) {
         <header>
           <h3>Paper trade</h3>
           <span className="grow" />
-          <span>practice, no real money</span>
+          <span>practice · real fees</span>
         </header>
         <button className="btn btn-sm btn-go" style={{ width: "100%" }} disabled={!!busy} onClick={() => void start()}>
           {busy ? "Opening…" : "Start with 10 free paper SOL"}
@@ -383,6 +383,9 @@ function PaperBox({ mint, given }: { mint: string; given: string | null }) {
           {msg.text}
         </p>
       )}
+      <p className="pp-msg dim" style={{ fontSize: 11 }}>
+        Fees like a real trade: pump.fun 1.25% (0.3% after graduation), terminal 1%, network 0.002 SOL.
+      </p>
     </section>
   );
 }
