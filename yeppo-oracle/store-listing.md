@@ -1,6 +1,6 @@
 # yeppo: Chrome Web Store listing
 
-Everything the Chrome Web Store asks for, ready to paste. Upload `public/yeppo-extension.zip` (version 2.4.0).
+Everything the Chrome Web Store asks for, ready to paste. Upload `public/yeppo-extension.zip` (version 2.4.1).
 Developer account: https://chrome.google.com/webstore/devconsole (one-time 5 USD fee).
 
 ## Store listing

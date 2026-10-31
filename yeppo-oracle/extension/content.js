@@ -159,11 +159,16 @@
     clearTimeout(timer);
     if (!mint) return;
     const m = mint;
-    chrome.runtime.sendMessage({ t: "read", mint: m }, (r) => {
-      if (m !== mint) return;
-      paint(r);
-      timer = setTimeout(read, document.hidden ? 60000 : 15000);
-    });
+    // the next read is booked first: an answer that never comes can't stop the badge's refresh
+    timer = setTimeout(read, document.hidden ? 60000 : 15000);
+    try {
+      chrome.runtime.sendMessage({ t: "read", mint: m }, (r) => {
+        if (chrome.runtime.lastError || m !== mint) return;
+        paint(r);
+      });
+    } catch {
+      /* the extension was reloaded: this page keeps its last badge */
+    }
   }
 
   function setCoin(next) {

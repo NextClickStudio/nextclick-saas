@@ -31,7 +31,7 @@ async function read(mint) {
     const q = new URLSearchParams({ mint });
     if (key) q.set("key", key);
     if (dev) q.set("dev", dev);
-    const r = await fetch(`${SITE}/api/read?${q}`);
+    const r = await fetch(`${SITE}/api/read?${q}`, { signal: AbortSignal.timeout(12_000) });
     const data = await r.json();
     cache.set(mint, { at: Date.now(), data });
     if (cache.size > 200) cache.delete(cache.keys().next().value);
@@ -98,17 +98,19 @@ async function checkWaves() {
   const now = Date.now();
   for (const k of Object.keys(seen)) if (now - seen[k] > SEEN_MS) delete seen[k];
   for (const t of j.trends) {
-    if (seen[t.theme] || t.n30 < 8 || t.burst < 10) continue;
-    const lead = (t.coins ?? []).find((c) => !c[6] && c[3] >= 150);
-    if (!lead) continue;
-    seen[t.theme] = now;
-    const [mint, sym, , trades, nowX, hiX, , , , grad] = lead;
+    if (t.n30 < 8 || t.burst < 10) continue;
+    // the wave's best coin: under 10 minutes old, already ×1.5, at least 10 buyers in the last 2 minutes, climbing
+    const lead = (t.coins ?? []).find((c) => now - c[2] < 600_000 && (c[4] ?? 0) >= 1.5 && c[7] >= 10 && (c[8] ?? 0) >= 0);
+    if (!lead || seen[lead[0]]) continue;
+    seen[lead[0]] = now;
+    const [mint, sym, t0, , nowX, , , wallets2, ch2] = lead;
     const x = (v) => (v == null ? "" : `×${v >= 10 ? v.toFixed(0) : v.toFixed(1)}`);
+    const mins = Math.max(1, Math.round((now - t0) / 60000));
     chrome.notifications.create(`wave:${mint}`, {
       type: "basic",
       iconUrl: "icons/128.png",
-      title: `New meme wave: ${String(t.theme).toUpperCase()}`,
-      message: `${t.n30} launches in 30 min (×${Math.round(t.burst)} usual). Leading: $${sym ?? "?"} ${x(nowX)}${grad ? " · graduated" : ""}, ${trades} trades (high ${x(hiX)}).`,
+      title: `Meme wave ${String(t.theme).toUpperCase()}: $${sym ?? "?"} ${x(nowX)}`,
+      message: `${t.n30} launches in 30 min (×${Math.round(t.burst)} usual). $${sym ?? "?"} is ${mins} min old, ${wallets2} buyers in 2 min, ${(ch2 ?? 0) >= 0 ? "+" : ""}${Math.round((ch2 ?? 0) * 100)}% now. Passed yeppo's checks.`,
       contextMessage: "Click to open it. yeppo reads it there.",
       priority: 1,
     });

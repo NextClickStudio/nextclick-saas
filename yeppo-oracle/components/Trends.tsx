@@ -22,13 +22,13 @@ export default function Trends({ compact, pkey, pdev }: { compact?: boolean; pke
           const q = new URLSearchParams();
           if (id.key) q.set("key", id.key);
           q.set("dev", id.dev);
-          const r = await fetch(`/api/trends?${q}`);
+          const r = await fetch(`/api/trends?${q}`, { signal: AbortSignal.timeout(15_000) });
           const j = (await r.json()) as Answer & { error?: string };
           if (!r.ok || j.error) throw new Error(j.error ?? "yeppo is busy");
           return j;
         }
       : null,
-    60_000,
+    45_000,
     id ? `${id.key ?? "-"}` : "?",
   );
   const now = useNow(5000);
@@ -51,7 +51,7 @@ export default function Trends({ compact, pkey, pdev }: { compact?: boolean; pke
     <div className="tr">
       <header className="tr-head">
         <h3>Meme waves</h3>
-        <span className="mute small">What pump.fun is launching most right now, against usual</span>
+        <span className="mute small">Memes pump.fun is launching far more than usual, and their coins under 15 minutes old that are safe and climbing now</span>
       </header>
       {data.trends.length === 0 && <p className="mute small">No wave right now. yeppo checks every minute.</p>}
       {data.trends.map((t) => (
@@ -63,32 +63,41 @@ export default function Trends({ compact, pkey, pdev }: { compact?: boolean; pke
               {t.n30} launches in 30 min · ×{Math.round(t.burst)} usual
             </span>
           </header>
-          <div className="tr-coins">
-            {t.coins.map(([mint, sym, t0, n, nowX, hiX, rug, bun0, soldS, grad], i) => (
-              <a
-                key={mint}
-                className={`tr-coin ${i === 0 && !rug ? "lead" : ""}`}
-                href={compact ? `https://pump.fun/coin/${mint}` : `/c/${mint}`}
-                target={compact ? "_blank" : undefined}
-                rel="noreferrer"
-              >
-                <span className="tr-sym">
-                  {sym ? `$${sym}` : short(mint)}
-                  <span className="when">{age(now - t0)}</span>
-                </span>
-                <span className="mono mute">{n} trades</span>
-                <span className="mono">
-                  {x(nowX)} <span className="dim">high {x(hiX)}</span>
-                </span>
-                <span className="tr-flags">
-                  {grad && <span className="chip tone t-up">Graduated</span>}
-                  {rug && <span className="chip tone t-down">Rugged</span>}
-                  {!rug && (bun0 ?? 0) >= 0.15 && <span className="chip tone t-mid">Bundle {Math.round((bun0 ?? 0) * 100)}%</span>}
-                  {!rug && soldS != null && <span className="chip tone t-learn">Dev sold</span>}
-                </span>
-              </a>
-            ))}
-          </div>
+          {t.coins.length === 0 ? (
+            <p className="mute small" style={{ margin: 0 }}>
+              No coin of this wave is safe and climbing right now.
+            </p>
+          ) : (
+            <div className="tr-coins">
+              {t.coins.map(([mint, sym, t0, , nowX, hiX, buys2, wallets2, ch2, bun, outS], i) => (
+                <a
+                  key={mint}
+                  className={`tr-coin ${i === 0 ? "lead" : ""}`}
+                  href={compact ? `https://pump.fun/coin/${mint}` : `/c/${mint}`}
+                  target={compact ? "_blank" : undefined}
+                  rel="noreferrer"
+                >
+                  <span className="tr-sym">
+                    {sym ? `$${sym}` : short(mint)}
+                    <span className="when">{age(now - t0)}</span>
+                  </span>
+                  <span className="mono mute">{wallets2} buyers · 2m</span>
+                  <span className="mono">
+                    {x(nowX)} <span className="dim">high {x(hiX)}</span>
+                  </span>
+                  <span className="tr-flags">
+                    <span className={`chip tone ${(ch2 ?? 0) >= 0 ? "t-up" : "t-mid"}`}>
+                      {(ch2 ?? 0) >= 0 ? "+" : ""}
+                      {Math.round((ch2 ?? 0) * 100)}% in 2 min
+                    </span>
+                    <span className="chip tone t-learn">{buys2} buys</span>
+                    {(bun ?? 0) >= 0.05 && <span className="chip tone t-mid">Bundle {Math.round((bun ?? 0) * 100)}%</span>}
+                    {outS != null && <span className="chip tone t-learn">Dev out</span>}
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
         </section>
       ))}
       <p className="dim small" style={{ marginTop: 8 }}>

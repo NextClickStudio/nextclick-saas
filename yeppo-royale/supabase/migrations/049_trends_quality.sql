@@ -1,0 +1,7 @@
+-- Meme waves, sharper (applied as 049_trends_quality and 050_trends_dedupe):
+--  * words of the same coin names are one wave (the strongest word of each group is kept);
+--  * a wave lists only its coins born in the last 15 minutes that yeppo would not call Don't buy (no rug, bundle under
+--    15%, at least half of their high, ×1.3 over launch, not a coin farm) and that buyers are piling into now
+--    (8+ buys in the last 2 minutes, buys >= sells, price not falling more than 15%), best first by buying wallets
+--    and climb; a creator who left in the first minute halves the score.
+-- The full function is the one in the database (yr_trends_s); see 048_trends.sql for its first form.

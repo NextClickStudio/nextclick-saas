@@ -59,7 +59,8 @@ export async function readCoin(mint: string, key?: string | null, dev?: string |
   const q = new URLSearchParams({ mint });
   if (key) q.set("key", key);
   if (dev) q.set("dev", dev);
-  const r = await fetch(`/api/read?${q}`);
+  // never wait more than 12 s: a request left hanging would stop the panel's refresh until a reload
+  const r = await fetch(`/api/read?${q}`, { signal: AbortSignal.timeout(12_000) });
   const j = (await r.json()) as Read & { error?: string };
   if (!r.ok || j.error) throw new Error(j.error ?? "yeppo is busy");
   return j;
