@@ -201,7 +201,7 @@ export default function CoinPanel({ mint, compact, paper, pkey }: { mint: string
         </header>
         {r.down?.includes("rugcheck") && (
           <p className="cp-line mute" style={{ fontSize: 12, margin: "0 0 8px" }}>
-            RugCheck isn&apos;t answering, so holders and insiders can&apos;t be checked right now. Below: what the chain itself says.
+            RugCheck isn&apos;t answering: these checks come straight from the chain. Insider groups can&apos;t be seen without it.
           </p>
         )}
         <div className="cp-checks">

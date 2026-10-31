@@ -165,7 +165,7 @@ export async function GET(req: Request) {
   // straight from the chain
   const [second, chain] = await Promise.all([
     !first?.me && rug?.dev ? creatorRpc(mint, rug.dev) : null,
-    rug ? null : chainChecks(mint),
+    rug ? null : chainChecks(mint, first?.dev ?? null),
   ]);
   const cr = second ?? first;
   const me = cr?.me ?? null;
@@ -180,7 +180,7 @@ export async function GET(req: Request) {
   if (!rug) down.push("rugcheck");
   if (!cr) down.push("history");
 
-  const checks: Check[] = rug ? rugChecks(rug) : (chain ?? []);
+  const checks: Check[] = rug ? rugChecks(rug) : (chain?.checks ?? []);
   // the launch bundle, when yeppo saw the launch: buyers of the first 3 seconds still holding together
   if (me?.bun0 != null && me.bun0 >= 0.03) {
     const b = me.bun ?? 0;
@@ -247,7 +247,7 @@ export async function GET(req: Request) {
     priceX,
     athX,
     liqUsd: out?.liq ?? null,
-    holders: rug?.holders ?? null,
+    holders: rug?.holders ?? chain?.holders ?? null,
     decision: pro || down.length ? decision : freeCall(decision),
     checks,
     pulse: pro ? pulse : null,

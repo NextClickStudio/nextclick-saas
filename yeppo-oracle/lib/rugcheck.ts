@@ -120,35 +120,108 @@ export function rugChecks(r: Rug): Check[] {
 }
 
 const RPCS = ["https://api.mainnet-beta.solana.com", "https://solana-rpc.publicnode.com"];
-const chainCache = new Map<string, { t: number; v: Check[] }>();
+const SYSTEM = "11111111111111111111111111111111";
+const TOKEN = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+const chainCache = new Map<string, { t: number; v: ChainRead }>();
 
-/** when RugCheck does not answer: the two checks any public Solana node can answer from the coin's own account
- *  (can more coins be printed, can wallets be frozen), and a clear note that the holder checks are missing */
-export async function chainChecks(mint: string): Promise<Check[] | null> {
-  const hit = chainCache.get(mint);
-  if (hit && Date.now() - hit.t < 300_000) return hit.v;
-  for (const url of RPCS) {
+const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function b58(bytes: Uint8Array) {
+  let n = 0n;
+  for (const b of bytes) n = (n << 8n) | BigInt(b);
+  let out = "";
+  while (n > 0n) {
+    out = B58[Number(n % 58n)] + out;
+    n /= 58n;
+  }
+  for (const b of bytes) {
+    if (b !== 0) break;
+    out = "1" + out;
+  }
+  return out;
+}
+
+async function rpc<T>(method: string, params: unknown[], ms: number, nodes = RPCS): Promise<T | null> {
+  for (const url of nodes) {
     try {
       const r = await fetch(url, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getAccountInfo", params: [mint, { encoding: "jsonParsed" }] }),
-        signal: AbortSignal.timeout(2500),
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+        signal: AbortSignal.timeout(ms),
       });
       if (!r.ok) continue;
-      const j = (await r.json()) as { result?: { value?: { data?: { parsed?: { info?: { mintAuthority?: string | null; freezeAuthority?: string | null } } } } | null } };
-      const info = j.result?.value?.data?.parsed?.info;
-      if (!info) continue;
-      const v: Check[] = [
-        { ok: !info.mintAuthority, label: info.mintAuthority ? "Creator can print more coins." : "No new coins can be printed" },
-        { ok: !info.freezeAuthority, label: info.freezeAuthority ? "Creator can freeze your coins." : "Your coins can't be frozen" },
-      ];
-      if (chainCache.size > 500) chainCache.clear();
-      chainCache.set(mint, { t: Date.now(), v });
-      return v;
+      const j = (await r.json()) as { result?: T; error?: unknown };
+      if (j.error || j.result === undefined) continue;
+      return j.result;
     } catch {
       /* next node */
     }
   }
   return null;
+}
+
+export type ChainRead = { checks: Check[]; holders: number | null };
+
+/** when RugCheck does not answer, the same checks straight from the chain, through the free public Solana node:
+ *  every holder of the coin (one account list), the top 10 people and the creator's share (pools and other
+ *  program-owned accounts left out), and whether more coins can be printed or wallets frozen. */
+export async function chainChecks(mint: string, dev: string | null): Promise<ChainRead | null> {
+  const ck = `${mint}:${dev ?? ""}`;
+  const hit = chainCache.get(ck);
+  if (hit && Date.now() - hit.t < 60_000) return hit.v;
+  type MintAcc = { owner: string; data: { parsed?: { info?: { mintAuthority?: string | null; freezeAuthority?: string | null; supply?: string } } } };
+  const m = await rpc<{ value: MintAcc | null }>("getAccountInfo", [mint, { encoding: "jsonParsed" }], 2500);
+  const info = m?.value?.data?.parsed?.info;
+  if (!m?.value || !info) return hit?.v ?? null;
+  const checks: Check[] = [];
+  let holders: number | null = null;
+  // every token account of this coin: just its owner and amount (bytes 32..72)
+  const filters: unknown[] = [{ memcmp: { offset: 0, bytes: mint } }];
+  if (m.value.owner === TOKEN) filters.push({ dataSize: 165 });
+  const accs = await rpc<{ account: { data: [string, string] } }[]>(
+    "getProgramAccounts",
+    [m.value.owner, { encoding: "base64", dataSlice: { offset: 32, length: 40 }, filters }],
+    4500,
+    RPCS.slice(0, 1),
+  );
+  const supply = Number(info.supply ?? 0);
+  if (accs && supply > 0) {
+    const byOwner = new Map<string, number>();
+    for (const a of accs) {
+      const b = Uint8Array.from(atob(a.account.data[0]), (c) => c.charCodeAt(0));
+      if (b.length < 40) continue;
+      const amt = Number(new DataView(b.buffer).getBigUint64(32, true));
+      if (amt <= 0) continue;
+      const owner = b58(b.slice(0, 32));
+      byOwner.set(owner, (byOwner.get(owner) ?? 0) + amt);
+    }
+    holders = byOwner.size;
+    const top = [...byOwner].sort((a, b) => b[1] - a[1]).slice(0, 20);
+    // pools, the bonding curve and lockers are accounts owned by a program, not wallets: leave them out
+    const owners = await rpc<{ value: ({ owner: string } | null)[] }>(
+      "getMultipleAccounts",
+      [top.map((t) => t[0]), { encoding: "base64", dataSlice: { offset: 0, length: 0 } }],
+      2500,
+    );
+    if (owners) {
+      const people = top.filter((_, i) => {
+        const o = owners.value[i];
+        return !o || o.owner === SYSTEM;
+      });
+      const top10 = people.slice(0, 10).reduce((a, t) => a + t[1], 0) / supply;
+      checks.push({ ok: top10 < 0.25, label: top10 < 0.25 ? `Top 10 hold ${p(top10)}` : `Top 10 hold ${p(top10)}. They can crash it.` });
+      if (dev) {
+        const c = (byOwner.get(dev) ?? 0) / supply;
+        checks.push({ ok: c < 0.05, label: c < 0.05 ? `Creator holds ${p(c)}` : `Creator still holds ${p(c)}. Can dump on you.` });
+      }
+    }
+  }
+  checks.push(
+    { ok: !info.mintAuthority, label: info.mintAuthority ? "Creator can print more coins." : "No new coins can be printed" },
+    { ok: !info.freezeAuthority, label: info.freezeAuthority ? "Creator can freeze your coins." : "Your coins can't be frozen" },
+  );
+  const v = { checks, holders };
+  if (chainCache.size > 500) chainCache.clear();
+  chainCache.set(ck, { t: Date.now(), v });
+  return v;
 }

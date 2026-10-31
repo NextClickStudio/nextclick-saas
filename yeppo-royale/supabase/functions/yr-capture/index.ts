@@ -1,4 +1,6 @@
-// yr-capture: called by pg_cron every 30 s and runs ~57 s, so two runs (two leases) always overlap.
+// yr-capture: called by pg_cron every 30 s and runs 34 s, so the next run is already listening before this one
+// stops (two leases) and no trade falls in a gap, while the two write the same trades only for ~4 s, not 25 s:
+// half the writes the database used to take.
 //   - launches (name, symbol, creator) come from pump.fun's CreateEvent in the program logs, with
 //     PumpPortal's free creation feed as a backup, and land in yr_obirth;
 //   - trades come straight from the chain: pump.fun TradeEvents in the program logs, read through the
@@ -9,7 +11,7 @@
 // live-trader list (yr_hot_wallets) are no longer written.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 
-const RUN_MS = 55_000;
+const RUN_MS = 34_000;
 const PUMP_PROGRAM = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
 const RPC_WS = "wss://api.mainnet-beta.solana.com";
 // base64 prefix of the anchor discriminator of pump.fun's TradeEvent
@@ -250,7 +252,7 @@ Deno.serve(async (req) => {
     return tickChain;
   }
 
-  const tickTimer = setInterval(() => void flushTicks(), 1000);
+  const tickTimer = setInterval(() => void flushTicks(), 2000);
   await new Promise((r) => setTimeout(r, RUN_MS));
   clearInterval(tickTimer);
   for (const w of [pp, rpc]) {
