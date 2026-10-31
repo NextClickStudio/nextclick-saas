@@ -122,7 +122,6 @@ export function rugChecks(r: Rug): Check[] {
 const RPCS = ["https://api.mainnet-beta.solana.com", "https://solana-rpc.publicnode.com"];
 const SYSTEM = "11111111111111111111111111111111";
 const TOKEN = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-const chainCache = new Map<string, { t: number; v: ChainRead }>();
 
 const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 function b58(bytes: Uint8Array) {
@@ -160,21 +159,24 @@ async function rpc<T>(method: string, params: unknown[], ms: number, nodes = RPC
   return null;
 }
 
-export type ChainRead = { checks: Check[]; holders: number | null };
+export type ChainRead = { checks: Check[]; holders: number | null; hasHolders: boolean };
+type Holders = { base: Check[]; holders: number | null; byOwner: Map<string, number> | null; supply: number };
+const holdersCache = new Map<string, { t: number; v: Holders }>();
 
 /** when RugCheck does not answer, the same checks straight from the chain, through the free public Solana node:
  *  every holder of the coin (one account list), the top 10 people and the creator's share (pools and other
- *  program-owned accounts left out), and whether more coins can be printed or wallets frozen. */
-export async function chainChecks(mint: string, dev: string | null): Promise<ChainRead | null> {
-  const ck = `${mint}:${dev ?? ""}`;
-  const hit = chainCache.get(ck);
-  if (hit && Date.now() - hit.t < 60_000) return hit.v;
+ *  program-owned accounts left out), and whether more coins can be printed or wallets frozen. Kept a minute. */
+async function chainHolders(mint: string): Promise<Holders | null> {
+  const hit = holdersCache.get(mint);
+  // a full read is kept a minute; one without the holder list is tried again after 15 s
+  if (hit && Date.now() - hit.t < (hit.v.byOwner ? 60_000 : 15_000)) return hit.v;
   type MintAcc = { owner: string; data: { parsed?: { info?: { mintAuthority?: string | null; freezeAuthority?: string | null; supply?: string } } } };
   const m = await rpc<{ value: MintAcc | null }>("getAccountInfo", [mint, { encoding: "jsonParsed" }], 2500);
   const info = m?.value?.data?.parsed?.info;
   if (!m?.value || !info) return hit?.v ?? null;
-  const checks: Check[] = [];
+  const base: Check[] = [];
   let holders: number | null = null;
+  let byOwner: Map<string, number> | null = null;
   // every token account of this coin: just its owner and amount (bytes 32..72)
   const filters: unknown[] = [{ memcmp: { offset: 0, bytes: mint } }];
   if (m.value.owner === TOKEN) filters.push({ dataSize: 165 });
@@ -186,7 +188,7 @@ export async function chainChecks(mint: string, dev: string | null): Promise<Cha
   );
   const supply = Number(info.supply ?? 0);
   if (accs && supply > 0) {
-    const byOwner = new Map<string, number>();
+    byOwner = new Map<string, number>();
     for (const a of accs) {
       const b = Uint8Array.from(atob(a.account.data[0]), (c) => c.charCodeAt(0));
       if (b.length < 40) continue;
@@ -209,19 +211,29 @@ export async function chainChecks(mint: string, dev: string | null): Promise<Cha
         return !o || o.owner === SYSTEM;
       });
       const top10 = people.slice(0, 10).reduce((a, t) => a + t[1], 0) / supply;
-      checks.push({ ok: top10 < 0.25, label: top10 < 0.25 ? `Top 10 hold ${p(top10)}` : `Top 10 hold ${p(top10)}. They can crash it.` });
-      if (dev) {
-        const c = (byOwner.get(dev) ?? 0) / supply;
-        checks.push({ ok: c < 0.05, label: c < 0.05 ? `Creator holds ${p(c)}` : `Creator still holds ${p(c)}. Can dump on you.` });
-      }
-    }
+      base.push({ ok: top10 < 0.25, label: top10 < 0.25 ? `Top 10 hold ${p(top10)}` : `Top 10 hold ${p(top10)}. They can crash it.` });
+    } else byOwner = null;
   }
-  checks.push(
+  base.push(
     { ok: !info.mintAuthority, label: info.mintAuthority ? "Creator can print more coins." : "No new coins can be printed" },
     { ok: !info.freezeAuthority, label: info.freezeAuthority ? "Creator can freeze your coins." : "Your coins can't be frozen" },
   );
-  const v = { checks, holders };
-  if (chainCache.size > 500) chainCache.clear();
-  chainCache.set(ck, { t: Date.now(), v });
+  const v = { base, holders, byOwner, supply };
+  if (holdersCache.size > 300) holdersCache.clear();
+  holdersCache.set(mint, { t: Date.now(), v });
   return v;
+}
+
+/** starts reading the holders before the creator is known (when RugCheck is down, nothing waits for it) */
+export const chainPrefetch = (mint: string) => chainHolders(mint).catch(() => null);
+
+export async function chainChecks(mint: string, dev: string | null): Promise<ChainRead | null> {
+  const h = await chainHolders(mint).catch(() => null);
+  if (!h) return null;
+  const checks = [...h.base];
+  if (dev && h.byOwner && h.supply > 0) {
+    const c = (h.byOwner.get(dev) ?? 0) / h.supply;
+    checks.splice(1, 0, { ok: c < 0.05, label: c < 0.05 ? `Creator holds ${p(c)}` : `Creator still holds ${p(c)}. Can dump on you.` });
+  }
+  return { checks, holders: h.holders, hasHolders: !!h.byOwner };
 }

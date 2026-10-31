@@ -12,7 +12,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/config";
 import { type Check, type CoinRow, creatorOf, decide, type DevNow, launchOf, outlookCurve, outlookOutside, pulseOf, pulseOutside } from "@/lib/decide";
 import { isMint } from "@/lib/format";
 import type { Money, Read } from "@/lib/read";
-import { chainChecks, rugChecks, rugReport } from "@/lib/rugcheck";
+import { chainChecks, chainPrefetch, rugChecks, rugReport } from "@/lib/rugcheck";
 
 export const runtime = "edge";
 
@@ -122,6 +122,11 @@ function lockedRead(mint: string, reason: string | undefined): Read {
   };
 }
 
+// RugCheck has been failing: read the chain right away instead of waiting for it first
+let rugDownUntil = 0;
+// the same coin's read, shared by every key on this server instance for a few seconds
+const readCache = new Map<string, { t: number; body: Read }>();
+
 let solUsd = 0;
 let solAt = 0;
 async function solPrice() {
@@ -187,7 +192,11 @@ export async function GET(req: Request) {
   const acc = await accessOf(key, devId);
   if (!acc.pro) return Response.json(lockedRead(mint, acc.reason), { headers: { ...CORS, "cache-control": "private, no-store" } });
   // everything that does not depend on anything else, at once
+  const hot = readCache.get(mint);
+  if (hot && Date.now() - hot.t < 4000) return Response.json(hot.body, { headers: { ...CORS, "cache-control": "public, s-maxage=5, stale-while-revalidate=10" } });
+  if (Date.now() < rugDownUntil) void chainPrefetch(mint);
   const [rug, first, sol, dex] = await Promise.all([rugReport(mint), creatorRpc(mint, null), solPrice(), dexscreener(mint)]);
+  rugDownUntil = rug ? 0 : Date.now() + 120_000;
   // a coin yeppo did not see launch: ask again with the creator RugCheck names; RugCheck down: the basic checks
   // straight from the chain
   const [second, chain] = await Promise.all([
@@ -252,14 +261,10 @@ export async function GET(req: Request) {
     else if (n < 5 && (ageS ?? 1e9) > 600) outsideNo = "Nobody is trading it.";
   }
   let decision = decide({ checks, creator, dev, ageS, priceX, athX, pulse, outlook, outsideNo });
-  if (down.length && decision.word === "Momentum")
-    decision = {
-      word: "Wait",
-      tone: "mid",
-      why: down.includes("rugcheck")
-        ? "The holder and insider checks aren't answering right now. yeppo won't say Momentum without them."
-        : "The creator's history isn't answering right now. yeppo won't say Momentum without it.",
-    };
+  // the holders could not be read this time (RugCheck down and the public node busy): the call stands, with a note
+  const holdersKnown = !!rug || !!chain?.hasHolders;
+  if (!holdersKnown && checks.length) decision = { ...decision, why: `${decision.why} Top holders couldn't be read right now: check them on the chart.` };
+  if (!cr) decision = { ...decision, why: `${decision.why} The creator's history isn't answering right now.` };
 
   const body: Read = {
     mint,
@@ -286,5 +291,7 @@ export async function GET(req: Request) {
     down,
     pro: true,
   };
+  if (readCache.size > 300) readCache.clear();
+  readCache.set(mint, { t: Date.now(), body });
   return Response.json(body, { headers: { ...CORS, "cache-control": "public, s-maxage=5, stale-while-revalidate=10" } });
 }

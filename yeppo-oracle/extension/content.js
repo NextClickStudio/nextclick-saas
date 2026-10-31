@@ -162,7 +162,7 @@
     chrome.runtime.sendMessage({ t: "read", mint: m }, (r) => {
       if (m !== mint) return;
       paint(r);
-      timer = setTimeout(read, document.hidden ? 60000 : 8000);
+      timer = setTimeout(read, document.hidden ? 60000 : 15000);
     });
   }
 
