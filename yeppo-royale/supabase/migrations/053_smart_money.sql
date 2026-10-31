@@ -8,7 +8,8 @@
 --   a win           = an early entry into a coin that, within 15 minutes, reached at least ×4 the price they paid.
 -- Each coin is settled once, 15 minutes after its launch (yr_ticks keeps about 20). Only wallets with a win get a row;
 -- from then on every early entry counts, so the hit rate is wins over entries. A wallet counts as smart with 3+ wins,
--- by 3+ different creators (not one team's insiders), hitting 12% or more (a random early buyer hits about 3%).
+-- by 3+ different creators (not one team's insiders), out of 8+ early entries, hitting 12% or more (a random early
+-- buyer hits about 3%).
 
 create table if not exists yr_sm (
   who text primary key,
@@ -92,7 +93,7 @@ begin
   with smart as (
     select s.who, s.wins, s.tries, s.wins::real / greatest(s.tries, 1) hit
     from yr_sm s
-    where s.wins >= 3 and s.wins::real / greatest(s.tries, 1) >= 0.12
+    where s.wins >= 3 and s.tries >= 8 and s.wins::real / greatest(s.tries, 1) >= 0.12
       and (select count(distinct d) from unnest(s.devs) d) >= 3),
   act as (
     select x.mint, sm.who, sm.wins, sm.tries, sm.hit,
@@ -138,7 +139,7 @@ begin
   insert into yr_sm_sig (mint, t, n, mc)
   select e->>'mint', now_ms, (e->>'smart')::int, (e->>'mc')::real from jsonb_array_elements(out) e
   on conflict (mint) do nothing;
-  return jsonb_build_object('smart', out, 'wallets', (select count(*) from yr_sm s where s.wins >= 3
+  return jsonb_build_object('smart', out, 'wallets', (select count(*) from yr_sm s where s.wins >= 3 and s.tries >= 8
     and s.wins::real / greatest(s.tries, 1) >= 0.12 and (select count(distinct d) from unnest(s.devs) d) >= 3),
     'learning', (select count(*) from yr_sm));
 end $$;

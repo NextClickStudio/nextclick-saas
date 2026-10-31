@@ -138,7 +138,7 @@ function SmartMoney({ s, now, compact }: { s: Smart | null; now: number; compact
         <p className="mute small">
           {s.wallets >= 10
             ? `No coin is being bought by 2+ of the ${s.wallets} proven wallets right now. yeppo checks every minute.`
-            : `yeppo is learning which wallets are right: ${s.wallets} proven so far, ${s.learning} being watched. Calls start once enough of them have a record (3+ wins from 3+ creators, 12%+ hit rate).`}
+            : `yeppo is learning which wallets are right: ${s.wallets} proven so far, ${s.learning} being watched. Calls start once enough of them have a record (3+ wins from 3+ creators, out of 8+ early entries, 12%+ hit rate).`}
         </p>
       ) : (
         <div className="tr-coins" style={{ marginBottom: 18 }}>
