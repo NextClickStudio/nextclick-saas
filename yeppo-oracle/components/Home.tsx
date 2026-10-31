@@ -1,4 +1,6 @@
 import Link from "next/link";
+import JsonLd from "./JsonLd";
+import { SITE_URL } from "@/lib/config";
 import Demo, { MiniOverlay } from "./Demo";
 import Nav, { Footer } from "./Nav";
 import Reveal from "./Reveal";
@@ -215,6 +217,26 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="sec" id="faq">
+          <Reveal className="sec-head">
+            <span className="label">FAQ</span>
+            <h2>the short answers.</h2>
+          </Reveal>
+          <div className="faq-list">
+            {FAQ.map(([q, a]) => (
+              <details key={q} className="faq card">
+                <summary>{q}</summary>
+                <p>{a}</p>
+              </details>
+            ))}
+          </div>
+          <p className="mute small" style={{ marginTop: 14 }}>
+            More in the guides: <Link href="/learn/pump-fun-rug-checker">how to check a pump.fun coin for a rug</Link>,{" "}
+            <Link href="/learn/memecoin-bundle-checker">spotting bundles</Link>, <Link href="/learn/dev-wallet-checker">checking the dev wallet</Link>{" "}
+            and <Link href="/learn/when-to-buy-memecoin">when momentum lies</Link>.
+          </p>
+        </section>
+
         <Reveal className="card final glow-edge">
           <h2>
             trade the move.
@@ -228,9 +250,38 @@ export default function Home() {
         </Reveal>
       </main>
       <Footer />
+      <JsonLd
+        data={[
+          {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: "yeppo",
+            applicationCategory: "FinanceApplication",
+            operatingSystem: "Chrome, Brave, Edge, Arc",
+            url: SITE_URL,
+            description:
+              "Chrome extension and site that checks any Solana memecoin on pump.fun, GMGN and Axiom: rug checks, launch bundles, the creator's past coins, the money behind the creator, and a live Momentum, Wait or Don't buy call.",
+            featureList: ["Pump.fun rug checker", "Dev wallet history", "Bundle checker", "Bubble map of wallets that bought together", "Memecoin scanner", "Live momentum call"],
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: FAQ.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
+          },
+        ]}
+      />
     </>
   );
 }
+
+const FAQ: [string, string][] = [
+  ["What is yeppo?", "A Chrome extension and site that reads any Solana memecoin in one second: safety checks, the creator's past coins, the money behind the creator, the crowd and the live moment, summed up as Momentum, Wait or Don't buy."],
+  ["How does yeppo check if a coin is a rug?", "It checks the top holders, the creator's share, linked insider wallets, the launch bundle, mint and freeze authority and locked liquidity, and compares the creator's earlier coins: how many ran, faded or were dumped in seconds."],
+  ["Which sites does it work on?", "pump.fun, GMGN, Axiom, Photon, BullX, DexScreener, Birdeye, Solscan and Jupiter, in Chrome, Brave, Edge and Arc."],
+  ["Does yeppo touch my wallet?", "No. It only reads the coin address on the page. It never sees your wallet, keys or passwords and cannot trade."],
+  ["How much does it cost?", "A Pro key paid in SOL, no account and no card. See the pricing page for the plans."],
+  ["Will it make me money?", "No tool can promise that. Most memecoins go to zero. yeppo removes the coins with known red flags and tells you when buyers are coming in; the trade is yours."],
+];
 
 /** the little live chart on each of the three words: a run, a pause, a crash */
 function WordViz({ tone }: { tone: string }) {

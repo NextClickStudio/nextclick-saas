@@ -7,6 +7,7 @@ import { useState } from "react";
 const LINKS = [
   { href: "/#how", label: "How it works" },
   { href: "/trends", label: "Scanner" },
+  { href: "/learn", label: "Learn" },
   { href: "/extension", label: "Extension" },
   { href: "/pricing", label: "Pricing" },
 ];
@@ -55,6 +56,11 @@ export function Footer() {
         <nav>
           <Link href="/extension">Extension</Link>
           <Link href="/pricing">Pricing</Link>
+          <Link href="/trends">Memecoin scanner</Link>
+          <Link href="/learn/pump-fun-rug-checker">Pump.fun rug checker</Link>
+          <Link href="/learn/dev-wallet-checker">Dev wallet checker</Link>
+          <Link href="/learn/memecoin-bundle-checker">Bundle checker</Link>
+          <Link href="/learn">Learn</Link>
           <Link href="/terms">Terms</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/risk">Risk</Link>

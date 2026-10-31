@@ -36,8 +36,14 @@ html {
 html,
 body {
   margin: 0;
-  background: var(--bg);
   color: var(--fg);
+}
+/* the page colour sits on html only: a background on body would paint over the moving backdrop (.bd, z-index -1) */
+html {
+  background: var(--bg);
+}
+body {
+  background: transparent;
 }
 body {
   font: 400 14px/1.55 var(--sans);
@@ -2023,3 +2029,25 @@ img {
 .tr-flags { grid-column: 1 / -1; display: flex; gap: 4px; flex-wrap: wrap; }
 .tr-flags:empty { display: none; }
 .tr-coin.copy { opacity: 0.55; }
+
+/* ---- learn & faq ---------------------------------------------------------------------------------------------- */
+.learn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.learn-card { display: flex; flex-direction: column; gap: 8px; padding: 18px; color: inherit; text-decoration: none; transition: transform .2s, border-color .2s; }
+.learn-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, #9a85ff 40%, transparent); }
+.learn-card h2 { font-size: 17px; margin: 0; letter-spacing: -.01em; }
+.learn-card p { margin: 0; font-size: 13.5px; color: var(--mute, #a9a9bd); }
+.learn-more { margin-top: auto; font-size: 13px; color: #9a85ff; }
+.learn-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 16px 18px; margin: 26px 0 14px; }
+.learn-cta span { flex: 1 1 260px; font-size: 13.5px; color: var(--mute, #a9a9bd); }
+.crumbs { margin-bottom: 8px; }
+.crumbs a { color: inherit; }
+.doc ul { padding-left: 20px; }
+.doc li { margin: 6px 0; }
+.faq-list { display: grid; gap: 8px; }
+details.faq { padding: 12px 16px; border-radius: 12px; }
+details.faq summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+details.faq summary::after { content: "+"; color: #9a85ff; transition: transform .2s; }
+details.faq[open] summary::after { transform: rotate(45deg); }
+details.faq summary::-webkit-details-marker { display: none; }
+details.faq p { margin: 10px 0 2px; color: var(--mute, #a9a9bd); font-size: 14px; }
+.doc details.faq { border: 1px solid rgba(255, 255, 255, .08); margin: 8px 0; }

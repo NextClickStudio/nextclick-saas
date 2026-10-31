@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Nav, { Footer } from "@/components/Nav";
 import Trends from "@/components/Trends";
 
-export const metadata: Metadata = { title: "Scanner · yeppo", description: "New coins proven wallets are buying right now, and the memes pump.fun is launching most." };
+export const metadata: Metadata = { title: "Scanner · yeppo", description: "Free Solana memecoin scanner: new pump.fun coins that proven wallets are buying right now, and the memes launching far more than usual, after yeppo's rug and bundle checks.", alternates: { canonical: "/trends" } };
 
 export default function Page() {
   return (
