@@ -77,9 +77,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 chrome.tabs.onRemoved.addListener((tabId) => chrome.storage.session.remove(`tab:${tabId}`));
 
 
-// ---- meme waves -------------------------------------------------------------------------------------------------
-// Every 2 minutes (with a Pro key): a new wave whose leading coin already trades well becomes a Chrome
-// notification. Clicking it opens the coin on pump.fun, where yeppo reads it. "Wave alerts" in the side panel
+// ---- scanner alerts ----------------------------------------------------------------------------------------------
+// Every 2 minutes (with a Pro key): a new coin several proven wallets are buying, or a new wave whose leading coin
+// already trades well, becomes a Chrome notification. Clicking it opens the coin on pump.fun, where yeppo reads it. "Wave alerts" in the side panel
 // turns it off.
 const SEEN_MS = 3 * 3600_000; // a wave alerts once every 3 hours at most
 
@@ -103,6 +103,24 @@ async function checkWaves() {
   const seen = st.waveSeen ?? {};
   const now = Date.now();
   for (const k of Object.keys(seen)) if (now - seen[k] > SEEN_MS) delete seen[k];
+  // smart money first: 3+ proven wallets in (or 2 with a 25%+ record), under 30 minutes old, buyers still coming
+  for (const c of j.smart?.smart ?? []) {
+    if (seen[c.mint] || now - c.t0 > 1_800_000) continue;
+    if (!(c.smart >= 3 || (c.smart >= 2 && c.hit >= 0.25))) continue;
+    if (c.wal2 < 5 || (c.ch2 ?? 0) < -0.05) continue;
+    seen[c.mint] = now;
+    const mins = Math.max(1, Math.round((now - c.t0) / 60000));
+    chrome.notifications.create(`wave:${c.mint}`, {
+      type: "basic",
+      iconUrl: "icons/128.png",
+      title: `Smart money: $${c.sym ?? "?"} ×${c.nowx >= 10 ? c.nowx.toFixed(0) : c.nowx.toFixed(1)}`,
+      message: `${c.smart} wallets that got into runners early are buying it (best record ${Math.round(c.hit * 100)}%). ${mins} min old, ${c.wal2} buyers in 2 min. Passed yeppo's checks.`,
+      contextMessage: "Click to open it. yeppo reads it there.",
+      priority: 2,
+    });
+    await chrome.storage.local.set({ waveSeen: seen });
+    return; // one alert at a time
+  }
   for (const t of j.trends) {
     if (t.n30 < 8 || t.burst < 10) continue;
     // the wave's original (never a copy): under 30 minutes old, already ×2, and buyers piling in right now (on the curve:

@@ -22,7 +22,15 @@ export type TrendCoin = [
 export type Dex = { b5: number; s5: number; ch5: number | null; mcUsd: number | null };
 export type Trend = { theme: string; n30: number; n24: number; burst: number; coins: TrendCoin[] };
 
-let cache: { t: number; v: Trend[] } | null = null;
+/** a coin wallets with a record are buying now (yr_smart_s): who = [wallet, wins, hit rate, SOL in] */
+export type SmartCoin = {
+  mint: string; sym: string | null; t0: number; n: number; mc: number; nowx: number; hix: number;
+  smart: number; out: number; hit: number; first: number; who: [string, number, number, number][];
+  buys2: number; sells2: number; wal2: number; ch2: number | null; bun: number | null; grad: boolean;
+};
+export type Smart = { smart: SmartCoin[]; wallets: number; learning: number };
+
+let cache: { t: number; v: Trend[]; s: Smart | null } | null = null;
 
 type Pair = { baseToken?: { address?: string }; liquidity?: { usd?: number }; txns?: { m5?: { buys: number; sells: number } }; priceChange?: { m5?: number }; marketCap?: number };
 
@@ -52,21 +60,30 @@ async function withDex(v: Trend[]): Promise<Trend[]> {
   }));
 }
 
-async function trends(): Promise<Trend[] | null> {
-  if (cache && Date.now() - cache.t < 45_000) return cache.v;
+/** the smart-money coins: wallets that keep getting into future runners early, buying the same coin now */
+async function smart(): Promise<Smart | null> {
   try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_trends_s`, {
-      method: "POST",
-      headers: DB_HEADERS,
-      body: "{}",
-      signal: AbortSignal.timeout(8000),
-    });
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_smart_s`, { method: "POST", headers: DB_HEADERS, body: "{}", signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error(`${r.status}`);
+    return (await r.json()) as Smart;
+  } catch {
+    return cache?.s ?? null;
+  }
+}
+
+async function trends(): Promise<{ v: Trend[]; s: Smart | null } | null> {
+  if (cache && Date.now() - cache.t < 45_000) return cache;
+  try {
+    const [r, s] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_trends_s`, { method: "POST", headers: DB_HEADERS, body: "{}", signal: AbortSignal.timeout(8000) }),
+      smart(),
+    ]);
     if (!r.ok) throw new Error(`${r.status}`);
     const v = await withDex((await r.json()) as Trend[]);
-    cache = { t: Date.now(), v };
-    return v;
+    cache = { t: Date.now(), v, s };
+    return cache;
   } catch {
-    return cache?.v ?? null;
+    return cache ?? null;
   }
 }
 
@@ -75,7 +92,7 @@ export async function GET(req: Request) {
   const acc = await accessOf((q.get("key") ?? "").trim().toUpperCase() || null, q.get("dev"));
   if (!acc.pro)
     return Response.json({ locked: true, reason: acc.reason ?? "nokey", why: LOCKED[acc.reason ?? "nokey"] ?? LOCKED.nokey }, { headers: { ...CORS, "cache-control": "private, no-store" } });
-  const v = await trends();
-  if (!v) return Response.json({ error: "yeppo is busy, retrying" }, { status: 503, headers: { ...CORS, "cache-control": "no-store" } });
-  return Response.json({ at: cache?.t ?? Date.now(), trends: v }, { headers: { ...CORS, "cache-control": "public, s-maxage=30" } });
+  const c = await trends();
+  if (!c) return Response.json({ error: "yeppo is busy, retrying" }, { status: 503, headers: { ...CORS, "cache-control": "no-store" } });
+  return Response.json({ at: cache?.t ?? Date.now(), trends: c.v, smart: c.s }, { headers: { ...CORS, "cache-control": "public, s-maxage=30" } });
 }

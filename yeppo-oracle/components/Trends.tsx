@@ -3,13 +3,13 @@
 // The meme waves of the moment: the words pump.fun is launching far more often than usual in the last 30 minutes,
 // and in each wave the coins already trading best, with yeppo's quick flags. Refreshes every minute.
 import { useEffect, useState } from "react";
-import type { Trend } from "@/app/api/trends/route";
+import type { Smart, Trend } from "@/app/api/trends/route";
 import { age, short } from "@/lib/format";
 import { useNow, usePoll } from "@/lib/hooks";
 import { savedKey } from "@/lib/pay";
 import { deviceId } from "./CoinPanel";
 
-type Answer = { at: number; trends: Trend[] } | { locked: true; why: string };
+type Answer = { at: number; trends: Trend[]; smart?: Smart | null } | { locked: true; why: string };
 
 const x = (v: number | null) => (v == null ? "–" : `×${v >= 10 ? v.toFixed(0) : v.toFixed(1)}`);
 
@@ -49,6 +49,7 @@ export default function Trends({ compact, pkey, pdev }: { compact?: boolean; pke
     );
   return (
     <div className="tr">
+      <SmartMoney s={data.smart ?? null} now={now} compact={compact} />
       <header className="tr-head">
         <h3>Meme waves</h3>
         <span className="mute small">Memes pump.fun is launching far more than usual, and their coins under 15 minutes old that are safe and climbing now</span>
@@ -116,5 +117,64 @@ export default function Trends({ compact, pkey, pdev }: { compact?: boolean; pke
         A wave is not a buy signal: open a coin for yeppo&apos;s full read before you trade.
       </p>
     </div>
+  );
+}
+
+const pct = (v: number) => `${v >= 0 ? "+" : ""}${Math.round(v * 100)}%`;
+
+/** coins that several wallets with a record of getting into runners early are buying right now */
+function SmartMoney({ s, now, compact }: { s: Smart | null; now: number; compact?: boolean }) {
+  if (!s) return null;
+  return (
+    <>
+      <header className="tr-head">
+        <h3>Smart money</h3>
+        <span className="mute small">
+          Wallets that keep getting into coins early before they run ×4 and more, buying the same new coin now. Only coins
+          under 30 minutes old that pass yeppo&apos;s checks.
+        </span>
+      </header>
+      {s.smart.length === 0 ? (
+        <p className="mute small">
+          {s.wallets >= 10
+            ? `No coin is being bought by 2+ of the ${s.wallets} proven wallets right now. yeppo checks every minute.`
+            : `yeppo is learning which wallets are right: ${s.wallets} proven so far, ${s.learning} being watched. Calls start once enough of them have a record (3+ wins from 3+ creators, 12%+ hit rate).`}
+        </p>
+      ) : (
+        <div className="tr-coins" style={{ marginBottom: 18 }}>
+          {s.smart.map((c) => (
+            <a
+              key={c.mint}
+              className="tr-coin lead"
+              href={compact ? `https://pump.fun/coin/${c.mint}` : `/c/${c.mint}`}
+              target={compact ? "_blank" : undefined}
+              rel="noreferrer"
+            >
+              <span className="tr-sym">
+                {c.sym ? `$${c.sym}` : short(c.mint)}
+                <span className="when">{age(now - c.t0)}</span>
+              </span>
+              <span className="mono mute">
+                {c.smart} smart wallet{c.smart === 1 ? "" : "s"} in
+                {c.out > 0 ? ` · ${c.out} took profit` : ""}
+              </span>
+              <span className="mono">
+                {x(c.nowx)} <span className="dim">high {x(c.hix)}</span>
+              </span>
+              <span className="tr-flags">
+                <span className="chip tone t-up">Best hit {Math.round(c.hit * 100)}%</span>
+                <span className={`chip tone ${(c.ch2 ?? 0) >= 0 ? "t-up" : "t-mid"}`}>{pct(c.ch2 ?? 0)} in 2 min</span>
+                <span className="chip tone t-learn">{c.wal2} buyers · 2m</span>
+                {c.grad && <span className="chip tone t-learn">Graduated</span>}
+                {(c.bun ?? 0) >= 0.05 && <span className="chip tone t-mid">Bundle {Math.round((c.bun ?? 0) * 100)}%</span>}
+              </span>
+              <span className="dim small mono" style={{ gridColumn: "1 / -1" }}>
+                {c.who.slice(0, 3).map(([w, wins, hit]) => `${w} ${wins} wins ${Math.round(hit * 100)}%`).join(" · ")}
+              </span>
+            </a>
+          ))}
+        </div>
+      )}
+    </>
   );
 }

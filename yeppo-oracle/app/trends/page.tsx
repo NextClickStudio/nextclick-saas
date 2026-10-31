@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Nav, { Footer } from "@/components/Nav";
 import Trends from "@/components/Trends";
 
-export const metadata: Metadata = { title: "Meme waves · yeppo", description: "The memes pump.fun is launching most right now, and the coins leading each wave." };
+export const metadata: Metadata = { title: "Scanner · yeppo", description: "New coins proven wallets are buying right now, and the memes pump.fun is launching most." };
 
 export default function Page() {
   return (
@@ -11,8 +11,8 @@ export default function Page() {
       <main className="page wrap" style={{ maxWidth: 760 }}>
         <div className="page-head">
           <span className="label">Live</span>
-          <h1>meme waves.</h1>
-          <p>When a meme catches, dozens of coins with its name launch in minutes. yeppo spots the wave and the coins leading it.</p>
+          <h1>scanner.</h1>
+          <p>yeppo watches every pump.fun trade and learns which wallets keep getting in early before a coin runs. When several of them buy the same new coin, it shows up here. Below: the memes launching far more than usual, and the coin leading each wave.</p>
         </div>
         <Trends />
       </main>
