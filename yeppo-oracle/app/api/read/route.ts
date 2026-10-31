@@ -15,6 +15,7 @@ import { accessOf, DB_HEADERS, LOCKED } from "@/lib/access";
 import { isMint } from "@/lib/format";
 import type { Money, Read } from "@/lib/read";
 import { chainChecks, chainPrefetch, rugChecks, rugReport } from "@/lib/rugcheck";
+import { crowdExtras, crowdOf, type CrowdDb } from "@/lib/crowd";
 
 export const runtime = "edge";
 
@@ -43,7 +44,7 @@ type Me = {
   bun: number | null;
   bun0: number | null;
 };
-type CreatorRpc = { now: number; dev: string | null; me: Me | null; uri: string | null; total: number; coins: CoinRow[]; steps: number[][]; from: number; w60: number };
+type CreatorRpc = { now: number; dev: string | null; me: Me | null; uri: string | null; total: number; coins: CoinRow[]; steps: number[][]; from: number; w60: number; crowd?: CrowdDb | null };
 
 /** the creator's money trail (yr_fund_read): null when the database does not answer in time */
 async function moneyRpc(dev: string, mint: string): Promise<Money | null> {
@@ -134,7 +135,8 @@ type Pair = {
   pairCreatedAt?: number;
   marketCap?: number;
   baseToken?: { symbol?: string; name?: string };
-  info?: { imageUrl?: string };
+  info?: { imageUrl?: string; socials?: unknown[]; websites?: unknown[] };
+  boosts?: { active?: number };
 };
 
 /** the coin's deepest pool on DexScreener (free, public) */
@@ -160,6 +162,8 @@ async function dexscreener(mint: string) {
       symbol: p.baseToken?.symbol ?? null,
       name: p.baseToken?.name ?? null,
       image: p.info?.imageUrl ?? null,
+      boosts: p.boosts?.active ?? 0,
+      socials: (p.info?.socials?.length ?? 0) + (p.info?.websites?.length ?? 0),
     };
   } catch {
     return null;
@@ -192,7 +196,8 @@ export async function GET(req: Request) {
   const steps = cr?.steps ?? [];
   const onCurve = !!me && !me.grad && steps.length > 0;
   const out = onCurve ? null : dex;
-  const money = cr?.dev ? await moneyRpc(cr.dev, mint) : null;
+  // the crowd's outside sources (pump.fun comments and livestream, the coin's X post) while the money trail is read
+  const [money, extras] = await Promise.all([cr?.dev ? moneyRpc(cr.dev, mint) : null, crowdExtras(mint, cr?.uri ?? null, mint.endsWith("pump") || !!me)]);
   if (cr?.dev && money && !money.checked) traceLater(cr.dev, mint);
   if (!rug && !cr && !out) return Response.json({ error: "yeppo is busy, retrying" }, { status: 503, headers: { ...CORS, "cache-control": "no-store" } });
   // what could not be read this time: yeppo never says Momentum without it
@@ -250,6 +255,16 @@ export async function GET(req: Request) {
   if (!holdersKnown && checks.length) decision = { ...decision, why: `${decision.why} Top holders couldn't be read right now: check them on the chart.` };
   if (!cr) decision = { ...decision, why: `${decision.why} The creator's history isn't answering right now.` };
 
+  const crowd = crowdOf({
+    db: cr?.crowd ?? null,
+    steps: onCurve ? steps : [],
+    nowStep,
+    mcSol,
+    dex: dex ? { ch5: dex.ch5, liq: dex.liq, boosts: dex.boosts, socials: dex.socials } : null,
+    rug: rug ? { insiders: rug.insiders, insiderWallets: rug.insiderWallets } : null,
+    extras,
+  });
+
   const body: Read = {
     mint,
     symbol: me?.sym ?? out?.symbol ?? null,
@@ -273,6 +288,7 @@ export async function GET(req: Request) {
     dev,
     path,
     down,
+    crowd,
     pro: true,
     // the starting point for the panel's live trades (coins on pump.fun's curve)
     live: onCurve && cr ? { from: cr.from, now, steps, w60: cr.w60 ?? null, sol, devSold: !!dev?.sold, bun0: me?.bun0 ?? null } : null,

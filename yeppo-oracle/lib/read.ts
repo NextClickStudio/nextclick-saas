@@ -1,5 +1,6 @@
 // yeppo.it/api/read: the one call the extension and the coin page need (see app/api/read).
 import type { Check, Creator, Decision, DevNow, Outlook, Pulse } from "./decide";
+import type { Crowd } from "./crowd";
 import type { LiveBase } from "./live";
 
 /** where the creator's SOL came from, and what the same money did before (yr_fund_read) */
@@ -45,6 +46,8 @@ export type Read = {
   path: [number, number][];
   /** sources that did not answer this time: RugCheck, or yeppo's own creator history */
   down: ("rugcheck" | "history")[];
+  /** who seems to be on it and how wildly it moves: information only, the call never depends on it */
+  crowd?: Crowd | null;
   pro: boolean;
   /** no valid Pro key: nothing but the way in (reason: nokey, unknown, expired, devices, nodevice) */
   locked?: boolean;

@@ -8,6 +8,7 @@ import { mins } from "@/lib/decide";
 import { age, ago, mult, short, usd } from "@/lib/format";
 import { useNow, usePoll } from "@/lib/hooks";
 import { paperBuy, paperOpen, paperSell, paperState, refreshPx, type PaperState } from "@/lib/paper";
+import type { Crowd } from "@/lib/crowd";
 import { liveCall, livePulse, useLiveTrades } from "@/lib/live";
 import { type Money, readCoin, type Read } from "@/lib/read";
 import { license, savedKey } from "@/lib/pay";
@@ -201,6 +202,8 @@ export default function CoinPanel({
         </section>
       )}
 
+      {r.crowd && <CrowdBox k={r.crowd} />}
+
       <section className="cp-box">
         <header>
           <h3>vs. the creator&apos;s coins</h3>
@@ -303,6 +306,74 @@ export default function CoinPanel({
         )}
       </div>
     </div>
+  );
+}
+
+const LEVEL_TONE: Record<Crowd["level"], string> = { Quiet: "t-learn", "Some interest": "t-learn", Growing: "t-up", "Lots of eyes": "t-up", Frenzy: "t-mid" };
+const REGIME_TONE: Record<NonNullable<Crowd["vol"]>["regime"], string> = { Calm: "t-learn", Lively: "t-up", Wild: "t-mid", Extreme: "t-down" };
+const n0 = (v: number | null | undefined) => (v == null ? "–" : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(v));
+
+/** who seems to be on the coin and how wildly it moves: information only, the call never depends on it */
+function CrowdBox({ k }: { k: Crowd }) {
+  const b = k.bubbles;
+  const v = k.vol;
+  const cells: [string, string, string?][] = [
+    ["traders 5m", n0(k.traders5)],
+    ["new buyers 5m", n0(k.newBuyers5), k.newBuyersPrev ? `${n0(k.newBuyersPrev)} before` : undefined],
+    ["comments 10m", n0(k.comments10), k.comments != null ? `${n0(k.comments)} total` : undefined],
+    [k.live ? "watching live" : "X post", k.live ? n0(k.watching) : k.xLikes != null ? `${n0(k.xLikes)} ♥` : k.xHandle ? `@${k.xHandle}` : "–", k.xReplies != null && !k.live ? `${n0(k.xReplies)} replies` : undefined],
+  ];
+  return (
+    <section className="cp-box">
+      <header>
+        <h3>Crowd &amp; volatility</h3>
+        <span className="grow" />
+        <span className={`chip tone ${LEVEL_TONE[k.level]}`}>
+          {k.level} · {k.interest}/100
+        </span>
+      </header>
+      <div className="cp-tf">
+        {cells.map(([l, val, sub]) => (
+          <div key={l} title={sub}>
+            <span>{l}</span>
+            <b className="mono">{val}</b>
+          </div>
+        ))}
+      </div>
+      {(v || b) && (
+        <div className="cp-tf" style={{ marginTop: 8 }}>
+          {v && (
+            <>
+              <div title="A usual 5-minute move, up or down">
+                <span>5 min swing</span>
+                <b className={`mono chip tone ${REGIME_TONE[v.regime]}`} style={{ padding: "0 6px" }}>
+                  ±{Math.round(v.move5 * 100)}%
+                </b>
+              </div>
+              <div title="The deepest fall from a high in the last 5 minutes">
+                <span>{v.impact1 != null ? "1 SOL buy" : "liquidity"}</span>
+                <b className="mono">{v.impact1 != null ? `+${Math.round(v.impact1 * 100)}%` : v.liqUsd != null ? `$${n0(Math.round(v.liqUsd))}` : "–"}</b>
+              </div>
+            </>
+          )}
+          {b && (
+            <>
+              <div title="Groups of 3+ wallets that bought in the same 2 seconds for the same amount, and what they hold now (yeppo's own bubble map)">
+                <span>bought together</span>
+                <b className={`mono ${b.held >= 0.15 ? "down" : ""}`}>{b.groups ? `${b.groups} · ${Math.round(b.held * 100)}%` : "none"}</b>
+              </div>
+              <div title="RugCheck's insider networks: wallets linked to each other">
+                <span>insider net</span>
+                <b className={`mono ${(b.insiders ?? 0) >= 0.15 ? "down" : ""}`}>{b.insiders == null ? "–" : b.insiderWallets ? `${b.insiderWallets} · ${Math.round(b.insiders * 100)}%` : "none"}</b>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      <p className="cp-line mute" style={{ margin: "8px 0 0", fontSize: 12.5 }}>
+        {k.line}
+      </p>
+    </section>
   );
 }
 
