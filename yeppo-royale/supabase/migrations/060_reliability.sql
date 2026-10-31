@@ -4,6 +4,8 @@
 --    before, 6+ buying wallets; momentumBlock: first 2 minutes, a +50% minute, the creator sold, a 15%+ launch bundle).
 --    One row per coin: what the price did 3 minutes after its first Momentum, after its first blocked "hot" moment, and
 --    on average after its active but not hot moments (the baseline). No trade data is kept.
+--    It also keeps the coin's numbers at minute 3 (price, buyers, buys share, biggest buyer, growth, bundle, creator)
+--    and what it did over the next 15 minutes: the data to learn what an early runner looks like.
 -- 2. yr_calls: the calls yeppo actually showed (reads) and the scanner's picks, with the price at the call; yr_sm_roll
 --    fills in the high, low and price 10 minutes later from yr_ticks.
 
@@ -13,7 +15,12 @@ create table if not exists yr_eval (
   steps int,
   mom_s int, mom_r3 real, mom_hi real, mom_lo real,
   blk_s int, blk_r3 real, blk_hi real, blk_lo real,
-  act_n int, act_r3 real, act_hi real, act_lo real
+  act_n int, act_r3 real, act_hi real, act_lo real,
+  -- the coin at minute 3: price (× launch), its high so far, trades, distinct buyers, buys share, the biggest buyer's
+  -- share of the SOL bought, buyers of minute 2-3 against minute 0-1 (is demand growing), launch bundle, creator out
+  f3_x real, f3_hi real, f3_trades int, f3_buyers int, f3_bshare real, f3_top real, f3_grow real, f3_bun real, f3_dev_out boolean,
+  -- after minute 3: the best price within the next 15 minutes (× the minute-3 price) and whether it graduated
+  out_best real, out_grad boolean
 );
 alter table yr_eval enable row level security;
 create index if not exists yr_eval_t0 on yr_eval (t0);
@@ -42,8 +49,9 @@ begin
   wm := greatest(coalesce(wm, hi - 60000), hi - 120000);
   if hi <= wm then return jsonb_build_object('n', 0); end if;
 
-  insert into yr_eval (mint, t0, steps, mom_s, mom_r3, mom_hi, mom_lo, blk_s, blk_r3, blk_hi, blk_lo, act_n, act_r3, act_hi, act_lo)
-  with c as (select mint, t0, coalesce(bun0, 0) bun0, sold_s from yr_cc where t0 > wm and t0 <= hi and n >= 20),
+  insert into yr_eval (mint, t0, steps, mom_s, mom_r3, mom_hi, mom_lo, blk_s, blk_r3, blk_hi, blk_lo, act_n, act_r3, act_hi, act_lo,
+    f3_x, f3_hi, f3_trades, f3_buyers, f3_bshare, f3_top, f3_grow, f3_bun, f3_dev_out, out_best, out_grad)
+  with c as (select mint, t0, coalesce(bun0, 0) bun0, sold_s, out_s, grad, coalesce(nullif(mc0, 0), 27.96) b0 from yr_cc where t0 > wm and t0 <= hi and n >= 20),
   st as (
     select x.mint, ((x.t - c.t0) / 10000)::int s, (array_agg(x.vsol / x.vtok order by x.t desc))[1] cl,
       count(*) filter (where x.k = 1) nb, count(*) filter (where x.k = 2) ns, count(distinct x.who) filter (where x.k = 1) wb
@@ -77,13 +85,28 @@ begin
   select c.mint, c.t0, (select count(*) from st where st.mint = c.mint),
     m.s, m.cl3m / m.cl - 1, m.hi3m / m.cl - 1, m.lo3m / m.cl - 1,
     b.s, b.cl3m / b.cl - 1, b.hi3m / b.cl - 1, b.lo3m / b.cl - 1,
-    a.n, a.r3, a.hi, a.lo
+    a.n, a.r3, a.hi, a.lo,
+    e.p3 * 1e9 / c.b0, e.hi3 * 1e9 / c.b0, e.trades, e.buyers, e.bshare, e.top, e.grow, c.bun0,
+    coalesce(c.out_s <= 180, false),
+    case when e.p3 > 0 then greatest(o.best / e.p3, case when c.grad then 410.9 / (e.p3 * 1e9) else 0 end) end, c.grad
   from c
   left join lateral (select * from lab where lab.mint = c.mint and hot and not blocked order by s limit 1) m on true
   left join lateral (select * from lab where lab.mint = c.mint and hot and blocked order by s limit 1) b on true
   left join lateral (
     select count(*)::int n, avg(cl3m / cl - 1)::real r3, avg(hi3m / cl - 1)::real hi, avg(lo3m / cl - 1)::real lo
     from lab where lab.mint = c.mint and not hot and tr60 >= 8) a on true
+  left join lateral (
+    select (array_agg(x.vsol / x.vtok order by x.t desc))[1] p3, max(x.vsol / x.vtok) hi3, count(*)::int trades,
+      count(distinct x.who) filter (where x.k = 1)::int buyers,
+      (count(*) filter (where x.k = 1))::real / greatest(count(*), 1) bshare,
+      (select max(z.s) / nullif(sum(z.s), 0) from (select sum(y.sol) s from yr_ticks y
+         where y.mint = c.mint and y.k = 1 and y.t >= c.t0 and y.t < c.t0 + 180000 group by y.who) z)::real top,
+      (count(distinct x.who) filter (where x.k = 1 and x.t >= c.t0 + 120000))::real
+        / greatest(count(distinct x.who) filter (where x.k = 1 and x.t < c.t0 + 60000), 1) grow
+    from yr_ticks x where x.mint = c.mint and x.k in (1, 2) and x.vtok > 0 and x.t >= c.t0 and x.t < c.t0 + 180000) e on true
+  left join lateral (
+    select max(x.vsol / x.vtok) best from yr_ticks x
+    where x.mint = c.mint and x.vtok > 0 and x.t >= c.t0 + 180000 and x.t < c.t0 + 1080000) o on true
   where exists (select 1 from st where st.mint = c.mint)
   on conflict (mint) do nothing;
   get diagnostics n = row_count;
