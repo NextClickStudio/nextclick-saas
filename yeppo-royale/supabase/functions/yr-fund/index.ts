@@ -36,7 +36,10 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T> {
 
 type Sig = { signature: string; blockTime: number | null; err: unknown };
 type Ix = { program?: string; parsed?: { type?: string; info?: Record<string, unknown> } };
-type PTx = { transaction: { message: { instructions: Ix[] } }; meta: { innerInstructions?: { instructions: Ix[] }[] } | null } | null;
+type PTx = {
+  transaction: { message: { instructions: Ix[]; accountKeys?: ({ pubkey: string; signer?: boolean } | string)[] } };
+  meta: { innerInstructions?: { instructions: Ix[] }[] } | null;
+} | null;
 
 /** the wallet that sent `addr` its first SOL */
 async function firstFunder(addr: string): Promise<{ funder: string | null; kind: string; sol: number | null }> {
@@ -58,10 +61,15 @@ async function firstFunder(addr: string): Promise<{ funder: string | null; kind:
   }
   if (!complete) return { funder: null, kind: "old", sol: null };
   let read = 0;
+  let payer: string | null = null; // who signed and paid the wallet's very first transaction
   for (const sig of oldest) {
-    const tx = await rpc<PTx>("getTransaction", [sig, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }]).catch(() => null);
+    const tx = await rpc<PTx>("getTransaction", [sig, { encoding: "jsonParsed", maxSupportedTransactionVersion: 1, commitment: "confirmed" }]).catch(() => null);
     if (!tx) continue;
     read++;
+    if (payer == null) {
+      const k = tx.transaction.message.accountKeys?.[0];
+      payer = (typeof k === "string" ? k : k?.pubkey) ?? "";
+    }
     const ixs = [...tx.transaction.message.instructions, ...(tx.meta?.innerInstructions ?? []).flatMap((x) => x.instructions)];
     for (const ix of ixs) {
       const info = ix.parsed?.info;
@@ -76,6 +84,9 @@ async function firstFunder(addr: string): Promise<{ funder: string | null; kind:
   }
   // the RPC answered none of them: try again later rather than remember "no funder"
   if (!read && oldest.length) throw new Error("rpc busy");
+  // no SOL ever sent to it: a coin launched through a launch service names a creator address that never holds SOL;
+  // whoever signed and paid that first transaction is the money behind it
+  if (payer && payer !== addr) return { funder: payer, kind: "wallet", sol: null };
   return { funder: null, kind: "none", sol: null };
 }
 
@@ -100,8 +111,9 @@ Deno.serve(async (req) => {
   }
   const uniq = [...new Set(want)].slice(0, 5);
   if (!uniq.length) return Response.json({ error: "no wallets" }, { status: 400, headers: CORS });
-  const { data: known } = await sb.from("yr_fund").select("dev").in("dev", uniq);
-  const todo = uniq.filter((d) => !(known ?? []).some((k) => k.dev === d));
+  // wallets traced before without a result ('none') are traced again: the reading got better since
+  const { data: known } = await sb.from("yr_fund").select("dev,kind").in("dev", uniq);
+  const todo = uniq.filter((d) => !(known ?? []).some((k) => k.dev === d && k.kind !== "none"));
   const rows: Record<string, unknown>[] = [];
   const busy = new Map<string, boolean>();
   const learned: { addr: string; auto: boolean }[] = [];

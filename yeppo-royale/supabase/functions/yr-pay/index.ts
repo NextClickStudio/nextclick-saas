@@ -7,7 +7,8 @@
 // the order was made. A payer who already has a running license gets it extended. Public Solana RPC only.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 
-const RPCS = ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com"];
+// publicnode refuses history lookups without a token now: the Solana Foundation node goes first
+const RPCS = ["https://api.mainnet-beta.solana.com", "https://solana-rpc.publicnode.com"];
 const ORDER_TTL_MS = 24 * 3600_000;
 const CORS = {
   "access-control-allow-origin": "*",
@@ -93,7 +94,7 @@ Deno.serve(async (req) => {
     if (body.action === "plans") return json({ open, plans });
 
     if (body.action === "order") {
-      if (!open) return json({ error: "Checkout opens at launch. yeppo is free until then." }, 409);
+      if (!open) return json({ error: "Checkout is closed right now. Try again in a little while." }, 409);
       const plan = plans.find((p) => p.id === body.plan);
       if (!plan) return json({ error: "Pick a plan" }, 400);
       const { count } = await sb
@@ -141,7 +142,7 @@ Deno.serve(async (req) => {
         // one payment pays one order: a transfer can carry several references
         const { count: used } = await sb.from("yr_orders").select("id", { count: "exact", head: true }).eq("sig", s.signature);
         if (used) continue;
-        const tx = await rpc<Tx | null>("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }]);
+        const tx = await rpc<Tx | null>("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 1, commitment: "confirmed" }]);
         const r = received(tx, wallet);
         if (r.got >= o.lamports - 1000) {
           found = { sig: s.signature, payer: r.payer };
@@ -157,7 +158,7 @@ Deno.serve(async (req) => {
         for (const s of recent.filter((x) => !x.err && (x.blockTime ?? 0) * 1000 >= created - 60_000).slice(0, 25)) {
           const { count: used } = await sb.from("yr_orders").select("id", { count: "exact", head: true }).eq("sig", s.signature);
           if (used) continue;
-          const tx = await rpc<Tx | null>("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0, commitment: "confirmed" }]);
+          const tx = await rpc<Tx | null>("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 1, commitment: "confirmed" }]);
           if (received(tx, wallet).got === o.lamports) {
             found = { sig: s.signature, payer: received(tx, wallet).payer };
             break;
