@@ -5,10 +5,10 @@
 // RPC only; at most 5 wallets per call.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 
-const RPCS = ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com"];
+// publicnode refuses history lookups without a token now: the Solana Foundation node goes first
+const RPCS = ["https://api.mainnet-beta.solana.com", "https://solana-rpc.publicnode.com"];
 const ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, apikey, content-type" };
-
 
 async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   let last: unknown = null;
