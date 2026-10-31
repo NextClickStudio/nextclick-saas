@@ -42,6 +42,8 @@ export type Read = {
   dev: DevNow | null;
   /** this coin's own price / launch: [seconds from launch, price] for its first 20 minutes */
   path: [number, number][];
+  /** sources that did not answer this time: RugCheck, or yeppo's own creator history */
+  down: ("rugcheck" | "history")[];
 };
 
 export async function readCoin(mint: string): Promise<Read> {

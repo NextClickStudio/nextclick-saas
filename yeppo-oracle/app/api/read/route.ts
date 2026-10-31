@@ -12,7 +12,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/config";
 import { type Check, type CoinRow, creatorOf, decide, type DevNow, launchOf, outlookCurve, outlookOutside, pulseOf, pulseOutside } from "@/lib/decide";
 import { isMint } from "@/lib/format";
 import type { Money, Read } from "@/lib/read";
-import { rugChecks, rugReport } from "@/lib/rugcheck";
+import { chainChecks, rugChecks, rugReport } from "@/lib/rugcheck";
 
 export const runtime = "edge";
 
@@ -64,7 +64,7 @@ async function creatorRpc(mint: string, dev: string | null): Promise<CreatorRpc 
       method: "POST",
       headers: { apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}`, "content-type": "application/json" },
       body: JSON.stringify({ p_mint: mint, p_dev: dev }),
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(3000),
     });
     return r.ok ? ((await r.json()) as CreatorRpc) : null;
   } catch {
@@ -131,17 +131,28 @@ async function dexscreener(mint: string) {
 export async function GET(req: Request) {
   const mint = new URL(req.url).searchParams.get("mint") ?? "";
   if (!isMint(mint)) return Response.json({ error: "That is not a coin address" }, { status: 400, headers: CORS });
-  const [rug, first, sol] = await Promise.all([rugReport(mint), creatorRpc(mint, null), solPrice()]);
-  // a coin yeppo did not see launch: ask again with the creator RugCheck names
-  const cr = !first?.me && rug?.dev ? ((await creatorRpc(mint, rug.dev)) ?? first) : first;
+  // everything that does not depend on anything else, at once
+  const [rug, first, sol, dex] = await Promise.all([rugReport(mint), creatorRpc(mint, null), solPrice(), dexscreener(mint)]);
+  // a coin yeppo did not see launch: ask again with the creator RugCheck names; RugCheck down: the basic checks
+  // straight from the chain
+  const [second, chain] = await Promise.all([
+    !first?.me && rug?.dev ? creatorRpc(mint, rug.dev) : null,
+    rug ? null : chainChecks(mint),
+  ]);
+  const cr = second ?? first;
   const me = cr?.me ?? null;
   const now = cr?.now ?? Date.now();
   const steps = cr?.steps ?? [];
   const onCurve = !!me && !me.grad && steps.length > 0;
-  const [out, money] = await Promise.all([onCurve ? null : dexscreener(mint), cr?.dev ? moneyRpc(cr.dev, mint) : null]);
+  const out = onCurve ? null : dex;
+  const money = cr?.dev ? await moneyRpc(cr.dev, mint) : null;
   if (!rug && !cr && !out) return Response.json({ error: "yeppo is busy, retrying" }, { status: 503, headers: { ...CORS, "cache-control": "no-store" } });
+  // what could not be read this time: yeppo never says Momentum without it
+  const down: Read["down"] = [];
+  if (!rug) down.push("rugcheck");
+  if (!cr) down.push("history");
 
-  const checks: Check[] = rug ? rugChecks(rug) : [];
+  const checks: Check[] = rug ? rugChecks(rug) : (chain ?? []);
   // the launch bundle, when yeppo saw the launch: buyers of the first 3 seconds still holding together
   if (me?.bun0 != null && me.bun0 >= 0.03) {
     const b = me.bun ?? 0;
@@ -185,7 +196,15 @@ export async function GET(req: Request) {
     else if (out.ch1 != null && out.ch1 <= -50) outsideNo = `Down ${Math.round(-out.ch1)}% in the last hour.`;
     else if (n < 5 && (ageS ?? 1e9) > 600) outsideNo = "Nobody is trading it.";
   }
-  const decision = decide({ checks, creator, dev, ageS, priceX, athX, pulse, outlook, outsideNo });
+  let decision = decide({ checks, creator, dev, ageS, priceX, athX, pulse, outlook, outsideNo });
+  if (down.length && decision.word === "Momentum")
+    decision = {
+      word: "Wait",
+      tone: "mid",
+      why: down.includes("rugcheck")
+        ? "The holder and insider checks aren't answering right now. yeppo won't say Momentum without them."
+        : "The creator's history isn't answering right now. yeppo won't say Momentum without it.",
+    };
 
   const body: Read = {
     mint,
@@ -209,6 +228,7 @@ export async function GET(req: Request) {
     money,
     dev,
     path,
+    down,
   };
-  return Response.json(body, { headers: { ...CORS, "cache-control": rug ? "public, s-maxage=5, stale-while-revalidate=10" : "no-store" } });
+  return Response.json(body, { headers: { ...CORS, "cache-control": "public, s-maxage=5, stale-while-revalidate=10" } });
 }

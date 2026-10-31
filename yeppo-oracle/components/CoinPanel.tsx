@@ -137,7 +137,7 @@ export default function CoinPanel({ mint, compact, paper }: { mint: string; comp
           <span>{c ? `${c.total} coin${c.total === 1 ? "" : "s"} · 14 days` : ""}</span>
         </header>
         {!c ? (
-          <p className="cp-line mute">Creator unknown for this coin.</p>
+          <p className="cp-line mute">{r.down?.includes("history") ? "yeppo's creator history isn't answering. Retrying every 5 seconds." : "Creator unknown for this coin."}</p>
         ) : (
           <>
             <p className="cp-line">{c.line}</p>
@@ -180,8 +180,15 @@ export default function CoinPanel({ mint, compact, paper }: { mint: string; comp
         <header>
           <h3>Safety</h3>
           <span className="grow" />
-          <span className={`cp-safe ${bad ? "down" : "up"}`}>{r.checks.length ? (bad ? `${bad} problem${bad > 1 ? "s" : ""}` : `${r.checks.length}/${r.checks.length} safe`) : "loading…"}</span>
+          <span className={`cp-safe ${bad ? "down" : r.down?.includes("rugcheck") ? "mid" : "up"}`}>
+            {bad ? `${bad} problem${bad > 1 ? "s" : ""}` : r.down?.includes("rugcheck") ? "partial" : r.checks.length ? `${r.checks.length}/${r.checks.length} safe` : "…"}
+          </span>
         </header>
+        {r.down?.includes("rugcheck") && (
+          <p className="cp-line mute" style={{ fontSize: 12, margin: "0 0 8px" }}>
+            RugCheck isn&apos;t answering, so holders and insiders can&apos;t be checked right now. Below: what the chain itself says.
+          </p>
+        )}
         <div className="cp-checks">
           {[...r.checks]
             .sort((a, b) => Number(a.ok) - Number(b.ok))

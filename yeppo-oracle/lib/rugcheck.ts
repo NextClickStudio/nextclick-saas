@@ -118,3 +118,37 @@ export function rugChecks(r: Rug): Check[] {
     ...extraChecks(r).slice(1),
   ];
 }
+
+const RPCS = ["https://api.mainnet-beta.solana.com", "https://solana-rpc.publicnode.com"];
+const chainCache = new Map<string, { t: number; v: Check[] }>();
+
+/** when RugCheck does not answer: the two checks any public Solana node can answer from the coin's own account
+ *  (can more coins be printed, can wallets be frozen), and a clear note that the holder checks are missing */
+export async function chainChecks(mint: string): Promise<Check[] | null> {
+  const hit = chainCache.get(mint);
+  if (hit && Date.now() - hit.t < 300_000) return hit.v;
+  for (const url of RPCS) {
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getAccountInfo", params: [mint, { encoding: "jsonParsed" }] }),
+        signal: AbortSignal.timeout(2500),
+      });
+      if (!r.ok) continue;
+      const j = (await r.json()) as { result?: { value?: { data?: { parsed?: { info?: { mintAuthority?: string | null; freezeAuthority?: string | null } } } } | null } };
+      const info = j.result?.value?.data?.parsed?.info;
+      if (!info) continue;
+      const v: Check[] = [
+        { ok: !info.mintAuthority, label: info.mintAuthority ? "Creator can print more coins." : "No new coins can be printed" },
+        { ok: !info.freezeAuthority, label: info.freezeAuthority ? "Creator can freeze your coins." : "Your coins can't be frozen" },
+      ];
+      if (chainCache.size > 500) chainCache.clear();
+      chainCache.set(mint, { t: Date.now(), v });
+      return v;
+    } catch {
+      /* next node */
+    }
+  }
+  return null;
+}
