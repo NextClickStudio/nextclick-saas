@@ -17,6 +17,14 @@ import { chainChecks, chainPrefetch, rugChecks, rugReport } from "@/lib/rugcheck
 export const runtime = "edge";
 
 const CORS = { "access-control-allow-origin": "*" };
+// yeppo.it's own server proves itself to the database with a secret (Vercel environment variable YEPPO_API_SECRET):
+// the creator history and the money trail answer nobody else once the database knows the same secret
+const DB_HEADERS: Record<string, string> = {
+  apikey: SUPABASE_ANON_KEY,
+  authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  "content-type": "application/json",
+  ...(process.env.YEPPO_API_SECRET ? { "x-yeppo-secret": process.env.YEPPO_API_SECRET } : {}),
+};
 const DEX: Record<string, string> = { pumpfun: "pump.fun", pumpswap: "PumpSwap", meteora: "Meteora", raydium: "Raydium", orca: "Orca", launchlab: "LaunchLab", moonshot: "Moonshot" };
 
 type Me = {
@@ -46,9 +54,9 @@ type CreatorRpc = { now: number; dev: string | null; me: Me | null; uri: string 
 /** the creator's money trail (yr_fund_read): null when the database does not answer in time */
 async function moneyRpc(dev: string, mint: string): Promise<Money | null> {
   try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_fund_read`, {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_fund_read_s`, {
       method: "POST",
-      headers: { apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}`, "content-type": "application/json" },
+      headers: DB_HEADERS,
       body: JSON.stringify({ p_dev: dev, p_mint: mint }),
       signal: AbortSignal.timeout(2500),
     });
@@ -60,9 +68,9 @@ async function moneyRpc(dev: string, mint: string): Promise<Money | null> {
 
 async function creatorRpc(mint: string, dev: string | null): Promise<CreatorRpc | null> {
   try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_creator`, {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_creator_s`, {
       method: "POST",
-      headers: { apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}`, "content-type": "application/json" },
+      headers: DB_HEADERS,
       body: JSON.stringify({ p_mint: mint, p_dev: dev }),
       signal: AbortSignal.timeout(3000),
     });
@@ -89,7 +97,7 @@ async function accessOf(key: string | null, dev: string | null): Promise<Access>
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_access`, {
       method: "POST",
-      headers: { apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}`, "content-type": "application/json" },
+      headers: DB_HEADERS,
       body: JSON.stringify({ p_key: k, p_dev: d || null }),
       signal: AbortSignal.timeout(2500),
     });
