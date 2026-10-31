@@ -309,8 +309,10 @@ function PaperBox({ mint, given }: { mint: string; given: string | null }) {
     try {
       const id = await paperOpen();
       writeLocal("yo:paper", id);
-      // the extension keeps it for its frames
-      window.parent?.postMessage({ yeppo: "paper", id }, "*");
+      // the extension keeps it for its frames: tell only the extension frame this page sits in, never another site
+      const parent = window.location.ancestorOrigins?.[0] ?? (document.referrer ? new URL(document.referrer).origin : "");
+      const host = parent.startsWith("chrome-extension://") ? parent : null;
+      if (host && window.parent !== window) window.parent.postMessage({ yeppo: "paper", id }, host);
       setAcct(id);
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "Something went wrong" });
