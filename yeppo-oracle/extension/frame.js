@@ -5,6 +5,7 @@ const mint = p.get("mint");
 const tab = Number(p.get("tab"));
 const view = document.getElementById("view");
 chrome.storage.local.get(["paper", "key", "dev"], (r) => {
+  if (!r.dev) chrome.storage.local.set({ dev: (r.dev = crypto.randomUUID()) });
   const q = new URLSearchParams({ mint });
   if (r.paper) q.set("paper", r.paper);
   if (r.key) q.set("key", r.key);

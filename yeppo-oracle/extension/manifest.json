@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "yeppo",
-  "version": "2.4.2",
+  "version": "2.4.3",
   "description": "yeppo reads the Solana memecoin you are looking at: safety, the creator's past coins, and the moment. Momentum, Wait or Don't buy. Needs a yeppo Pro key.",
   "icons": {
     "16": "icons/16.png",

@@ -25,6 +25,12 @@ chrome.runtime.onInstalled.addListener(() => chrome.sidePanel.setPanelBehavior({
 chrome.runtime.onStartup.addListener(() => chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {}));
 
 async function read(mint) {
+  // Chrome stops this worker when idle and wakes it with the page's message: the key is read from storage every
+  // time, or the first read after a wake-up would go out without it and come back Locked
+  const st = await chrome.storage.local.get(["key", "dev"]);
+  if ((st.key ?? null) !== key) cache.clear();
+  key = st.key ?? null;
+  if (st.dev) dev = st.dev;
   const hit = cache.get(mint);
   if (hit && Date.now() - hit.at < 5_000) return hit.data;
   try {

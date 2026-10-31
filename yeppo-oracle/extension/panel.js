@@ -5,6 +5,8 @@ const where = document.getElementById("where");
 let active = null;
 let saved = {};
 chrome.storage.local.get(["paper", "key", "dev"], (r) => {
+  // one device id for the whole extension (badge, card and panel), so one browser counts as one device
+  if (!r.dev) chrome.storage.local.set({ dev: (r.dev = crypto.randomUUID()) });
   saved = r;
   void follow();
 });
