@@ -32,7 +32,8 @@ export default function CoinPanel({ mint, compact, paper, pkey }: { mint: string
   useEffect(() => {
     setKey(pkey ?? savedKey());
   }, [pkey]);
-  const { data: r, error } = usePoll<Read>(key === undefined ? null : () => readCoin(mint, key), 5000, `${mint}:${key ?? ""}`);
+  // the poll's key must change once the Pro key is known (even when there is none), or it would never start
+  const { data: r, error } = usePoll<Read>(key === undefined ? null : () => readCoin(mint, key), 5000, `${mint}:${key === undefined ? "?" : (key ?? "-")}`);
   const now = useNow(1000);
   if (!r)
     return (
