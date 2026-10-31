@@ -4,10 +4,11 @@ const p = new URLSearchParams(location.search);
 const mint = p.get("mint");
 const tab = Number(p.get("tab"));
 const view = document.getElementById("view");
-chrome.storage.local.get(["paper", "key"], (r) => {
+chrome.storage.local.get(["paper", "key", "dev"], (r) => {
   const q = new URLSearchParams({ mint });
   if (r.paper) q.set("paper", r.paper);
   if (r.key) q.set("key", r.key);
+  if (r.dev) q.set("dev", r.dev);
   view.src = `${SITE}/panel?${q}`;
 });
 // the view opened a paper wallet or unlocked Pro: keep it for every frame

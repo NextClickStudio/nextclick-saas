@@ -30,7 +30,7 @@ export default function Home() {
             </Reveal>
             <Reveal delay={240} className="hero-cta">
               <Link href="/extension" className="btn btn-go btn-lg">
-                Add to Chrome · free
+                Add to Chrome
               </Link>
               <a href="#how" className="btn btn-lg btn-ghost">
                 How it works
@@ -201,7 +201,7 @@ export default function Home() {
           <div className="steps">
             <i className="steps-line" aria-hidden />
             {[
-              ["Add yeppo to Chrome", "Free. Works in Chrome, Brave, Edge and Arc."],
+              ["Add yeppo to Chrome", "Works in Chrome, Brave, Edge and Arc. Turn it on with a Pro key, paid in SOL."],
               ["Open any coin", "On pump.fun, GMGN, Axiom, Photon or DexScreener."],
               ["Read the call", "A badge on the page. Click it for the full read."],
             ].map(([h, p], i) => (
@@ -221,7 +221,7 @@ export default function Home() {
             <br />
             <span className="grad">skip the rug.</span>
           </h2>
-          <p>Free safety checks. Pro tells you when to get in. It never touches your wallet.</p>
+          <p>One key, paid in SOL. It never touches your wallet.</p>
           <Link href="/extension" className="btn btn-go btn-lg">
             Add to Chrome
           </Link>

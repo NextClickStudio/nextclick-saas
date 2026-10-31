@@ -4,14 +4,14 @@ const view = document.getElementById("view");
 const where = document.getElementById("where");
 let active = null;
 let saved = {};
-chrome.storage.local.get(["paper", "key"], (r) => {
+chrome.storage.local.get(["paper", "key", "dev"], (r) => {
   saved = r;
   void follow();
 });
 chrome.storage.onChanged.addListener((ch, area) => {
   if (area !== "local") return;
   let again = false;
-  for (const k of ["paper", "key"])
+  for (const k of ["paper", "key", "dev"])
     if (ch[k] && ch[k].newValue !== saved[k]) {
       saved[k] = ch[k].newValue;
       again = true;
@@ -25,6 +25,7 @@ function viewUrl(mint) {
   if (mint) q.set("mint", mint);
   if (saved.paper) q.set("paper", saved.paper);
   if (saved.key) q.set("key", saved.key);
+  if (saved.dev) q.set("dev", saved.dev);
   return `${SITE}/panel?${q}`;
 }
 

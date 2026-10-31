@@ -4,12 +4,17 @@ import Link from "next/link";
 import qrcode from "qrcode-generator";
 import { useEffect, useMemo, useState } from "react";
 import { license, pay, savedKey, type License, type Order, type PayPlan } from "@/lib/pay";
-import { writeLocal } from "@/lib/supabase";
+import { readLocal, writeLocal } from "@/lib/supabase";
 import Nav, { Footer } from "./Nav";
 import Reveal from "./Reveal";
 
-const FREE = ["Don't buy on rugs, farms and dumps", "Safety checks on any coin", "Creator history, coin by coin", "Paper trading with real fees"];
-const PRO = ["When to get in: Momentum or Wait, live", "Outlook on 4 timeframes", "Money trail behind the creator", "Everything in Free"];
+const PRO = [
+  "The call on any coin: Momentum, Wait or Don't buy",
+  "Safety checks and the launch bundle",
+  "The creator's past coins on your chart",
+  "Outlook on 4 timeframes and the money trail",
+  "Paper trading with real fees",
+];
 
 /** hand the key to the extension (its content script on yeppo.it listens), so nothing has to be pasted */
 function linkExtension(key: string) {
@@ -76,6 +81,9 @@ export default function Pricing() {
         setOpen(r.open);
       })
       .catch(() => setPlans([]));
+    // an order still waiting for its payment (the page was closed or reloaded): pick it up again
+    const o = readLocal<Order | null>("yo:order", null);
+    if (o && o.expires > Date.now()) setOrder(o);
     const k = savedKey();
     if (k)
       void license(k).then((l) => {
@@ -94,9 +102,13 @@ export default function Pricing() {
         if (!alive) return;
         if (r.paid && r.key) {
           writeLocal("yo:key", r.key);
+          writeLocal("yo:order", null);
           linkExtension(r.key);
           setPaid({ key: r.key, until: r.until ?? 0 });
-        } else if (r.expired) setErr("This order expired. Start a new one.");
+        } else if (r.expired) {
+          writeLocal("yo:order", null);
+          setErr("This order expired. Start a new one.");
+        }
       } catch {
         /* the next check will do */
       }
@@ -110,7 +122,10 @@ export default function Pricing() {
   const buy = async (p: PayPlan) => {
     setErr(null);
     try {
-      setOrder(await pay<Order>({ action: "order", plan: p.id }));
+      const o = await pay<Order>({ action: "order", plan: p.id });
+      // kept in this browser until it is paid, so closing the page never loses the key
+      writeLocal("yo:order", o);
+      setOrder(o);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Something went wrong");
     }
@@ -122,29 +137,13 @@ export default function Pricing() {
       <main className="page wrap">
         <Reveal className="page-head">
           <span className="label">Pricing</span>
-          <h1>free to stay safe. pro to time it.</h1>
-          <p>No account, no card, no email. Pay in SOL from any Solana wallet, get a key.</p>
+          <h1>one key. paid in SOL.</h1>
+          <p>No account, no card, no email. Pay from any Solana wallet, get a key, and the extension turns on.</p>
         </Reveal>
 
         <div className="plans">
-          <Reveal className="card plan">
-            <h3>Free</h3>
-            <div className="plan-price">
-              <b className="mono">0</b>
-              <span>SOL · forever</span>
-            </div>
-            <p className="plan-per">Keeps you out of the bad ones.</p>
-            <ul>
-              {FREE.map((f) => (
-                <li key={f}>{f}</li>
-              ))}
-            </ul>
-            <Link href="/extension" className="btn">
-              Get the extension
-            </Link>
-          </Reveal>
           {(plans ?? []).map((p, i) => (
-            <Reveal key={p.id} className={`card plan ${i === 1 ? "glow-edge" : ""}`} delay={(i + 1) * 80}>
+            <Reveal key={p.id} className={`card plan ${i === 1 ? "glow-edge" : ""}`} delay={i * 80}>
               {i === 1 && (
                 <span className="chip tone t-up" style={{ position: "absolute", top: 16, right: 16 }}>
                   Best value

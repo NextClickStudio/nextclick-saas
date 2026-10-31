@@ -5,14 +5,8 @@ export const LAUNCH_MC = 27.96; // SOL, market cap of a fresh pump.fun curve
 
 export type Check = { ok: boolean; label: string };
 export type Tone = "up" | "mid" | "down" | "learn";
-export type Decision = { word: "Momentum" | "Wait" | "Don't buy" | "Too early" | "No red flags"; tone: Tone; why: string };
+export type Decision = { word: "Momentum" | "Wait" | "Don't buy" | "Too early" | "Locked"; tone: Tone; why: string };
 
-/** what a free read shows: every reason to stay out, but not the moment to get in (that is Pro) */
-export function freeCall(d: Decision): Decision {
-  if (d.word === "Momentum" || d.word === "Wait")
-    return { word: "No red flags", tone: "learn", why: "Safety and creator checks passed. Momentum or Wait? Pro shows the live moment." };
-  return d;
-}
 
 /** how one of the creator's earlier coins ended: rugged (the creator's sells crashed it in seconds), faded (died
  *  slowly, nobody dumped it), ran (×3 or more) or graduated */
@@ -227,7 +221,11 @@ export function outlookOutside(o: {
   if (heat != null && (f(o.ch5) ?? 0) !== 0) score += (heat >= 1.4 ? 0.5 : heat <= 0.5 ? -0.5 : 0) * Math.sign(f(o.ch5)!);
   const b = { bias: bias(score), tf, buyShare, heat };
   const trend =
-    Math.abs(h1) < 0.05 && Math.abs(h6) < 0.1 ? "Flat over the last hours." : `${h1 >= 0 ? "Up" : "Down"} ${Math.abs(Math.round(h1 * 100))}% in 1h, ${pctS(h6)} in 6h.`;
+    o.ch1 == null && o.ch6 == null
+      ? "No price history for this pool on DexScreener yet."
+      : Math.abs(h1) < 0.05 && Math.abs(h6) < 0.1
+        ? "Flat over the last hours."
+        : `${h1 >= 0 ? "Up" : "Down"} ${Math.abs(Math.round(h1 * 100))}% in 1h, ${pctS(h6)} in 6h.`;
   return { ...b, line: outlookLine(b, trend) };
 }
 

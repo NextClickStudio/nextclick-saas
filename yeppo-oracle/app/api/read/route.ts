@@ -9,7 +9,7 @@
 //    elsewhere.
 // Then one call: Momentum, Wait, Don't buy or Too early. Cached at the edge for 5 s and shared by everyone.
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/config";
-import { type Check, type CoinRow, creatorOf, decide, freeCall, type DevNow, launchOf, outlookCurve, outlookOutside, pulseOf, pulseOutside } from "@/lib/decide";
+import { type Check, type CoinRow, creatorOf, decide, type DevNow, launchOf, outlookCurve, outlookOutside, pulseOf, pulseOutside } from "@/lib/decide";
 import { isMint } from "@/lib/format";
 import type { Money, Read } from "@/lib/read";
 import { chainChecks, rugChecks, rugReport } from "@/lib/rugcheck";
@@ -73,29 +73,53 @@ async function creatorRpc(mint: string, dev: string | null): Promise<CreatorRpc 
 }
 
 const KEY = /^YEP-[0-9A-F]{5}-[0-9A-F]{5}-[0-9A-F]{5}-[0-9A-F]{5}$/;
-const access = new Map<string, { t: number; pro: boolean }>();
+const DEV = /^[0-9a-f-]{36}$/;
+type Access = { pro: boolean; reason?: string };
+const access = new Map<string, { t: number; v: Access }>();
 
-/** does this key unlock Pro (or is the paywall off)? Kept a minute per key. When the database does not answer,
- *  the last answer stands; with none, the read is not cut (an outage should not cost a paying user the call). */
-async function isPro(key: string | null): Promise<boolean> {
+/** does this key unlock yeppo on this device (yr_access)? Kept a minute per key and device. When the database does
+ *  not answer, the last answer stands; with none, a well-formed key is let through and no key is not. */
+async function accessOf(key: string | null, dev: string | null): Promise<Access> {
   const k = key && KEY.test(key) ? key : "";
-  const hit = access.get(k);
-  if (hit && Date.now() - hit.t < 60_000) return hit.pro;
+  const d = dev && DEV.test(dev) ? dev : "";
+  // no key (or a malformed one): one shared answer, so made-up device ids never reach the database
+  const ck = k ? `${k}:${d}` : "";
+  const hit = access.get(ck);
+  if (hit && Date.now() - hit.t < 60_000) return hit.v;
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_access`, {
       method: "POST",
       headers: { apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}`, "content-type": "application/json" },
-      body: JSON.stringify({ p_key: k }),
-      signal: AbortSignal.timeout(2000),
+      body: JSON.stringify({ p_key: k, p_dev: d || null }),
+      signal: AbortSignal.timeout(2500),
     });
     if (!r.ok) throw new Error(`${r.status}`);
-    const pro = !!((await r.json()) as { pro?: boolean }).pro;
-    if (access.size > 2000) access.clear();
-    access.set(k, { t: Date.now(), pro });
-    return pro;
+    const j = (await r.json()) as { pro?: boolean; reason?: string };
+    const v = { pro: !!j.pro, reason: j.reason };
+    if (access.size > 5000) access.clear();
+    access.set(ck, { t: Date.now(), v });
+    return v;
   } catch {
-    return hit?.pro ?? true;
+    return hit?.v ?? { pro: !!k, reason: k ? undefined : "nokey" };
   }
+}
+
+const LOCKED: Record<string, string> = {
+  nokey: "yeppo needs a Pro key. Get one below, or paste yours.",
+  unknown: "That key doesn't exist. Check it, or paste the one from your payment.",
+  expired: "Your Pro key has expired. Renew it on yeppo.it/pricing: the same key keeps working.",
+  devices: "This key is already used on 3 devices. Write to info@yeppo.it to move it.",
+  nodevice: "Reload the extension, then try again.",
+};
+
+/** what a read without a valid key shows: nothing but the way in. No outside call and no database work. */
+function lockedRead(mint: string, reason: string | undefined): Read {
+  return {
+    mint, symbol: null, name: null, uri: null, image: null, venue: "", url: null, t0: null, mcUsd: null, priceX: null, athX: null,
+    liqUsd: null, holders: null, checks: [], pulse: null, outlook: null, creator: null, money: null, dev: null, path: [], down: [],
+    decision: { word: "Locked", tone: "learn", why: LOCKED[reason ?? "nokey"] ?? LOCKED.nokey },
+    pro: false, locked: true, reason: reason ?? "nokey",
+  };
 }
 
 let solUsd = 0;
@@ -158,9 +182,12 @@ export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
   const mint = q.get("mint") ?? "";
   const key = (q.get("key") ?? "").trim().toUpperCase() || null;
+  const devId = q.get("dev");
   if (!isMint(mint)) return Response.json({ error: "That is not a coin address" }, { status: 400, headers: CORS });
+  const acc = await accessOf(key, devId);
+  if (!acc.pro) return Response.json(lockedRead(mint, acc.reason), { headers: { ...CORS, "cache-control": "private, no-store" } });
   // everything that does not depend on anything else, at once
-  const [rug, first, sol, dex, pro] = await Promise.all([rugReport(mint), creatorRpc(mint, null), solPrice(), dexscreener(mint), isPro(key)]);
+  const [rug, first, sol, dex] = await Promise.all([rugReport(mint), creatorRpc(mint, null), solPrice(), dexscreener(mint)]);
   // a coin yeppo did not see launch: ask again with the creator RugCheck names; RugCheck down: the basic checks
   // straight from the chain
   const [second, chain] = await Promise.all([
@@ -173,7 +200,7 @@ export async function GET(req: Request) {
   const steps = cr?.steps ?? [];
   const onCurve = !!me && !me.grad && steps.length > 0;
   const out = onCurve ? null : dex;
-  const money = pro && cr?.dev ? await moneyRpc(cr.dev, mint) : null;
+  const money = cr?.dev ? await moneyRpc(cr.dev, mint) : null;
   if (!rug && !cr && !out) return Response.json({ error: "yeppo is busy, retrying" }, { status: 503, headers: { ...CORS, "cache-control": "no-store" } });
   // what could not be read this time: yeppo never says Momentum without it
   const down: Read["down"] = [];
@@ -248,16 +275,16 @@ export async function GET(req: Request) {
     athX,
     liqUsd: out?.liq ?? null,
     holders: rug?.holders ?? chain?.holders ?? null,
-    decision: pro || down.length ? decision : freeCall(decision),
+    decision,
     checks,
-    pulse: pro ? pulse : null,
-    outlook: pro ? outlook : null,
+    pulse,
+    outlook,
     creator,
     money,
     dev,
     path,
     down,
-    pro,
+    pro: true,
   };
   return Response.json(body, { headers: { ...CORS, "cache-control": "public, s-maxage=5, stale-while-revalidate=10" } });
 }

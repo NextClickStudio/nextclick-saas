@@ -69,18 +69,84 @@ function b64bytes(s: string): Uint8Array {
 
 // Coins on pump.fun's newer curves are paired with a quote token instead of SOL. Their TradeEvents leave
 // the SOL fields at 0 and carry the quote amounts after the instruction name (a borsh string at 258).
-// Only quote tokens priced like SOL are read, so market caps stay comparable.
+// Quote tokens priced like SOL are read as SOL; any other quote token (USDC, VVV...) is turned into SOL at its
+// current price (DexScreener, refreshed every minute), so market caps and amounts stay comparable.
 const SOL_LIKE = new Set(
   ["So11111111111111111111111111111111111111112", "98sMhvDwXj1RQi5c5Mndm3vPe9cBqPrbLaufMXFNMh5g"].map((m) => hex(b58decode(m))),
 );
+const SOL_MINT = "So11111111111111111111111111111111111111112";
+const quoteSol = new Map<string, { px: number; t: number }>(); // quote mint -> SOL per token
+const asking = new Set<string>();
+let solUsd = 0;
+let solUsdAt = 0;
+async function priceQuote(mint: string) {
+  if (asking.has(mint) || asking.size > 20) return;
+  asking.add(mint);
+  try {
+    if (!solUsd || Date.now() - solUsdAt > 60_000) {
+      const r = await fetch("https://data-api.binance.vision/api/v3/ticker/price?symbol=SOLUSDT", { signal: AbortSignal.timeout(4000) });
+      const v = Number(((await r.json()) as { price?: string }).price);
+      if (v > 0) [solUsd, solUsdAt] = [v, Date.now()];
+    }
+    const r = await fetch(`https://api.dexscreener.com/tokens/v1/solana/${mint}`, { signal: AbortSignal.timeout(4000) });
+    const pairs = (await r.json()) as { baseToken?: { address?: string }; quoteToken?: { address?: string }; priceNative?: string; priceUsd?: string; liquidity?: { usd?: number } }[];
+    // the deepest pool where this token is the base: SOL per token straight, else through its dollar price
+    const p = (Array.isArray(pairs) ? pairs : []).filter((x) => x.baseToken?.address === mint).sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0];
+    let px = 0;
+    if (p?.quoteToken?.address === SOL_MINT && Number(p.priceNative) > 0) px = Number(p.priceNative);
+    else if (p && Number(p.priceUsd) > 0 && solUsd > 0) px = Number(p.priceUsd) / solUsd;
+    if (px > 0) quoteSol.set(mint, { px, t: Date.now() });
+  } catch {
+    /* tried again on a later trade */
+  } finally {
+    asking.delete(mint);
+  }
+}
 function solSide(b: Uint8Array, dv: DataView): { sol: number; vsol: number } | null {
   const vsol = Number(dv.getBigUint64(97, true)) / 1e9;
   if (vsol > 0) return { sol: Number(dv.getBigUint64(40, true)) / 1e9, vsol };
   if (b.length < 262) return null;
   const n = dv.getUint32(258, true);
   const at = 262 + n;
-  if (n > 64 || b.length < at + 93 || !SOL_LIKE.has(hex(b, at + 37, at + 69))) return null;
-  return { sol: Number(dv.getBigUint64(at + 69, true)) / 1e9, vsol: Number(dv.getBigUint64(at + 77, true)) / 1e9 };
+  if (n > 64 || b.length < at + 93) return null;
+  const q = hex(b, at + 37, at + 69);
+  const sol = Number(dv.getBigUint64(at + 69, true)) / 1e9;
+  const qv = Number(dv.getBigUint64(at + 77, true)) / 1e9;
+  if (SOL_LIKE.has(q)) return { sol, vsol: qv };
+  const mint = b58encode(b.slice(at + 37, at + 69));
+  const known = quoteSol.get(mint);
+  if (!known || Date.now() - known.t > 60_000) void priceQuote(mint);
+  if (!known) return null; // the first seconds, until its price is known
+  // the event reads the amounts with 9 decimals, like SOL: rescale them to the quote token's own decimals
+  const dec = quoteDecimals.get(mint);
+  if (dec === undefined) {
+    void decimalsOf(mint);
+    return null;
+  }
+  const k = 10 ** (9 - dec);
+  return { sol: sol * k * known.px, vsol: qv * k * known.px };
+}
+// a quote token's decimals, from its mint account (public RPC), once per run
+const quoteDecimals = new Map<string, number>();
+const askingDec = new Set<string>();
+async function decimalsOf(mint: string) {
+  if (askingDec.has(mint)) return;
+  askingDec.add(mint);
+  try {
+    const r = await fetch("https://api.mainnet-beta.solana.com", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getAccountInfo", params: [mint, { encoding: "jsonParsed" }] }),
+      signal: AbortSignal.timeout(4000),
+    });
+    const j = (await r.json()) as { result?: { value?: { data?: { parsed?: { info?: { decimals?: number } } } } } };
+    const d = j.result?.value?.data?.parsed?.info?.decimals;
+    if (typeof d === "number" && d >= 0 && d <= 12) quoteDecimals.set(mint, d);
+  } catch {
+    /* tried again on a later trade */
+  } finally {
+    askingDec.delete(mint);
+  }
 }
 const str = (x: unknown) => (typeof x === "string" && x.trim() ? x.trim() : null);
 

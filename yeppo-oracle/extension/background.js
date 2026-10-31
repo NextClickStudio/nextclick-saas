@@ -4,7 +4,15 @@ const SITE = "https://yeppo.it";
 const TONE = { up: "#1fd47c", mid: "#ffb23e", down: "#ff5b3d", learn: "#9a85ff" };
 const MARK = { up: "GO", mid: "WAIT", down: "NO", learn: "" };
 let key = null; // the Pro key, when there is one
-chrome.storage.local.get("key", (r) => (key = r.key ?? null));
+let dev = null; // this browser's random device id: a key works on 3 devices
+chrome.storage.local.get(["key", "dev"], (r) => {
+  key = r.key ?? null;
+  dev = r.dev ?? null;
+  if (!dev) {
+    dev = crypto.randomUUID();
+    chrome.storage.local.set({ dev });
+  }
+});
 chrome.storage.onChanged.addListener((ch, area) => {
   if (area === "local" && ch.key) {
     key = ch.key.newValue ?? null;
@@ -20,7 +28,10 @@ async function read(mint) {
   const hit = cache.get(mint);
   if (hit && Date.now() - hit.at < 5_000) return hit.data;
   try {
-    const r = await fetch(`${SITE}/api/read?mint=${mint}${key ? `&key=${encodeURIComponent(key)}` : ""}`);
+    const q = new URLSearchParams({ mint });
+    if (key) q.set("key", key);
+    if (dev) q.set("dev", dev);
+    const r = await fetch(`${SITE}/api/read?${q}`);
     const data = await r.json();
     cache.set(mint, { at: Date.now(), data });
     if (cache.size > 200) cache.delete(cache.keys().next().value);
@@ -32,7 +43,7 @@ async function read(mint) {
 
 function badge(tabId, data) {
   const d = data?.decision;
-  chrome.action.setBadgeText({ tabId, text: d ? (d.word === "No red flags" ? "OK" : MARK[d.tone] ?? "") : "" }).catch(() => {});
+  chrome.action.setBadgeText({ tabId, text: d ? (d.word === "Locked" ? "KEY" : MARK[d.tone] ?? "") : "" }).catch(() => {});
   if (d) chrome.action.setBadgeBackgroundColor({ tabId, color: TONE[d.tone] ?? "#9a85ff" }).catch(() => {});
 }
 

@@ -25,15 +25,43 @@ function tellExtension(msg: Record<string, unknown>) {
   if (parent.startsWith("chrome-extension://") && window.parent !== window) window.parent.postMessage(msg, parent);
 }
 
-/** paper: the paper wallet and pkey: the Pro key, both handed over by the extension (its frame cannot read
- *  yeppo.it's storage); on yeppo.it itself both come from this browser's storage */
-export default function CoinPanel({ mint, compact, paper, pkey }: { mint: string; compact?: boolean; paper?: string | null; pkey?: string | null }) {
+/** this browser's random device id (a Pro key works on 3 devices) */
+function deviceId(): string {
+  let d = readLocal<string | null>("yo:dev", null);
+  if (!d || !/^[0-9a-f-]{36}$/.test(d)) {
+    d = crypto.randomUUID();
+    writeLocal("yo:dev", d);
+  }
+  return d;
+}
+
+/** paper, pkey and pdev: the paper wallet, the Pro key and the device id the extension keeps (its frame cannot read
+ *  yeppo.it's storage); on yeppo.it itself they come from this browser's storage */
+export default function CoinPanel({
+  mint,
+  compact,
+  paper,
+  pkey,
+  pdev,
+}: {
+  mint: string;
+  compact?: boolean;
+  paper?: string | null;
+  pkey?: string | null;
+  pdev?: string | null;
+}) {
   const [key, setKey] = useState<string | null | undefined>(pkey ?? undefined);
+  const [dev, setDev] = useState<string | null>(pdev ?? null);
   useEffect(() => {
     setKey(pkey ?? savedKey());
-  }, [pkey]);
+    setDev(pdev ?? deviceId());
+  }, [pkey, pdev]);
   // the poll's key must change once the Pro key is known (even when there is none), or it would never start
-  const { data: r, error } = usePoll<Read>(key === undefined ? null : () => readCoin(mint, key), 5000, `${mint}:${key === undefined ? "?" : (key ?? "-")}`);
+  const { data: r, error } = usePoll<Read>(
+    key === undefined ? null : () => readCoin(mint, key, dev),
+    5000,
+    `${mint}:${key === undefined ? "?" : (key ?? "-")}`,
+  );
   const now = useNow(1000);
   if (!r)
     return (
@@ -51,6 +79,24 @@ export default function CoinPanel({ mint, compact, paper, pkey }: { mint: string
             <div className="skel" style={{ height: 190 }} />
           </>
         )}
+      </div>
+    );
+
+  if (r.locked)
+    return (
+      <div className="cp">
+        <section className="cp-call t-learn">
+          <div className="cp-word cp-word-in">
+            <i />
+            Pro key needed
+          </div>
+          <p>{r.decision.why}</p>
+        </section>
+        <ProBox onKey={setKey} />
+        <div className="cp-foot">
+          <span>Short-term read. Not advice.</span>
+          <a href="mailto:info@yeppo.it">Help: info@yeppo.it</a>
+        </div>
       </div>
     );
 
@@ -82,8 +128,6 @@ export default function CoinPanel({ mint, compact, paper, pkey }: { mint: string
         </div>
         <p>{d.why}</p>
       </section>
-
-      {!r.pro && <ProBox onKey={setKey} />}
 
       {p && (
         <div className="cp-stats">
@@ -190,7 +234,7 @@ export default function CoinPanel({ mint, compact, paper, pkey }: { mint: string
         )}
       </section>
 
-      {r.pro && <MoneyBox mint={mint} dev={c?.dev ?? null} m={r.money} devOut={!!r.dev?.out} />}
+      <MoneyBox mint={mint} dev={c?.dev ?? null} m={r.money} devOut={!!r.dev?.out} />
 
       <section className="cp-box">
         <header>
@@ -435,12 +479,13 @@ function ProBox({ onKey }: { onKey: (k: string) => void }) {
   return (
     <section className="cp-box cp-pro">
       <header>
-        <h3>Unlock Pro</h3>
+        <h3>Activate yeppo</h3>
         <span className="grow" />
-        <span className="chip tone t-learn">Free plan</span>
+        <span className="chip tone t-learn">Pro key</span>
       </header>
       <p className="cp-line" style={{ fontSize: 12.5, margin: "0 0 10px" }}>
-        Free shows you the bad coins. Pro tells you when to get in: Momentum or Wait, live, plus the outlook and the money trail.
+        The call (Momentum, Wait, Don&apos;t buy), the safety checks, the creator&apos;s past coins, the money trail and paper trading. One key, paid
+        in SOL.
       </p>
       <ol className="pro-steps">
         <li>
@@ -451,7 +496,7 @@ function ProBox({ onKey }: { onKey: (k: string) => void }) {
           and pick a plan.
         </li>
         <li>Pay in SOL from Phantom, Solflare or Backpack: scan the QR or tap &ldquo;Open in my wallet&rdquo;.</li>
-        <li>Your key shows up on the page. With this extension installed, Pro turns on by itself.</li>
+        <li>Your key shows up on the page (YEP-…). With this extension installed, yeppo turns on by itself.</li>
         <li>Didn&apos;t? Paste the key below and tap Unlock.</li>
       </ol>
       <form

@@ -44,12 +44,17 @@ export type Read = {
   path: [number, number][];
   /** sources that did not answer this time: RugCheck, or yeppo's own creator history */
   down: ("rugcheck" | "history")[];
-  /** false: a free read. The live moment, the outlook and the money trail are left out (Pro). */
   pro: boolean;
+  /** no valid Pro key: nothing but the way in (reason: nokey, unknown, expired, devices, nodevice) */
+  locked?: boolean;
+  reason?: string;
 };
 
-export async function readCoin(mint: string, key?: string | null): Promise<Read> {
-  const r = await fetch(`/api/read?mint=${mint}${key ? `&key=${encodeURIComponent(key)}` : ""}`);
+export async function readCoin(mint: string, key?: string | null, dev?: string | null): Promise<Read> {
+  const q = new URLSearchParams({ mint });
+  if (key) q.set("key", key);
+  if (dev) q.set("dev", dev);
+  const r = await fetch(`/api/read?${q}`);
   const j = (await r.json()) as Read & { error?: string };
   if (!r.ok || j.error) throw new Error(j.error ?? "yeppo is busy");
   return j;

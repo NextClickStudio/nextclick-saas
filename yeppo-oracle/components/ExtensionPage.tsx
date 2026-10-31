@@ -14,7 +14,7 @@ export default function ExtensionPage() {
       <main className="page wrap">
         <Reveal className="page-head">
           <span className="kicker">
-            <i className="live" /> Free · Chrome, Brave, Edge, Arc
+            <i className="live" /> Chrome, Brave, Edge, Arc
           </span>
           <h1>
             yeppo, <span className="grad">next to your chart.</span>
@@ -25,7 +25,9 @@ export default function ExtensionPage() {
               Download the extension
             </a>
           </div>
-          <p className="hero-note">Version 2.2 · installs in a minute</p>
+          <p className="hero-note">
+            Version 2.3 · installs in a minute · needs a <a href="/pricing">Pro key</a>
+          </p>
         </Reveal>
 
         <span className="label">Install in 4 steps</span>
