@@ -9,6 +9,15 @@ const pick = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().slice
 export async function GET(req: Request) {
   const u = new URL(req.url).searchParams.get("u") ?? "";
   if (!/^https?:\/\//i.test(u) || u.length > 400) return Response.json({ error: "bad uri" }, { status: 400 });
+  // public web hosts only: no bare IP addresses, no local names
+  let host = "";
+  try {
+    host = new URL(u).hostname.toLowerCase();
+  } catch {
+    /* not a URL */
+  }
+  if (!host.includes(".") || /^[\d.]+$/.test(host) || host.includes(":") || host.startsWith("[") || /(^|\.)(localhost|local|internal)$/.test(host))
+    return Response.json({ error: "bad uri" }, { status: 400 });
   for (const m of mirrors(u)) {
     try {
       const r = await fetch(m, { signal: AbortSignal.timeout(5000), headers: { accept: "application/json" } });

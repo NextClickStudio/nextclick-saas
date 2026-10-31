@@ -8,6 +8,7 @@
 //    timeframes, from yeppo's own trades while the coin is on pump.fun's curve, from DexScreener once it trades
 //    elsewhere.
 // Then one call: Momentum, Wait, Don't buy or Too early. Cached at the edge for 5 s and shared by everyone.
+import { after } from "next/server";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/config";
 import { type Check, type CoinRow, creatorOf, decide, type DevNow, launchOf, outlookCurve, outlookOutside, pulseOf, pulseOutside } from "@/lib/decide";
 import { accessOf, DB_HEADERS, LOCKED } from "@/lib/access";
@@ -57,6 +58,27 @@ async function moneyRpc(dev: string, mint: string): Promise<Money | null> {
   } catch {
     return null;
   }
+}
+
+/** a creator yeppo has not traced yet: yr-fund traces their money in the background (only yeppo's server may ask,
+ *  with the secret), once a minute at most per creator on this instance; the next read shows the result */
+const traced = new Map<string, number>();
+function traceLater(dev: string, mint: string) {
+  const t = traced.get(dev);
+  if (t && Date.now() - t < 60_000) return;
+  if (traced.size > 2000) traced.clear();
+  traced.set(dev, Date.now());
+  after(() =>
+    fetch(`${SUPABASE_URL}/functions/v1/yr-fund`, {
+      method: "POST",
+      headers: DB_HEADERS,
+      body: JSON.stringify({ dev, mint }),
+      signal: AbortSignal.timeout(30_000),
+    }).then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
 }
 
 async function creatorRpc(mint: string, dev: string | null): Promise<CreatorRpc | null> {
@@ -171,6 +193,7 @@ export async function GET(req: Request) {
   const onCurve = !!me && !me.grad && steps.length > 0;
   const out = onCurve ? null : dex;
   const money = cr?.dev ? await moneyRpc(cr.dev, mint) : null;
+  if (cr?.dev && money && !money.checked) traceLater(cr.dev, mint);
   if (!rug && !cr && !out) return Response.json({ error: "yeppo is busy, retrying" }, { status: 503, headers: { ...CORS, "cache-control": "no-store" } });
   // what could not be read this time: yeppo never says Momentum without it
   const down: Read["down"] = [];

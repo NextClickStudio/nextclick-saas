@@ -56,17 +56,3 @@ export async function refreshPx(mints: string[]) {
 }
 
 export const paperOpen = () => rpc<string>("yr_paper_open");
-
-/** asks yr-fund to trace where a creator's SOL came from (and the coin's launch bundle); never throws */
-export async function traceMoney(dev: string, mint: string) {
-  try {
-    await fetch(`${SUPABASE_URL}/functions/v1/yr-fund`, {
-      method: "POST",
-      headers: { "content-type": "application/json", apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-      body: JSON.stringify({ dev, mint }),
-      signal: AbortSignal.timeout(30000),
-    });
-  } catch {
-    /* tried again on the next open */
-  }
-}

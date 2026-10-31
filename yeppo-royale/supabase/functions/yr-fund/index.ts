@@ -8,7 +8,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 // publicnode refuses history lookups without a token now: the Solana Foundation node goes first
 const RPCS = ["https://api.mainnet-beta.solana.com", "https://solana-rpc.publicnode.com"];
 const ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, apikey, content-type" };
+const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, apikey, content-type, x-yeppo-secret" };
 
 async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   let last: unknown = null;
@@ -99,8 +99,11 @@ async function isBusy(addr: string): Promise<boolean> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
-  const body = (await req.json().catch(() => ({}))) as { devs?: unknown; dev?: unknown; mint?: unknown };
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+  // only yeppo's own server and its cron may start a trace (yr_config 'api_secret', the same secret yr_guard checks)
+  const { data: sec } = await sb.from("yr_config").select("value").eq("key", "api_secret").maybeSingle();
+  if (!sec?.value || req.headers.get("x-yeppo-secret") !== sec.value) return new Response("forbidden", { status: 403, headers: CORS });
+  const body = (await req.json().catch(() => ({}))) as { devs?: unknown; dev?: unknown; mint?: unknown };
   const want: string[] = [];
   if (Array.isArray(body.devs)) for (const d of body.devs) if (typeof d === "string" && ADDR.test(d)) want.push(d);
   if (typeof body.dev === "string" && ADDR.test(body.dev)) want.push(body.dev);

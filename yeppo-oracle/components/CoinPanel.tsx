@@ -7,7 +7,7 @@ import type { Fate } from "@/lib/decide";
 import { mins } from "@/lib/decide";
 import { age, ago, mult, short, usd } from "@/lib/format";
 import { useNow, usePoll } from "@/lib/hooks";
-import { paperBuy, paperOpen, paperSell, paperState, refreshPx, traceMoney, type PaperState } from "@/lib/paper";
+import { paperBuy, paperOpen, paperSell, paperState, refreshPx, type PaperState } from "@/lib/paper";
 import { liveCall, livePulse, useLiveTrades } from "@/lib/live";
 import { type Money, readCoin, type Read } from "@/lib/read";
 import { license, savedKey } from "@/lib/pay";
@@ -297,15 +297,8 @@ export default function CoinPanel({
 }
 
 /** where the creator's SOL came from, and what the same money did before. Information only: the call never
- *  depends on it. Asks yr-fund to trace the wallet the first time, then shows the result on the next refresh. */
-function MoneyBox({ mint, dev, m, devOut }: { mint: string; dev: string | null; m: Money | null; devOut: boolean }) {
-  const [asked, setAsked] = useState<string | null>(null);
-  useEffect(() => {
-    if (dev && m && !m.checked && asked !== dev) {
-      setAsked(dev);
-      void traceMoney(dev, mint);
-    }
-  }, [dev, m, mint, asked]);
+ *  depends on it. yeppo.it's server has yr-fund trace the wallet the first time; the result shows on a later refresh. */
+function MoneyBox({ dev, m, devOut }: { mint: string; dev: string | null; m: Money | null; devOut: boolean }) {
   if (!dev) return null;
   let tone = "t-learn";
   let head = "Tracing…";
