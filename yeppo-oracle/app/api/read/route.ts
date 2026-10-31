@@ -9,7 +9,7 @@
 //    elsewhere.
 // Then one call: Momentum, Wait, Don't buy or Too early. Cached at the edge for 5 s and shared by everyone.
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/config";
-import { type Check, type CoinRow, creatorOf, decide, type DevNow, launchOf, outlookCurve, outlookOutside, pulseOf, pulseOutside } from "@/lib/decide";
+import { type Check, type CoinRow, creatorOf, decide, freeCall, type DevNow, launchOf, outlookCurve, outlookOutside, pulseOf, pulseOutside } from "@/lib/decide";
 import { isMint } from "@/lib/format";
 import type { Money, Read } from "@/lib/read";
 import { chainChecks, rugChecks, rugReport } from "@/lib/rugcheck";
@@ -72,6 +72,32 @@ async function creatorRpc(mint: string, dev: string | null): Promise<CreatorRpc 
   }
 }
 
+const KEY = /^YEP-[0-9A-F]{5}-[0-9A-F]{5}-[0-9A-F]{5}-[0-9A-F]{5}$/;
+const access = new Map<string, { t: number; pro: boolean }>();
+
+/** does this key unlock Pro (or is the paywall off)? Kept a minute per key. When the database does not answer,
+ *  the last answer stands; with none, the read is not cut (an outage should not cost a paying user the call). */
+async function isPro(key: string | null): Promise<boolean> {
+  const k = key && KEY.test(key) ? key : "";
+  const hit = access.get(k);
+  if (hit && Date.now() - hit.t < 60_000) return hit.pro;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_access`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({ p_key: k }),
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!r.ok) throw new Error(`${r.status}`);
+    const pro = !!((await r.json()) as { pro?: boolean }).pro;
+    if (access.size > 2000) access.clear();
+    access.set(k, { t: Date.now(), pro });
+    return pro;
+  } catch {
+    return hit?.pro ?? true;
+  }
+}
+
 let solUsd = 0;
 let solAt = 0;
 async function solPrice() {
@@ -129,10 +155,12 @@ async function dexscreener(mint: string) {
 }
 
 export async function GET(req: Request) {
-  const mint = new URL(req.url).searchParams.get("mint") ?? "";
+  const q = new URL(req.url).searchParams;
+  const mint = q.get("mint") ?? "";
+  const key = (q.get("key") ?? "").trim().toUpperCase() || null;
   if (!isMint(mint)) return Response.json({ error: "That is not a coin address" }, { status: 400, headers: CORS });
   // everything that does not depend on anything else, at once
-  const [rug, first, sol, dex] = await Promise.all([rugReport(mint), creatorRpc(mint, null), solPrice(), dexscreener(mint)]);
+  const [rug, first, sol, dex, pro] = await Promise.all([rugReport(mint), creatorRpc(mint, null), solPrice(), dexscreener(mint), isPro(key)]);
   // a coin yeppo did not see launch: ask again with the creator RugCheck names; RugCheck down: the basic checks
   // straight from the chain
   const [second, chain] = await Promise.all([
@@ -145,7 +173,7 @@ export async function GET(req: Request) {
   const steps = cr?.steps ?? [];
   const onCurve = !!me && !me.grad && steps.length > 0;
   const out = onCurve ? null : dex;
-  const money = cr?.dev ? await moneyRpc(cr.dev, mint) : null;
+  const money = pro && cr?.dev ? await moneyRpc(cr.dev, mint) : null;
   if (!rug && !cr && !out) return Response.json({ error: "yeppo is busy, retrying" }, { status: 503, headers: { ...CORS, "cache-control": "no-store" } });
   // what could not be read this time: yeppo never says Momentum without it
   const down: Read["down"] = [];
@@ -220,15 +248,16 @@ export async function GET(req: Request) {
     athX,
     liqUsd: out?.liq ?? null,
     holders: rug?.holders ?? null,
-    decision,
+    decision: pro || down.length ? decision : freeCall(decision),
     checks,
-    pulse,
-    outlook,
+    pulse: pro ? pulse : null,
+    outlook: pro ? outlook : null,
     creator,
     money,
     dev,
     path,
     down,
+    pro,
   };
   return Response.json(body, { headers: { ...CORS, "cache-control": "public, s-maxage=5, stale-while-revalidate=10" } });
 }

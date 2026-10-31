@@ -1,28 +1,14 @@
 // yr-fund: where a wallet's first SOL came from. For a coin being read it traces the creator and the biggest
 // buyers of the launch bundle; in the background (pg_cron) it traces creators who rugged. Each wallet is looked up
-// once and kept in yr_fund. A funder that is an exchange, or a service busy with thousands of transfers a day, is
-// marked 'exchange' and links nothing. Public Solana RPC only; at most 5 wallets per call.
+// once and kept in yr_fund. A funder that is an exchange (yr_exch), or a service busy with thousands of transfers a
+// day, is marked 'exchange' and links nothing; a busy one joins yr_exch, so the list grows by itself. Public Solana
+// RPC only; at most 5 wallets per call.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 
 const RPCS = ["https://solana-rpc.publicnode.com", "https://api.mainnet-beta.solana.com"];
 const ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, apikey, content-type" };
-// hot wallets of the big exchanges: a withdrawal from them says nothing about who is behind a wallet
-const EXCHANGES = new Set([
-  "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9", // Binance
-  "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", // Binance
-  "2ojv9BAiHUrvsm9gxDe7fJSzbNZSJcxZvf8dqmWGHG8S", // Binance
-  "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS", // Coinbase
-  "GJRs4FwHtemZ5ZE9x3FNvJ8TMwitKTh21yxdRPqn7npE", // Coinbase
-  "5VCwKtCXgCJ6kit5FybXjvriW3xELsFDhYrPSqtJNmcD", // OKX
-  "AC5RDfQFmDS1deWZos921JfqscXdByf8BKHs5ACWjtW2", // Bybit
-  "FWznbcNXWQuHTawe9RxvQ2LdCENssh12dsznf4RiouN5", // Kraken
-  "ASTyfSima4LLAdDgoFGkgqoKowG1LZFDr9fAQrg7iaJZ", // MEXC
-  "u6PJ8DtQuPFnfmwHbGFULQ4u4EgjDiyYKjVEsynXq2w", // Gate.io
-  "BmFdpraQhkiDQE6SnfG5omcA1VwzqfXrwtNYBwWTymy6", // KuCoin
-  "AobVSwdW9BbpMdJvTqeCN4hPAmh4rHm7vwLnQ5ATSyrS", // Crypto.com
-  "88xTWZMeKfiTgbfEmPLdsUCQcZinwUfk25EBQZ21XMAZ", // HTX
-]);
+
 
 async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   let last: unknown = null;
@@ -93,9 +79,8 @@ async function firstFunder(addr: string): Promise<{ funder: string | null; kind:
   return { funder: null, kind: "none", sol: null };
 }
 
-/** an exchange, or a service sending thousands of transfers a day */
+/** a service sending thousands of transfers a day */
 async function isBusy(addr: string): Promise<boolean> {
-  if (EXCHANGES.has(addr)) return true;
   const sigs = await rpc<Sig[]>("getSignaturesForAddress", [addr, { limit: 1000, commitment: "confirmed" }]).catch(() => [] as Sig[]);
   const last = sigs[sigs.length - 1]?.blockTime;
   return sigs.length === 1000 && !!last && Date.now() / 1000 - last < 2 * 86400;
@@ -119,11 +104,17 @@ Deno.serve(async (req) => {
   const todo = uniq.filter((d) => !(known ?? []).some((k) => k.dev === d));
   const rows: Record<string, unknown>[] = [];
   const busy = new Map<string, boolean>();
+  const learned: { addr: string; auto: boolean }[] = [];
   for (const dev of todo) {
     try {
       const f = await firstFunder(dev);
       if (f.funder) {
-        if (!busy.has(f.funder)) busy.set(f.funder, await isBusy(f.funder));
+        if (!busy.has(f.funder)) {
+          const { data: ex } = await sb.from("yr_exch").select("addr").eq("addr", f.funder).maybeSingle();
+          const b = !!ex || (await isBusy(f.funder));
+          busy.set(f.funder, b);
+          if (b && !ex) learned.push({ addr: f.funder, auto: true });
+        }
         if (busy.get(f.funder)) f.kind = "exchange";
       }
       rows.push({ dev, funder: f.funder, kind: f.kind, sol: f.sol, t: Date.now() });
@@ -132,5 +123,6 @@ Deno.serve(async (req) => {
     }
   }
   if (rows.length) await sb.from("yr_fund").upsert(rows);
+  if (learned.length) await sb.from("yr_exch").upsert(learned, { ignoreDuplicates: true });
   return Response.json({ ok: true, traced: rows.length }, { headers: CORS });
 });

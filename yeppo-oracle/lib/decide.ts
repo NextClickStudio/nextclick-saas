@@ -5,7 +5,14 @@ export const LAUNCH_MC = 27.96; // SOL, market cap of a fresh pump.fun curve
 
 export type Check = { ok: boolean; label: string };
 export type Tone = "up" | "mid" | "down" | "learn";
-export type Decision = { word: "Momentum" | "Wait" | "Don't buy" | "Too early"; tone: Tone; why: string };
+export type Decision = { word: "Momentum" | "Wait" | "Don't buy" | "Too early" | "No red flags"; tone: Tone; why: string };
+
+/** what a free read shows: every reason to stay out, but not the moment to get in (that is Pro) */
+export function freeCall(d: Decision): Decision {
+  if (d.word === "Momentum" || d.word === "Wait")
+    return { word: "No red flags", tone: "learn", why: "Safety and creator checks passed. Momentum or Wait? Pro shows the live moment." };
+  return d;
+}
 
 /** how one of the creator's earlier coins ended: rugged (the creator's sells crashed it in seconds), faded (died
  *  slowly, nobody dumped it), ran (×3 or more) or graduated */

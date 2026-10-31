@@ -221,7 +221,7 @@ export default function Home() {
             <br />
             <span className="grad">skip the rug.</span>
           </h2>
-          <p>Free while in beta. It never touches your wallet.</p>
+          <p>Free safety checks. Pro tells you when to get in. It never touches your wallet.</p>
           <Link href="/extension" className="btn btn-go btn-lg">
             Add to Chrome
           </Link>

@@ -1944,3 +1944,10 @@ img {
     filter: brightness(1.35);
   }
 }
+
+/* the Pro box on a free read */
+.cp-pro {
+  border-color: color-mix(in srgb, #9a85ff 35%, transparent);
+  background: linear-gradient(160deg, color-mix(in srgb, #9a85ff 9%, transparent), transparent 60%);
+}
+.cp-pro .pp-row .btn { flex: 1; text-align: center; }

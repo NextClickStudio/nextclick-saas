@@ -4,30 +4,36 @@ const view = document.getElementById("view");
 const where = document.getElementById("where");
 let active = null;
 let saved = {};
-chrome.storage.local.get(["paper"], (r) => {
+chrome.storage.local.get(["paper", "key"], (r) => {
   saved = r;
   void follow();
 });
 chrome.storage.onChanged.addListener((ch, area) => {
   if (area !== "local") return;
-  if (ch.paper && ch.paper.newValue !== saved.paper) {
-    saved.paper = ch.paper.newValue;
-    view.src = viewUrl(shown);
-  }
+  let again = false;
+  for (const k of ["paper", "key"])
+    if (ch[k] && ch[k].newValue !== saved[k]) {
+      saved[k] = ch[k].newValue;
+      again = true;
+    }
+  if (again) view.src = viewUrl(shown);
 });
 
-/** the view's address: the coin, plus the paper wallet the extension keeps */
+/** the view's address: the coin, plus the paper wallet and the Pro key the extension keeps */
 function viewUrl(mint) {
   const q = new URLSearchParams();
   if (mint) q.set("mint", mint);
   if (saved.paper) q.set("paper", saved.paper);
+  if (saved.key) q.set("key", saved.key);
   return `${SITE}/panel?${q}`;
 }
 
-// the view opened a paper wallet: keep it for every frame
+// the view opened a paper wallet or unlocked Pro: keep it for every frame
 window.addEventListener("message", (e) => {
-  if (e.source !== view.contentWindow || e.origin !== SITE || e.data?.yeppo !== "paper") return;
-  if (typeof e.data.id === "string" && /^[0-9a-f-]{36}$/.test(e.data.id)) chrome.storage.local.set({ paper: e.data.id });
+  if (e.source !== view.contentWindow || e.origin !== SITE) return;
+  const d = e.data;
+  if (d?.yeppo === "paper" && typeof d.id === "string" && /^[0-9a-f-]{36}$/.test(d.id)) chrome.storage.local.set({ paper: d.id });
+  if (d?.yeppo === "key" && typeof d.key === "string" && /^YEP-[0-9A-F]{5}(-[0-9A-F]{5}){3}$/.test(d.key)) chrome.storage.local.set({ key: d.key });
 });
 
 let shown = undefined;
@@ -55,22 +61,3 @@ chrome.storage.onChanged.addListener((ch, area) => {
 const box = document.getElementById("badge");
 chrome.storage.local.get("badge", (r) => (box.checked = r.badge !== false));
 box.addEventListener("change", () => chrome.storage.local.set({ badge: box.checked }));
-
-
-// the owner's lab: the lab key and the paper wallet id (both on yeppo.it/lab) turn on paper trading here;
-// an empty key turns it off
-const form = document.getElementById("labform");
-document.getElementById("lab").addEventListener("click", (e) => {
-  e.preventDefault();
-  form.hidden = !form.hidden;
-  document.getElementById("labkey").value = saved.lab ?? "";
-  document.getElementById("labpaper").value = saved.paper ?? "";
-});
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const lab = document.getElementById("labkey").value.trim();
-  const paper = document.getElementById("labpaper").value.trim();
-  if (lab && paper) chrome.storage.local.set({ lab, paper });
-  else chrome.storage.local.remove(["lab", "paper"]);
-  form.hidden = true;
-});

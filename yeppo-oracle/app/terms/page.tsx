@@ -61,6 +61,11 @@ export default function Page() {
         pump.fun, GMGN, Axiom, Photon, BullX, DexScreener, Birdeye, Jupiter and the wallets you use are run by others. yeppo is not affiliated with them
         and is not responsible for them.
       </p>
+      <h2>9. Contact</h2>
+      <p>
+        Questions, a payment that did not unlock your plan, or a key to block: write to <a href="mailto:info@yeppo.it">info@yeppo.it</a>. For a
+        payment, include the transaction signature.
+      </p>
     </Doc>
   );
 }

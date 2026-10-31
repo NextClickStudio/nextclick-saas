@@ -57,6 +57,7 @@ export function Footer() {
           <Link href="/terms">Terms</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/risk">Risk</Link>
+          <a href="mailto:info@yeppo.it">info@yeppo.it</a>
         </nav>
         <p className="foot-fine">Not financial advice. Most memecoins go to zero. Only trade what you can lose.</p>
       </div>

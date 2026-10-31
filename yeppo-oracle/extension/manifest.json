@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "yeppo",
-  "version": "2.1.0",
-  "description": "Safety, creator history and the live moment of the memecoin you are looking at. Momentum, Wait or Don't buy.",
+  "version": "2.2.0",
+  "description": "Is this memecoin safe, and is now the moment? yeppo reads the coin you are looking at: safety, creator history, Momentum or Wait.",
   "icons": {
     "16": "icons/16.png",
     "32": "icons/32.png",
@@ -49,8 +49,8 @@
     },
     {
       "matches": [
-        "https://yeppo.it/lab*",
-        "https://www.yeppo.it/lab*"
+        "https://yeppo.it/*",
+        "https://www.yeppo.it/*"
       ],
       "js": [
         "link.js"

@@ -2,13 +2,14 @@
 
 // The read of one coin: the call, the moment, the creator's history laid over this coin, and the safety
 // checks. The same component fills the extension's panel and the coin page; it refreshes every 5 seconds.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Fate } from "@/lib/decide";
 import { mins } from "@/lib/decide";
 import { age, ago, mult, short, usd } from "@/lib/format";
 import { useNow, usePoll } from "@/lib/hooks";
 import { paperBuy, paperOpen, paperSell, paperState, refreshPx, traceMoney, type PaperState } from "@/lib/paper";
 import { type Money, readCoin, type Read } from "@/lib/read";
+import { license, savedKey } from "@/lib/pay";
 import { readLocal, writeLocal } from "@/lib/supabase";
 import { CoinImg, Num } from "./Bits";
 import Overlay from "./Overlay";
@@ -18,8 +19,20 @@ const x = (v: number) => `×${v >= 10 ? v.toFixed(0) : v.toFixed(1)}`;
 const sign = (v: number | null) => (v == null ? "–" : `${v >= 0 ? "+" : ""}${Math.round(v * 100)}%`);
 
 /** paper: the owner's paper wallet, handed over by the extension (its frame cannot read yeppo.it's storage) */
-export default function CoinPanel({ mint, compact, paper }: { mint: string; compact?: boolean; paper?: string | null }) {
-  const { data: r, error } = usePoll<Read>(() => readCoin(mint), 5000, mint);
+/** tell the extension this page sits in (and only the extension, never another site that frames yeppo) */
+function tellExtension(msg: Record<string, unknown>) {
+  const parent = window.location.ancestorOrigins?.[0] ?? (document.referrer ? new URL(document.referrer).origin : "");
+  if (parent.startsWith("chrome-extension://") && window.parent !== window) window.parent.postMessage(msg, parent);
+}
+
+/** paper: the paper wallet and pkey: the Pro key, both handed over by the extension (its frame cannot read
+ *  yeppo.it's storage); on yeppo.it itself both come from this browser's storage */
+export default function CoinPanel({ mint, compact, paper, pkey }: { mint: string; compact?: boolean; paper?: string | null; pkey?: string | null }) {
+  const [key, setKey] = useState<string | null | undefined>(pkey ?? undefined);
+  useEffect(() => {
+    setKey(pkey ?? savedKey());
+  }, [pkey]);
+  const { data: r, error } = usePoll<Read>(key === undefined ? null : () => readCoin(mint, key), 5000, `${mint}:${key ?? ""}`);
   const now = useNow(1000);
   if (!r)
     return (
@@ -68,6 +81,8 @@ export default function CoinPanel({ mint, compact, paper }: { mint: string; comp
         </div>
         <p>{d.why}</p>
       </section>
+
+      {!r.pro && <ProBox onKey={setKey} />}
 
       {p && (
         <div className="cp-stats">
@@ -174,7 +189,7 @@ export default function CoinPanel({ mint, compact, paper }: { mint: string; comp
         )}
       </section>
 
-      <MoneyBox mint={mint} dev={c?.dev ?? null} m={r.money} devOut={!!r.dev?.out} />
+      {r.pro && <MoneyBox mint={mint} dev={c?.dev ?? null} m={r.money} devOut={!!r.dev?.out} />}
 
       <section className="cp-box">
         <header>
@@ -284,19 +299,23 @@ function PaperBox({ mint, given }: { mint: string; given: string | null }) {
   useEffect(() => {
     setAcct(given ?? readLocal<string | null>("yo:paper", null));
   }, [given]);
-  // coins past pump.fun's curve get their DexScreener price refreshed first, so the wallet can value them
+  // the price of a held coin is refreshed (DexScreener, for coins past pump.fun's curve) every few polls; an
+  // empty wallet only reads its balance. Light on the database: one read every 5 seconds per open panel.
+  const held = useRef(false);
+  const polls = useRef(0);
   const { data: st, reload } = usePoll<PaperState>(
     acct
       ? async () => {
-          await refreshPx([mint]);
+          if (held.current && polls.current++ % 2 === 0) await refreshPx([mint]).catch(() => null);
           return paperState(acct);
         }
       : null,
-    2000,
-    acct ?? "",
+    5000,
+    `${acct ?? ""}:${mint}`,
   );
   useEffect(() => setMsg(null), [mint]);
   const pos = st?.positions.find((q) => q[0] === mint);
+  held.current = !!pos;
   const run = async (what: string, f: () => Promise<unknown>, done: string) => {
     if (busy || !acct) return;
     setBusy(what);
@@ -316,10 +335,8 @@ function PaperBox({ mint, given }: { mint: string; given: string | null }) {
     try {
       const id = await paperOpen();
       writeLocal("yo:paper", id);
-      // the extension keeps it for its frames: tell only the extension frame this page sits in, never another site
-      const parent = window.location.ancestorOrigins?.[0] ?? (document.referrer ? new URL(document.referrer).origin : "");
-      const host = parent.startsWith("chrome-extension://") ? parent : null;
-      if (host && window.parent !== window) window.parent.postMessage({ yeppo: "paper", id }, host);
+      // the extension keeps it for its frames
+      tellExtension({ yeppo: "paper", id });
       setAcct(id);
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "Something went wrong" });
@@ -393,6 +410,62 @@ function PaperBox({ mint, given }: { mint: string; given: string | null }) {
       <p className="pp-msg dim" style={{ fontSize: 11 }}>
         Fees like a real trade: pump.fun 1.25% (0.3% after graduation), terminal 1%, network 0.002 SOL.
       </p>
+    </section>
+  );
+}
+
+/** a free read: what Pro adds, and a place for the key */
+function ProBox({ onKey }: { onKey: (k: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [k, setK] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const check = async () => {
+    const key = k.trim().toUpperCase();
+    if (!key) return;
+    setBusy(true);
+    setErr(null);
+    const l = await license(key).catch(() => null);
+    setBusy(false);
+    if (!l?.ok) return setErr(l ? "That key is not active." : "Can't check the key right now. Try again.");
+    writeLocal("yo:key", key);
+    tellExtension({ yeppo: "key", key });
+    onKey(key);
+  };
+  return (
+    <section className="cp-box cp-pro">
+      <header>
+        <h3>Pro</h3>
+        <span className="grow" />
+        <span className="chip tone t-learn">Locked</span>
+      </header>
+      <p className="cp-line" style={{ fontSize: 12.5, margin: "0 0 10px" }}>
+        When to get in: Momentum or Wait, live. Plus the outlook on 4 timeframes and the money trail behind the creator.
+      </p>
+      <div className="pp-row">
+        <a className="btn btn-sm btn-go" href="https://yeppo.it/pricing" target="_blank" rel="noreferrer">
+          Get Pro
+        </a>
+        <button className="btn btn-sm" onClick={() => setOpen((o) => !o)}>
+          I have a key
+        </button>
+      </div>
+      {open && (
+        <form
+          className="field"
+          style={{ marginTop: 8 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void check();
+          }}
+        >
+          <input value={k} onChange={(e) => setK(e.target.value)} placeholder="YEP-XXXXX-XXXXX-XXXXX-XXXXX" spellCheck={false} autoFocus />
+          <button className="btn btn-sm" disabled={busy}>
+            {busy ? "…" : "Unlock"}
+          </button>
+        </form>
+      )}
+      {err && <p className="pp-msg down">{err}</p>}
     </section>
   );
 }

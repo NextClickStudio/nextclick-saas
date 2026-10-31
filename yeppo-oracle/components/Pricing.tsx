@@ -8,7 +8,13 @@ import { writeLocal } from "@/lib/supabase";
 import Nav, { Footer } from "./Nav";
 import Reveal from "./Reveal";
 
-const FEATURES = ["The extension on every trading site", "Safety checks on any coin", "Creator history and when they sell", "The live moment: Momentum, Wait, Don't buy"];
+const FREE = ["Don't buy on rugs, farms and dumps", "Safety checks on any coin", "Creator history, coin by coin", "Paper trading with real fees"];
+const PRO = ["When to get in: Momentum or Wait, live", "Outlook on 4 timeframes", "Money trail behind the creator", "Everything in Free"];
+
+/** hand the key to the extension (its content script on yeppo.it listens), so nothing has to be pasted */
+function linkExtension(key: string) {
+  window.postMessage({ yeppo: "link", key }, window.location.origin);
+}
 
 function Qr({ text }: { text: string }) {
   const cells = useMemo(() => {
@@ -53,6 +59,15 @@ export default function Pricing() {
   const [paid, setPaid] = useState<{ key: string; until: number } | null>(null);
   const [mine, setMine] = useState<License | null>(null);
   const [keyIn, setKeyIn] = useState("");
+  const [linked, setLinked] = useState(false);
+
+  useEffect(() => {
+    const on = (e: MessageEvent) => {
+      if (e.source === window && e.origin === window.location.origin && e.data?.yeppo === "linked") setLinked(true);
+    };
+    window.addEventListener("message", on);
+    return () => window.removeEventListener("message", on);
+  }, []);
 
   useEffect(() => {
     pay<{ open: boolean; plans: PayPlan[] }>({ action: "plans" })
@@ -62,7 +77,11 @@ export default function Pricing() {
       })
       .catch(() => setPlans([]));
     const k = savedKey();
-    if (k) void license(k).then(setMine);
+    if (k)
+      void license(k).then((l) => {
+        setMine(l);
+        if (l.ok) linkExtension(k);
+      });
   }, []);
 
   // look for the payment every 6 seconds while the order is open
@@ -75,6 +94,7 @@ export default function Pricing() {
         if (!alive) return;
         if (r.paid && r.key) {
           writeLocal("yo:key", r.key);
+          linkExtension(r.key);
           setPaid({ key: r.key, until: r.until ?? 0 });
         } else if (r.expired) setErr("This order expired. Start a new one.");
       } catch {
@@ -102,31 +122,29 @@ export default function Pricing() {
       <main className="page wrap">
         <Reveal className="page-head">
           <span className="label">Pricing</span>
-          <h1>one plan. paid in SOL.</h1>
-          <p>No account, no card, no email. Pay from any Solana wallet, get a key.</p>
+          <h1>free to stay safe. pro to time it.</h1>
+          <p>No account, no card, no email. Pay in SOL from any Solana wallet, get a key.</p>
         </Reveal>
 
-        {open && (
-          <Reveal className="card beta">
-            <b>Early access.</b>
-            <span>Every feature is free during the beta. A plan backs yeppo now and its days start today.</span>
-          </Reveal>
-        )}
-
-        {!open && (
-          <Reveal className="card beta">
-            <b>Free during the beta.</b>
-            <span>Everything works without paying until launch.</span>
-            <span className="grow" />
-            <Link href="/extension" className="btn btn-go btn-sm">
+        <div className="plans">
+          <Reveal className="card plan">
+            <h3>Free</h3>
+            <div className="plan-price">
+              <b className="mono">0</b>
+              <span>SOL · forever</span>
+            </div>
+            <p className="plan-per">Keeps you out of the bad ones.</p>
+            <ul>
+              {FREE.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+            <Link href="/extension" className="btn">
               Get the extension
             </Link>
           </Reveal>
-        )}
-
-        <div className="plans">
           {(plans ?? []).map((p, i) => (
-            <Reveal key={p.id} className={`card plan ${i === 1 ? "glow-edge" : ""}`} delay={i * 80}>
+            <Reveal key={p.id} className={`card plan ${i === 1 ? "glow-edge" : ""}`} delay={(i + 1) * 80}>
               {i === 1 && (
                 <span className="chip tone t-up" style={{ position: "absolute", top: 16, right: 16 }}>
                   Best value
@@ -139,12 +157,12 @@ export default function Pricing() {
               </div>
               <p className="plan-per">{(p.sol / (p.days / 30)).toFixed(2)} SOL a month</p>
               <ul>
-                {FEATURES.map((f) => (
+                {PRO.map((f) => (
                   <li key={f}>{f}</li>
                 ))}
               </ul>
               <button className={`btn ${i === 1 ? "btn-go" : ""}`} disabled={!open} onClick={() => void buy(p)}>
-                {open ? `Pay ${p.sol} SOL` : "Opens at launch"}
+                {open ? `Pay ${p.sol} SOL` : "Opens soon"}
               </button>
             </Reveal>
           ))}
@@ -163,8 +181,11 @@ export default function Pricing() {
                   <Copy text={paid.key} />
                 </div>
                 <p>
-                  Valid until {new Date(paid.until).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}. Open the
-                  extension, paste the key once, done. It is saved in this browser too. Keep it somewhere safe: it is the only proof of your plan.
+                  Valid until {new Date(paid.until).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}.{" "}
+                  {linked
+                    ? "Already sent to your extension: Pro is on."
+                    : "Open the extension, tap “I have a key” and paste it once."}{" "}
+                  It is saved in this browser too. Keep it somewhere safe: it is the only proof of your plan.
                 </p>
               </div>
             ) : (
@@ -202,6 +223,7 @@ export default function Pricing() {
           {mine?.ok ? (
             <p className="up">
               Your plan is active until {new Date(mine.until ?? 0).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}.
+              {linked ? " Pro is on in your extension too." : ""}
             </p>
           ) : (
             <form
@@ -212,8 +234,10 @@ export default function Pricing() {
                 const k = keyIn.trim().toUpperCase();
                 const l = await license(k).catch(() => ({ ok: false }) as License);
                 setMine(l);
-                if (l.ok) writeLocal("yo:key", k);
-                else setErr("That key is not active.");
+                if (l.ok) {
+                  writeLocal("yo:key", k);
+                  linkExtension(k);
+                } else setErr("That key is not active.");
               }}
             >
               <input value={keyIn} onChange={(e) => setKeyIn(e.target.value)} placeholder="YEP-XXXXX-XXXXX-XXXXX-XXXXX" spellCheck={false} />
@@ -224,7 +248,8 @@ export default function Pricing() {
 
         <p className="dim small" style={{ marginTop: 28, maxWidth: 620 }}>
           Payments go straight to yeppo&apos;s Solana wallet and are final. A plan unlocks the tool for the days paid; it does not renew by itself. See the{" "}
-          <Link href="/terms">terms</Link> and the <Link href="/risk">risk disclosure</Link>.
+          <Link href="/terms">terms</Link> and the <Link href="/risk">risk disclosure</Link>. Paid and no key? Write to{" "}
+          <a href="mailto:info@yeppo.it">info@yeppo.it</a> with the transaction signature.
         </p>
       </main>
       <Footer />
