@@ -5,14 +5,18 @@
 // coin's X post (likes and replies through the endpoint X's own embeds read). Every outside answer is kept on this
 // server for a while, so a busy coin costs those services one call every 30 s at most.
 import { after } from "next/server";
+import { levelOf } from "./crowd-level";
 import { mirrors } from "./meta";
 
+export type { PumpStats } from "./crowd-level";
 export type CrowdDb = { w5: number; new5: number; newPrev: number; clusters: number; clWallets: number; clHeld: number; bigCluster: number };
 
 export type Crowd = {
   /** 0-100: how many people seem to be on it right now */
   interest: number;
-  level: "Quiet" | "Some interest" | "Growing" | "Lots of eyes" | "Frenzy";
+  level: ReturnType<typeof levelOf>;
+  /** first-time buyers now / 5 minutes before */
+  growing: number | null;
   traders5: number | null;
   newBuyers5: number | null;
   /** first-time buyers of the 5 minutes before: is the crowd growing? */
@@ -35,7 +39,7 @@ export type Crowd = {
 
 export type Volatility = {
   regime: "Calm" | "Lively" | "Wild" | "Extreme";
-  /** a usual 5-minute move, either way (one standard deviation) */
+  /** a usual 5-minute move (one standard deviation), as the fall it means: always under 100% */
   move5: number;
   /** the deepest fall from a high in the last 5 minutes */
   drop5: number | null;
@@ -47,7 +51,6 @@ export type Volatility = {
 
 const TTL = 30_000;
 const hold = <T>() => new Map<string, { t: number; v: T }>();
-const pumpCache = hold<{ comments: number | null; comments10: number | null; commenters10: number | null; live: boolean; watching: number | null }>();
 const xCache = hold<{ likes: number | null; replies: number | null; handle: string | null } | null>();
 
 async function getJson<T>(url: string, ms = 2500): Promise<T | null> {
@@ -59,39 +62,6 @@ async function getJson<T>(url: string, ms = 2500): Promise<T | null> {
   }
 }
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() && Number.isFinite(+v) ? +v : null);
-
-/** pump.fun's own page data: comment count, the latest comments, and the livestream if the coin is live */
-async function pumpfun(mint: string) {
-  const hit = pumpCache.get(mint);
-  if (hit && Date.now() - hit.t < TTL) return hit.v;
-  const [coin, replies] = await Promise.all([
-    getJson<Record<string, unknown>>(`https://frontend-api-v3.pump.fun/coins/${mint}`),
-    getJson<unknown>(`https://frontend-api-v3.pump.fun/replies/${mint}?limit=100&offset=0&reverseOrder=true`),
-  ]);
-  const list = (Array.isArray(replies) ? replies : ((replies as { replies?: unknown[] } | null)?.replies ?? [])) as Record<string, unknown>[];
-  const since = Date.now() - 600_000;
-  const recent = list.filter((r) => {
-    const t = num(r.timestamp) ?? num(r.created_timestamp);
-    return t != null && (t < 1e12 ? t * 1000 : t) > since;
-  });
-  const live = coin?.is_currently_live === true;
-  let watching: number | null = num(coin?.num_participants) ?? num(coin?.livestream_participants);
-  if (live && watching == null) {
-    const ls = await getJson<Record<string, unknown>>(`https://livestream-api.pump.fun/livestream?mintId=${mint}`);
-    watching = num(ls?.numParticipants) ?? num(ls?.num_participants) ?? null;
-  }
-  const v = {
-    comments: num(coin?.reply_count),
-    comments10: list.length ? recent.length : null,
-    commenters10: list.length ? new Set(recent.map((r) => String(r.user ?? r.username ?? ""))).size : null,
-    live,
-    watching,
-  };
-  // nothing answered: try again on the next read rather than keep an empty answer
-  if (coin || list.length) pumpCache.set(mint, { t: Date.now(), v });
-  if (pumpCache.size > 500) pumpCache.clear();
-  return v;
-}
 
 /** the X post the coin links to: likes and replies, from the endpoint X's embedded posts read (no key, no login) */
 async function xPost(uri: string | null) {
@@ -138,7 +108,7 @@ export function volatilityOf(steps: number[][], nowStep: number, mcSol: number |
       const gap = Math.max(1, last[i][0] - last[i - 1][0]);
       rets.push(Math.log(last[i][1] / last[i - 1][1]) / Math.sqrt(gap));
     }
-    move5 = Math.exp(sd(rets) * Math.sqrt(30)) - 1;
+    move5 = 1 - Math.exp(-sd(rets) * Math.sqrt(30));
     let hi = 0;
     let dd = 0;
     for (const s of last) {
@@ -154,32 +124,27 @@ export function volatilityOf(steps: number[][], nowStep: number, mcSol: number |
   // pump.fun's curve: constant product of about 30 SOL × 1.073 billion tokens, so its SOL depth is √(mc × 32.2)
   const vsol = mcSol && mcSol > 0 ? Math.sqrt(mcSol * 32.2) : null;
   const impact1 = vsol && source === "trades" ? (1 + 1 / vsol) ** 2 - 1 : null;
-  const regime: Volatility["regime"] = move5 < 0.1 ? "Calm" : move5 < 0.25 ? "Lively" : move5 < 0.5 ? "Wild" : "Extreme";
+  const regime: Volatility["regime"] = move5 < 0.08 ? "Calm" : move5 < 0.2 ? "Lively" : move5 < 0.4 ? "Wild" : "Extreme";
   return { regime, move5, drop5, impact1, liqUsd: dex?.liq ?? null, source };
 }
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-type Extras = { pf: Awaited<ReturnType<typeof pumpfun>> | null; xp: Awaited<ReturnType<typeof xPost>> | null };
+type Extras = { xp: Awaited<ReturnType<typeof xPost>> | null };
 
-/** the outside sources (pump.fun, X), never waited on for more than 1.8 s: a slow one fills its cache for the next
- *  read and shows then */
-export function crowdExtras(mint: string, uri: string | null, pump: boolean): Promise<Extras> {
-  const all = Promise.all([pump ? pumpfun(mint) : Promise.resolve(null), xPost(uri)]).then(([pf, xp]) => ({ pf, xp }));
-  const late = new Promise<Extras>((res) =>
-    setTimeout(() => {
-      const p = pumpCache.get(mint)?.v ?? null;
-      const x = uri ? (xCache.get(uri)?.v ?? null) : null;
-      res({ pf: p, xp: x });
-    }, 1800),
-  );
+/** the coin's X post, never waited on for more than 1.8 s: a slow answer fills its cache for the next read.
+ *  pump.fun's comments and livestream are not read here: pump.fun refuses servers, so the extension reads them on the
+ *  pump.fun page itself and hands them to the panel (PumpStats). */
+export function crowdExtras(uri: string | null): Promise<Extras> {
+  const all = xPost(uri).then((xp) => ({ xp }));
+  const late = new Promise<Extras>((res) => setTimeout(() => res({ xp: uri ? (xCache.get(uri)?.v ?? null) : null }), 1800));
   // let a slow source finish after the answer went out, so its cache is warm for the next read
   try {
     after(() => all.then(() => undefined, () => undefined));
   } catch {
     /* outside a request */
   }
-  return Promise.race([all, late]).catch(() => ({ pf: null, xp: null }));
+  return Promise.race([all, late]).catch(() => ({ xp: null }));
 }
 
 /** everything together, with a plain line */
@@ -192,23 +157,21 @@ export function crowdOf(o: {
   rug: { insiders: number; insiderWallets: number } | null;
   extras: Extras;
 }): Crowd {
-  const { pf, xp } = o.extras;
+  const { xp } = o.extras;
   const vol = volatilityOf(o.steps, o.nowStep, o.mcSol, o.dex);
   const d = o.db;
-  // interest: traders and new buyers of the last 5 minutes, comments, the X post, boosts; each capped, log scaled
+  // interest: traders and new buyers of the last 5 minutes, the X post, DexScreener boosts and socials, each capped and
+  // log scaled (75 points); pump.fun's comments and livestream add the other 25 in the panel (withPump)
   const lg = (v: number | null | undefined, full: number) => (v && v > 0 ? Math.min(1, Math.log1p(v) / Math.log1p(full)) : 0);
   const parts: [number, number][] = [
     [lg(d?.w5, 400), 35],
     [lg(d?.new5, 300), 20],
-    [lg(pf?.comments10, 40), 15],
     [lg(xp?.likes, 2000), 10],
-    [lg(pf?.watching, 200), 10],
     [Math.min(1, (o.dex?.boosts ?? 0) / 500 + (o.dex?.socials ?? 0) / 6), 10],
   ];
   const interest = Math.round(parts.reduce((s, [v, w]) => s + v * w, 0));
   const growing = d && d.newPrev > 0 ? d.new5 / d.newPrev : null;
-  const level: Crowd["level"] =
-    interest >= 75 ? "Frenzy" : interest >= 55 ? "Lots of eyes" : growing != null && growing >= 1.5 && interest >= 30 ? "Growing" : interest >= 25 ? "Some interest" : "Quiet";
+  const level = levelOf(interest, growing);
 
   const bubbles = d || o.rug
     ? { groups: d?.clusters ?? 0, wallets: d?.clWallets ?? 0, held: d?.clHeld ?? 0, biggest: d?.bigCluster ?? 0, insiders: o.rug?.insiders ?? null, insiderWallets: o.rug?.insiderWallets ?? null }
@@ -217,23 +180,22 @@ export function crowdOf(o: {
   const parts2: string[] = [];
   if (vol)
     parts2.push(
-      `${vol.regime}: moves of ±${pct(vol.move5)} in 5 min are normal here${vol.impact1 != null ? `, and a 1 SOL buy lifts it ${pct(vol.impact1)}` : ""}.`,
+      `${vol.regime}: swings of ${pct(vol.move5)} within 5 min are normal here${vol.impact1 != null ? `, and a 1 SOL buy lifts it ${pct(vol.impact1)}` : ""}.`,
     );
   if (d && d.w5 > 0) parts2.push(`${d.w5} wallets traded in 5 min, ${d.new5} of them new${growing != null && growing >= 1.5 ? ", more than before" : ""}.`);
-  if (pf?.comments10) parts2.push(`${pf.comments10} comments on pump.fun in 10 min.`);
-  if (pf?.live) parts2.push(`Live on pump.fun${pf.watching ? ` with ${pf.watching} watching` : ""}.`);
   if (bubbles && bubbles.held >= 0.1) parts2.push(`Wallets that bought together hold ${pct(bubbles.held)}: they can move it at once.`);
   return {
     interest,
     level,
+    growing,
     traders5: d?.w5 ?? null,
     newBuyers5: d?.new5 ?? null,
     newBuyersPrev: d?.newPrev ?? null,
-    comments: pf?.comments ?? null,
-    comments10: pf?.comments10 ?? null,
-    commenters10: pf?.commenters10 ?? null,
-    live: !!pf?.live,
-    watching: pf?.watching ?? null,
+    comments: null,
+    comments10: null,
+    commenters10: null,
+    live: false,
+    watching: null,
     xLikes: xp?.likes ?? null,
     xReplies: xp?.replies ?? null,
     xHandle: xp?.handle ?? null,

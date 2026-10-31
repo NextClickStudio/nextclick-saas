@@ -37,6 +37,7 @@ window.addEventListener("message", (e) => {
   const d = e.data;
   if (d?.yeppo === "paper" && typeof d.id === "string" && /^[0-9a-f-]{36}$/.test(d.id)) chrome.storage.local.set({ paper: d.id });
   if (d?.yeppo === "key" && typeof d.key === "string" && /^YEP-[0-9A-F]{5}(-[0-9A-F]{5}){3}$/.test(d.key)) chrome.storage.local.set({ key: d.key });
+  if (d?.yeppo === "pf?") sendPf();
   // the live call of the coin in the tab in front: the badge on that page follows it at once
   if (d?.yeppo === "call" && d.mint === shown && active != null)
     chrome.runtime.sendMessage({ t: "live", tab: active, mint: d.mint, d: { word: d.word, tone: d.tone, why: d.why } }).catch(() => {});
@@ -71,3 +72,16 @@ box.addEventListener("change", () => chrome.storage.local.set({ badge: box.check
 const waves = document.getElementById("waves");
 chrome.storage.local.get("waves", (r) => (waves.checked = r.waves !== false));
 waves.addEventListener("change", () => chrome.storage.local.set({ waves: waves.checked }));
+
+// pump.fun's comments and livestream for the coin shown (read by the extension on the pump.fun page): into the view
+function sendPf() {
+  const m = shown;
+  if (!m || !view.contentWindow) return;
+  chrome.storage.session.get(`pf:${m}`, (r) => {
+    const d = r[`pf:${m}`];
+    if (d) view.contentWindow.postMessage({ yeppo: "pf", mint: m, d }, SITE);
+  });
+}
+chrome.storage.onChanged.addListener((ch, area) => {
+  if (area === "session" && shown && ch[`pf:${shown}`]) sendPf();
+});

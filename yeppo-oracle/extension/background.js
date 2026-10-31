@@ -71,6 +71,13 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     badge(msg.tab, { decision: d });
     return false;
   }
+  // pump.fun's comments and livestream, read by the pump.fun page: kept for the card and the side panel
+  if (msg.t === "pf" && typeof msg.mint === "string" && msg.d && typeof msg.d === "object") {
+    const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+    const d = { comments: n(msg.d.comments), comments10: n(msg.d.comments10), commenters10: n(msg.d.commenters10), live: msg.d.live === true, watching: n(msg.d.watching) };
+    chrome.storage.session.set({ [`pf:${msg.mint}`]: d });
+    return false;
+  }
   if (msg.t === "read") {
     read(msg.mint).then((data) => {
       if (tabId != null) badge(tabId, data);

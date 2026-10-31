@@ -177,9 +177,57 @@
     }
   }
 
+  // ---- pump.fun's comments and livestream ------------------------------------------------------------------------
+  // pump.fun refuses servers, so yeppo reads them here, on the pump.fun page, with the page's own access, every 30 s
+  // while the coin is open, and hands them to yeppo's card and side panel through the extension. Read only.
+  const onPump = /(^|\.)pump\.fun$/.test(location.hostname);
+  let pfTimer = 0;
+  async function pfJson(url) {
+    for (const credentials of ["omit", "include"]) {
+      try {
+        const r = await fetch(url, { credentials, headers: { accept: "application/json" } });
+        if (r.ok) return await r.json();
+      } catch {
+        /* next way */
+      }
+    }
+    return null;
+  }
+  async function pumpStats() {
+    clearTimeout(pfTimer);
+    if (!onPump || !mint) return;
+    const m = mint;
+    pfTimer = setTimeout(pumpStats, document.hidden ? 120000 : 30000);
+    const [coin, rep] = await Promise.all([
+      pfJson(`https://frontend-api-v3.pump.fun/coins/${m}`),
+      pfJson(`https://frontend-api-v3.pump.fun/replies/${m}?limit=100&offset=0&reverseOrder=true`),
+    ]);
+    if (m !== mint || (!coin && !rep)) return;
+    const list = Array.isArray(rep) ? rep : Array.isArray(rep?.replies) ? rep.replies : [];
+    const since = Date.now() - 600000;
+    const recent = list.filter((x) => {
+      const t = Number(x?.timestamp ?? x?.created_timestamp);
+      return Number.isFinite(t) && (t < 1e12 ? t * 1000 : t) > since;
+    });
+    const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+    const d = {
+      comments: n(coin?.reply_count),
+      comments10: list.length ? recent.length : null,
+      commenters10: list.length ? new Set(recent.map((x) => String(x?.user ?? x?.username ?? ""))).size : null,
+      live: coin?.is_currently_live === true,
+      watching: n(coin?.num_participants) ?? n(coin?.livestream_participants),
+    };
+    try {
+      chrome.runtime.sendMessage({ t: "pf", mint: m, d });
+    } catch {
+      /* the extension was reloaded */
+    }
+  }
+
   function setCoin(next) {
     if (next === mint) return;
     mint = next;
+    void pumpStats();
     chrome.runtime.sendMessage({ t: "coin", mint });
     paint(null);
     if (card.classList.contains("on")) openCard();

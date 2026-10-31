@@ -197,7 +197,7 @@ export async function GET(req: Request) {
   const onCurve = !!me && !me.grad && steps.length > 0;
   const out = onCurve ? null : dex;
   // the crowd's outside sources (pump.fun comments and livestream, the coin's X post) while the money trail is read
-  const [money, extras] = await Promise.all([cr?.dev ? moneyRpc(cr.dev, mint) : null, crowdExtras(mint, cr?.uri ?? null, mint.endsWith("pump") || !!me)]);
+  const [money, extras] = await Promise.all([cr?.dev ? moneyRpc(cr.dev, mint) : null, crowdExtras(cr?.uri ?? null)]);
   if (cr?.dev && money && !money.checked) traceLater(cr.dev, mint);
   if (!rug && !cr && !out) return Response.json({ error: "yeppo is busy, retrying" }, { status: 503, headers: { ...CORS, "cache-control": "no-store" } });
   // what could not be read this time: yeppo never says Momentum without it

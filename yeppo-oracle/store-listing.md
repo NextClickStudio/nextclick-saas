@@ -1,6 +1,6 @@
 # yeppo: Chrome Web Store listing
 
-Everything the Chrome Web Store asks for, ready to paste. Upload `public/yeppo-extension.zip` (version 2.5.1).
+Everything the Chrome Web Store asks for, ready to paste. Upload `public/yeppo-extension.zip` (version 2.5.2).
 Developer account: https://chrome.google.com/webstore/devconsole (one-time 5 USD fee).
 
 ## Store listing
@@ -27,6 +27,7 @@ Click the badge for the full read:
 • The creator's other coins, drawn over this one: which ones they dumped in seconds, which ones ran.
 • Outlook on 4 timeframes and the money trail behind the creator.
 • Live: on pump.fun coins the call updates with every trade, straight from the chain.
+• Crowd & volatility: how many wallets are trading it and how many are new, pump.fun comments and livestream, the coin's X post, wallets that bought together, and how wildly it swings.
 • Scanner: a notification when several wallets with a record of catching runners early buy the same new coin, or when a meme starts trending on pump.fun, with the coin leading it.
 
 yeppo works with a Pro key, paid in SOL on yeppo.it/pricing (no account, no card). Paste it once in the extension, or it turns on by itself after paying.
@@ -56,6 +57,7 @@ Show a safety and timing read of the Solana memecoin open on the current trading
 - `sidePanel`: shows yeppo's read in Chrome's side panel next to the trading site.
 - `notifications` and `alarms`: every 2 minutes, checks yeppo.it's scanner (smart-money coins and meme waves) and shows one notification (it can be turned off in the side panel).
 - `storage`: remembers the user's settings (badge on or off, badge position), their Pro key and a random device id (a key works on 3 devices), on their own device.
+- On pump.fun pages the content script also reads the coin's public comment count and livestream from pump.fun's own page data (read only), to show them in yeppo's card.
 - Host permissions (content scripts on pump.fun, gmgn.ai, axiom.trade, photon-sol.tinyastro.io, bullx.io, dexscreener.com, birdeye.so, solscan.io, jup.ag): read the coin address in the page's URL or links, to show the badge. Nothing else on the page is read.
 - Content script on yeppo.it: receives the Pro key the user gets on yeppo.it, so they don't have to paste it.
 

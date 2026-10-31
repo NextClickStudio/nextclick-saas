@@ -9,6 +9,7 @@ import { age, ago, mult, short, usd } from "@/lib/format";
 import { useNow, usePoll } from "@/lib/hooks";
 import { paperBuy, paperOpen, paperSell, paperState, refreshPx, type PaperState } from "@/lib/paper";
 import type { Crowd } from "@/lib/crowd";
+import { levelOf, type PumpStats, withPump } from "@/lib/crowd-level";
 import { liveCall, livePulse, useLiveTrades } from "@/lib/live";
 import { type Money, readCoin, type Read } from "@/lib/read";
 import { license, savedKey } from "@/lib/pay";
@@ -77,6 +78,19 @@ export default function CoinPanel({
   // the coin's trades straight from the chain, while it trades on pump.fun's curve
   const { trades, live } = useLiveTrades(mint, !!r?.live && !r?.locked);
   const [skew, setSkew] = useState(0);
+  // pump.fun's comments and livestream, read by the extension on the pump.fun page (pump.fun refuses servers)
+  const [pf, setPf] = useState<PumpStats | null>(null);
+  useEffect(() => {
+    setPf(null);
+    const on = (e: MessageEvent) => {
+      if (!e.origin.startsWith("chrome-extension://") || e.source !== window.parent) return;
+      const d = e.data as { yeppo?: string; mint?: string; d?: PumpStats } | null;
+      if (d?.yeppo === "pf" && d.mint === mint && d.d && typeof d.d === "object") setPf(d.d);
+    };
+    window.addEventListener("message", on);
+    tellExtension({ yeppo: "pf?", mint });
+    return () => window.removeEventListener("message", on);
+  }, [mint]);
   const liveNow = r?.live?.now;
   useEffect(() => {
     if (liveNow) setSkew(liveNow - Date.now());
@@ -202,7 +216,7 @@ export default function CoinPanel({
         </section>
       )}
 
-      {r.crowd && <CrowdBox k={r.crowd} />}
+      {r.crowd && <CrowdBox k={r.crowd} pf={pf} />}
 
       <section className="cp-box">
         <header>
@@ -314,7 +328,11 @@ const REGIME_TONE: Record<NonNullable<Crowd["vol"]>["regime"], string> = { Calm:
 const n0 = (v: number | null | undefined) => (v == null ? "–" : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(v));
 
 /** who seems to be on the coin and how wildly it moves: information only, the call never depends on it */
-function CrowdBox({ k }: { k: Crowd }) {
+function CrowdBox({ k: base, pf }: { k: Crowd; pf: PumpStats | null }) {
+  const interest = withPump(base.interest, pf);
+  const k: Crowd = pf
+    ? { ...base, ...pf, interest, level: levelOf(interest, base.growing) }
+    : base;
   const b = k.bubbles;
   const v = k.vol;
   const cells: [string, string, string?][] = [
@@ -372,6 +390,8 @@ function CrowdBox({ k }: { k: Crowd }) {
       )}
       <p className="cp-line mute" style={{ margin: "8px 0 0", fontSize: 12.5 }}>
         {k.line}
+        {pf?.comments10 ? ` ${pf.comments10} comments on pump.fun in 10 min${pf.commenters10 ? ` from ${pf.commenters10} people` : ""}.` : ""}
+        {pf?.live ? ` Live on pump.fun${pf.watching ? ` with ${pf.watching} watching` : ""}.` : ""}
       </p>
     </section>
   );
