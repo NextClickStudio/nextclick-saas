@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import CoinPanel from "@/components/CoinPanel";
+import Trends from "@/components/Trends";
 import { isMint } from "@/lib/format";
 
 export const metadata: Metadata = { title: "yeppo", robots: { index: false } };
@@ -18,9 +19,12 @@ export default async function Page({ searchParams }: P) {
       {isMint(m) ? (
         <CoinPanel mint={m} compact paper={paper} pkey={key} pdev={dev} />
       ) : (
-        <div className="cp-empty">
-          <b>Open a coin</b>
-          On pump.fun, GMGN, Axiom or DexScreener. yeppo reads it here.
+        <div className="cp">
+          <div className="cp-empty" style={{ padding: "14px 0 4px" }}>
+            <b>Open a coin</b>
+            On pump.fun, GMGN, Axiom or DexScreener. yeppo reads it here.
+          </div>
+          <Trends compact pkey={key} pdev={dev} />
         </div>
       )}
     </main>

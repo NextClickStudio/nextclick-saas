@@ -69,3 +69,55 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => chrome.storage.session.remove(`tab:${tabId}`));
+
+
+// ---- meme waves -------------------------------------------------------------------------------------------------
+// Every 2 minutes (with a Pro key): a new wave whose leading coin already trades well becomes a Chrome
+// notification. Clicking it opens the coin on pump.fun, where yeppo reads it. "Wave alerts" in the side panel
+// turns it off.
+const SEEN_MS = 3 * 3600_000; // a wave alerts once every 3 hours at most
+
+chrome.alarms.create("waves", { periodInMinutes: 2 });
+chrome.alarms.onAlarm.addListener((a) => {
+  if (a.name === "waves") void checkWaves();
+});
+
+async function checkWaves() {
+  const st = await chrome.storage.local.get(["key", "dev", "waves", "waveSeen"]);
+  if (!st.key || st.waves === false) return;
+  const q = new URLSearchParams({ key: st.key });
+  if (st.dev) q.set("dev", st.dev);
+  let j;
+  try {
+    j = await (await fetch(`${SITE}/api/trends?${q}`)).json();
+  } catch {
+    return;
+  }
+  if (!j || !Array.isArray(j.trends)) return;
+  const seen = st.waveSeen ?? {};
+  const now = Date.now();
+  for (const k of Object.keys(seen)) if (now - seen[k] > SEEN_MS) delete seen[k];
+  for (const t of j.trends) {
+    if (seen[t.theme] || t.n30 < 8 || t.burst < 10) continue;
+    const lead = (t.coins ?? []).find((c) => !c[6] && c[3] >= 150);
+    if (!lead) continue;
+    seen[t.theme] = now;
+    const [mint, sym, , trades, nowX, hiX, , , , grad] = lead;
+    const x = (v) => (v == null ? "" : `×${v >= 10 ? v.toFixed(0) : v.toFixed(1)}`);
+    chrome.notifications.create(`wave:${mint}`, {
+      type: "basic",
+      iconUrl: "icons/128.png",
+      title: `New meme wave: ${String(t.theme).toUpperCase()}`,
+      message: `${t.n30} launches in 30 min (×${Math.round(t.burst)} usual). Leading: $${sym ?? "?"} ${x(nowX)}${grad ? " · graduated" : ""}, ${trades} trades (high ${x(hiX)}).`,
+      contextMessage: "Click to open it. yeppo reads it there.",
+      priority: 1,
+    });
+    break; // one alert at a time
+  }
+  await chrome.storage.local.set({ waveSeen: seen });
+}
+
+chrome.notifications.onClicked.addListener((id) => {
+  if (id.startsWith("wave:")) chrome.tabs.create({ url: `https://pump.fun/coin/${id.slice(5)}` });
+  chrome.notifications.clear(id);
+});

@@ -27,7 +27,7 @@ function tellExtension(msg: Record<string, unknown>) {
 }
 
 /** this browser's random device id (a Pro key works on 3 devices) */
-function deviceId(): string {
+export function deviceId(): string {
   let d = readLocal<string | null>("yo:dev", null);
   if (!d || !/^[0-9a-f-]{36}$/.test(d)) {
     d = crypto.randomUUID();
@@ -110,7 +110,7 @@ export default function CoinPanel({
 
   const lp = r.live && live ? livePulse(r.live, trades, skew) : null;
   const p = lp ?? r.pulse;
-  const d = lp ? liveCall(r.decision, lp, r.t0 ? (now - r.t0) / 1000 : null) : r.decision;
+  const d = lp ? liveCall(r.decision, lp, r.t0 ? (now - r.t0) / 1000 : null, r.live ?? undefined) : r.decision;
   const c = r.creator;
   const bad = r.checks.filter((k) => !k.ok).length;
   return (

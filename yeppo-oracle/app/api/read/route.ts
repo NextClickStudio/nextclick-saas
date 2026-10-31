@@ -10,6 +10,7 @@
 // Then one call: Momentum, Wait, Don't buy or Too early. Cached at the edge for 5 s and shared by everyone.
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/config";
 import { type Check, type CoinRow, creatorOf, decide, type DevNow, launchOf, outlookCurve, outlookOutside, pulseOf, pulseOutside } from "@/lib/decide";
+import { accessOf, DB_HEADERS, LOCKED } from "@/lib/access";
 import { isMint } from "@/lib/format";
 import type { Money, Read } from "@/lib/read";
 import { chainChecks, chainPrefetch, rugChecks, rugReport } from "@/lib/rugcheck";
@@ -17,14 +18,6 @@ import { chainChecks, chainPrefetch, rugChecks, rugReport } from "@/lib/rugcheck
 export const runtime = "edge";
 
 const CORS = { "access-control-allow-origin": "*" };
-// yeppo.it's own server proves itself to the database with a secret (Vercel environment variable YEPPO_API_SECRET):
-// the creator history and the money trail answer nobody else once the database knows the same secret
-const DB_HEADERS: Record<string, string> = {
-  apikey: SUPABASE_ANON_KEY,
-  authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-  "content-type": "application/json",
-  ...(process.env.YEPPO_API_SECRET ? { "x-yeppo-secret": process.env.YEPPO_API_SECRET } : {}),
-};
 const DEX: Record<string, string> = { pumpfun: "pump.fun", pumpswap: "PumpSwap", meteora: "Meteora", raydium: "Raydium", orca: "Orca", launchlab: "LaunchLab", moonshot: "Moonshot" };
 
 type Me = {
@@ -79,46 +72,6 @@ async function creatorRpc(mint: string, dev: string | null): Promise<CreatorRpc 
     return null;
   }
 }
-
-const KEY = /^YEP-[0-9A-F]{5}-[0-9A-F]{5}-[0-9A-F]{5}-[0-9A-F]{5}$/;
-const DEV = /^[0-9a-f-]{36}$/;
-type Access = { pro: boolean; reason?: string; owner?: boolean };
-const access = new Map<string, { t: number; v: Access }>();
-
-/** does this key unlock yeppo on this device (yr_access)? Kept a minute per key and device. When the database does
- *  not answer, the last answer stands; with none, a well-formed key is let through and no key is not. */
-async function accessOf(key: string | null, dev: string | null): Promise<Access> {
-  const k = key && KEY.test(key) ? key : "";
-  const d = dev && DEV.test(dev) ? dev : "";
-  // no key (or a malformed one): one shared answer, so made-up device ids never reach the database
-  const ck = k ? `${k}:${d}` : "";
-  const hit = access.get(ck);
-  if (hit && Date.now() - hit.t < 60_000) return hit.v;
-  try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_access`, {
-      method: "POST",
-      headers: DB_HEADERS,
-      body: JSON.stringify({ p_key: k, p_dev: d || null }),
-      signal: AbortSignal.timeout(2500),
-    });
-    if (!r.ok) throw new Error(`${r.status}`);
-    const j = (await r.json()) as { pro?: boolean; reason?: string; owner?: boolean };
-    const v = { pro: !!j.pro, reason: j.reason, owner: !!j.owner };
-    if (access.size > 5000) access.clear();
-    access.set(ck, { t: Date.now(), v });
-    return v;
-  } catch {
-    return hit?.v ?? { pro: !!k, reason: k ? undefined : "nokey" };
-  }
-}
-
-const LOCKED: Record<string, string> = {
-  nokey: "yeppo needs a Pro key. Get one below, or paste yours.",
-  unknown: "That key doesn't exist. Check it, or paste the one from your payment.",
-  expired: "Your Pro key has expired. Renew it on yeppo.it/pricing: the same key keeps working.",
-  devices: "This key is already used on 3 devices. Write to info@yeppo.it to move it.",
-  nodevice: "Reload the extension, then try again.",
-};
 
 /** what a read without a valid key shows: nothing but the way in. No outside call and no database work. */
 function lockedRead(mint: string, reason: string | undefined): Read {
@@ -268,7 +221,7 @@ export async function GET(req: Request) {
     else if (out.ch1 != null && out.ch1 <= -50) outsideNo = `Down ${Math.round(-out.ch1)}% in the last hour.`;
     else if (n < 5 && (ageS ?? 1e9) > 600) outsideNo = "Nobody is trading it.";
   }
-  let decision = decide({ checks, creator, dev, ageS, priceX, athX, pulse, outlook, outsideNo });
+  let decision = decide({ checks, creator, dev, ageS, priceX, athX, pulse, outlook, outsideNo, bun0: me?.bun0 ?? null });
   // the holders could not be read this time (RugCheck down and the public node busy): the call stands, with a note
   const holdersKnown = !!rug || !!chain?.hasHolders;
   if (!holdersKnown && checks.length) decision = { ...decision, why: `${decision.why} Top holders couldn't be read right now: check them on the chart.` };
@@ -299,7 +252,7 @@ export async function GET(req: Request) {
     down,
     pro: true,
     // the starting point for the panel's live trades (coins on pump.fun's curve)
-    live: onCurve && cr ? { from: cr.from, now, steps, w60: cr.w60 ?? null, sol } : null,
+    live: onCurve && cr ? { from: cr.from, now, steps, w60: cr.w60 ?? null, sol, devSold: !!dev?.sold, bun0: me?.bun0 ?? null } : null,
   };
   if (readCache.size > 300) readCache.clear();
   readCache.set(mint, { t: Date.now(), body });

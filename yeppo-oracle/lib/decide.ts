@@ -265,6 +265,18 @@ export function outlookCurve(steps: number[][], nowStep: number, priceX: number 
 const x = (v: number) => `×${v >= 10 ? v.toFixed(0) : v.toFixed(1)}`;
 export const mins = (s: number) => (s < 90 ? `${Math.round(s)}s` : `${Math.round(s / 60)}m`);
 
+/** why a push is not a Momentum yet. From yeppo's own trades (31 Oct): pushes in a coin's first 2 minutes, in coins
+ *  whose creator is already selling or whose launch bundle took 15%+, and one-minute candles of +50% or more mostly
+ *  dumped within 3 minutes (median -26%, half of them -30% or worse); the pushes left (median +4%, 15% dumped) are
+ *  the ones worth a Momentum. */
+export function momentumBlock(a: { ageS: number | null; ch1m: number | null; devSold: boolean; bun0: number | null }): string | null {
+  if (a.ageS != null && a.ageS < 120) return "Launch rush: most coins dump after their first 2 minutes. Wait until it holds.";
+  if (a.ch1m != null && a.ch1m >= 0.5) return `Already +${Math.round(a.ch1m * 100)}% in a minute: don't chase the candle. Wait for a pullback.`;
+  if (a.devSold && (a.ageS ?? 1e9) < 3600) return "The creator is selling: pushes get sold into. Wait.";
+  if ((a.bun0 ?? 0) >= 0.15) return "The launch bundle took 15%+ at launch: they sell into pushes. Wait.";
+  return null;
+}
+
 /** the call: safety first, then the creator, then the moment and the bigger picture */
 export function decide(a: {
   checks: Check[];
@@ -276,6 +288,7 @@ export function decide(a: {
   pulse: Pulse | null;
   outlook: Outlook | null;
   outsideNo: string | null; // a market reason to stay out, for coins past the curve
+  bun0?: number | null; // share the launch bundle took at launch
 }): Decision {
   const bad = a.checks.find((c) => !c.ok);
   if (bad) return { word: "Don't buy", tone: "down", why: bad.label };
@@ -300,6 +313,9 @@ export function decide(a: {
         ? ` Careful: this creator usually sells around ${x(c.sellX)}. It's at ${x(a.priceX)}.`
         : ` This creator usually sells around ${x(c.sellX)}, after ${mins(c.sellS)}.`
       : "";
+  const block = momentumBlock({ ageS: a.ageS, ch1m: p.ch1m, devSold: !!a.dev?.sold, bun0: a.bun0 ?? null });
+  if (block && (p.state === "hot" || (o?.bias === "bullish" && p.state !== "cooling" && p.state !== "quiet")))
+    return { word: "Wait", tone: "mid", why: block };
   if (p.state === "hot") {
     const ch = p.ch1m != null ? `+${Math.round(p.ch1m * 100)}% in 1 min` : p.ch5m != null ? `+${Math.round(p.ch5m * 100)}% in 5 min` : "buyers piling in";
     const w = p.wallets1m ? `, ${p.wallets1m} wallets` : "";

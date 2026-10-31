@@ -62,3 +62,7 @@ chrome.storage.onChanged.addListener((ch, area) => {
 const box = document.getElementById("badge");
 chrome.storage.local.get("badge", (r) => (box.checked = r.badge !== false));
 box.addEventListener("change", () => chrome.storage.local.set({ badge: box.checked }));
+
+const waves = document.getElementById("waves");
+chrome.storage.local.get("waves", (r) => (waves.checked = r.waves !== false));
+waves.addEventListener("change", () => chrome.storage.local.set({ waves: waves.checked }));

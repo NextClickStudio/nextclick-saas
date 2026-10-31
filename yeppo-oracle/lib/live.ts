@@ -5,7 +5,7 @@
 // connection, so yeppo's servers and database do no work for it. Coins on pump.fun's curve paired with SOL only;
 // anything else keeps the regular refresh.
 import { useEffect, useRef, useState } from "react";
-import { type Decision, pulseOf, type Pulse } from "./decide";
+import { type Decision, momentumBlock, pulseOf, type Pulse } from "./decide";
 
 const WS = "wss://api.mainnet-beta.solana.com";
 const TRADE = "Program data: vdt/007mYe";
@@ -14,7 +14,7 @@ const KEEP_MS = 6 * 60_000;
 
 export type LiveTrade = { t: number; buy: boolean; sol: number; price: number; who: string };
 /** what the server sent to start from: 10 s steps [step, close, high, low, buys, sells, SOL in, SOL out] */
-export type LiveBase = { from: number; now: number; steps: number[][]; w60: number | null; sol: number };
+export type LiveBase = { from: number; now: number; steps: number[][]; w60: number | null; sol: number; devSold?: boolean; bun0?: number | null };
 
 const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 function b58bytes(s: string): Uint8Array {
@@ -156,9 +156,11 @@ const pct = (v: number) => `${v >= 0 ? "+" : ""}${Math.round(v * 100)}%`;
 
 /** the call with the live minute: buyers piling in right now turn it to Momentum at once, and a Momentum whose
  *  buyers stepped back turns to Wait. Every reason to stay out (Don't buy) stands as the server said it. */
-export function liveCall(server: Decision, p: Pulse, ageS: number | null): Decision {
+export function liveCall(server: Decision, p: Pulse, ageS: number | null, base?: LiveBase): Decision {
   if (server.word === "Don't buy" || server.word === "Locked") return server;
   if (ageS != null && ageS < 30) return server;
+  const block = momentumBlock({ ageS, ch1m: p.ch1m, devSold: !!base?.devSold, bun0: base?.bun0 ?? null });
+  if (block && (p.state === "hot" || server.word === "Momentum")) return { word: "Wait", tone: "mid", why: block };
   if (p.state === "hot") {
     const ch = p.ch1m != null ? `${pct(p.ch1m)} in 1 min` : "buyers piling in";
     const w = p.wallets1m ? `, ${p.wallets1m} wallets` : "";
