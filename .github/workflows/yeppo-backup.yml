@@ -1,0 +1,61 @@
+# yeppo's nightly database backup: licenses, orders, paper wallets, the creator index and the money trail.
+# The dump is encrypted before it leaves the runner (this repository is public, and so are its artifacts' names)
+# and kept as a workflow artifact for 30 days.
+#
+# Needs two repository secrets (Settings > Secrets and variables > Actions):
+#   YEPPO_DB_URL             Supabase > Connect > Session pooler connection string (IPv4), with the password
+#   YEPPO_BACKUP_PASSPHRASE  a long random passphrase, kept somewhere safe: without it a backup can't be opened
+#
+# To restore: download the artifact, then
+#   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in yeppo-DATE.dump.enc -out yeppo.dump -pass pass:'PASSPHRASE'
+#   pg_restore --no-owner --no-privileges -d "$YEPPO_DB_URL" yeppo.dump
+name: yeppo backup
+
+on:
+  schedule:
+    - cron: "41 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DB: ${{ secrets.YEPPO_DB_URL }}
+      PASS: ${{ secrets.YEPPO_BACKUP_PASSPHRASE }}
+    steps:
+      - name: Check the secrets
+        run: |
+          if [ -z "$DB" ] || [ -z "$PASS" ]; then
+            echo "::error::Set the YEPPO_DB_URL and YEPPO_BACKUP_PASSPHRASE repository secrets."
+            exit 1
+          fi
+
+      - name: Install the Postgres 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Dump and encrypt
+        run: |
+          set -euo pipefail
+          day=$(date -u +%Y-%m-%d)
+          # the live trade feed (yr_ticks) is only minutes deep and refills by itself: its rows are left out
+          /usr/lib/postgresql/17/bin/pg_dump "$DB" --schema=public --no-owner --no-privileges \
+            --exclude-table-data=public.yr_ticks -Fc -f yeppo.dump
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in yeppo.dump -out "yeppo-$day.dump.enc" -pass env:PASS
+          rm -f yeppo.dump
+          ls -la yeppo-*.dump.enc
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yeppo-db-${{ github.run_id }}
+          path: yeppo-*.dump.enc
+          retention-days: 30
+          if-no-files-found: error
