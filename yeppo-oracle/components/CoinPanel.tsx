@@ -26,6 +26,15 @@ function tellExtension(msg: Record<string, unknown>) {
   if (parent.startsWith("chrome-extension://") && window.parent !== window) window.parent.postMessage(msg, parent);
 }
 
+/** hands the extension the call as it is now (live trades included), so the badge on the trading page changes the
+ *  moment the card or the side panel sees buyers come in, without waiting for its next refresh */
+function TellCall({ mint, word, tone, why }: { mint: string; word: string; tone: string; why: string }) {
+  useEffect(() => {
+    tellExtension({ yeppo: "call", mint, word, tone, why });
+  }, [mint, word, tone, why]);
+  return null;
+}
+
 /** this browser's random device id (a Pro key works on 3 devices) */
 export function deviceId(): string {
   let d = readLocal<string | null>("yo:dev", null);
@@ -115,6 +124,7 @@ export default function CoinPanel({
   const bad = r.checks.filter((k) => !k.ok).length;
   return (
     <div className="cp">
+      <TellCall mint={mint} word={d.word} tone={d.tone} why={d.why} />
       <div className="cp-head">
         <CoinImg uri={r.uri} src={r.image} symbol={r.symbol} size={36} />
         <div>

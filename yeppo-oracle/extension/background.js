@@ -32,7 +32,7 @@ async function read(mint) {
   key = st.key ?? null;
   if (st.dev) dev = st.dev;
   const hit = cache.get(mint);
-  if (hit && Date.now() - hit.at < 5_000) return hit.data;
+  if (hit && Date.now() - hit.at < 3_000) return hit.data;
   try {
     const q = new URLSearchParams({ mint });
     if (key) q.set("key", key);
@@ -62,6 +62,13 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg.t === "coin" && tabId != null) {
     chrome.storage.session.set({ [`tab:${tabId}`]: msg.mint ? { mint: msg.mint, host: new URL(sender.url).hostname } : null });
     if (!msg.mint) badge(tabId, null);
+    return false;
+  }
+  // an open yeppo card or side panel saw the call change with the live trades: tell the page's badge now
+  if (msg.t === "live" && typeof msg.tab === "number" && typeof msg.mint === "string" && msg.d && typeof msg.d.word === "string") {
+    const d = { word: String(msg.d.word).slice(0, 20), tone: ["up", "mid", "down", "learn"].includes(msg.d.tone) ? msg.d.tone : "learn", why: String(msg.d.why ?? "").slice(0, 300) };
+    chrome.tabs.sendMessage(msg.tab, { t: "live", mint: msg.mint, d }).catch(() => {});
+    badge(msg.tab, { decision: d });
     return false;
   }
   if (msg.t === "read") {

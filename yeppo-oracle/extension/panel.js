@@ -37,6 +37,9 @@ window.addEventListener("message", (e) => {
   const d = e.data;
   if (d?.yeppo === "paper" && typeof d.id === "string" && /^[0-9a-f-]{36}$/.test(d.id)) chrome.storage.local.set({ paper: d.id });
   if (d?.yeppo === "key" && typeof d.key === "string" && /^YEP-[0-9A-F]{5}(-[0-9A-F]{5}){3}$/.test(d.key)) chrome.storage.local.set({ key: d.key });
+  // the live call of the coin in the tab in front: the badge on that page follows it at once
+  if (d?.yeppo === "call" && d.mint === shown && active != null)
+    chrome.runtime.sendMessage({ t: "live", tab: active, mint: d.mint, d: { word: d.word, tone: d.tone, why: d.why } }).catch(() => {});
 });
 
 let shown = undefined;

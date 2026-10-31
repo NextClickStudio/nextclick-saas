@@ -155,6 +155,7 @@
     pill.title = d ? `${d.word}: ${d.why}` : "yeppo: click for the full read";
   }
 
+  let liveUntil = 0; // an open card or side panel is following the coin's trades: its call wins for a few seconds
   function read() {
     clearTimeout(timer);
     if (!mint) return;
@@ -164,7 +165,12 @@
     try {
       chrome.runtime.sendMessage({ t: "read", mint: m }, (r) => {
         if (chrome.runtime.lastError || m !== mint) return;
-        paint(r);
+        if (Date.now() >= liveUntil) paint(r);
+        // a coin that is trading: every 4 seconds, so the badge turns the moment buyers come in
+        if (!document.hidden && (r?.pulse?.trades1m ?? 0) >= 6) {
+          clearTimeout(timer);
+          timer = setTimeout(read, 4000);
+        }
       });
     } catch {
       /* the extension was reloaded: this page keeps its last badge */
@@ -222,6 +228,11 @@
   chrome.storage.local.get(`pos:${location.hostname}`, (r) => {
     const p = r[`pos:${location.hostname}`];
     if (p) [host.style.right, host.style.bottom] = [p.r, p.b];
+  });
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.t !== "live" || msg.mint !== mint || !msg.d) return;
+    liveUntil = Date.now() + 10000;
+    paint({ decision: msg.d });
   });
   window.addEventListener("message", (e) => {
     if (e.data?.yeppo === "close" && e.source === card.querySelector("iframe")?.contentWindow) card.classList.remove("on");
