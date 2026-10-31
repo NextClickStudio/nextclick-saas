@@ -12,7 +12,7 @@ begin
   for f in
     select p.oid::regprocedure sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname like 'yr%'
-      and p.proname not in ('yr_access', 'yr_health', 'yr_license', 'yr_now',
+      and p.proname not in ('yr_access', 'yr_health', 'yr_license', 'yr_now', 'yr_creator_s', 'yr_fund_read_s',
                             'yr_paper_buy', 'yr_paper_sell', 'yr_paper_state', 'yr_paper_new', 'yr_paper_reset', 'yr_paper_open')
   loop
     execute format('revoke execute on function %s from public, anon, authenticated', f.sig);
@@ -48,3 +48,7 @@ revoke execute on function yr_creator_s(text, text) from public;
 revoke execute on function yr_fund_read_s(text, text) from public;
 grant execute on function yr_creator_s(text, text) to anon, authenticated;
 grant execute on function yr_fund_read_s(text, text) to anon, authenticated;
+
+-- the old arena's tables were readable by anyone
+drop policy if exists yr_users_read on yr_users;
+drop policy if exists yr_modes_read on yr_modes;
