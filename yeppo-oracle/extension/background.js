@@ -99,18 +99,23 @@ async function checkWaves() {
   for (const k of Object.keys(seen)) if (now - seen[k] > SEEN_MS) delete seen[k];
   for (const t of j.trends) {
     if (t.n30 < 8 || t.burst < 10) continue;
-    // the wave's best coin: under 10 minutes old, already ×1.5, at least 10 buyers in the last 2 minutes, climbing
-    const lead = (t.coins ?? []).find((c) => now - c[2] < 600_000 && (c[4] ?? 0) >= 1.5 && c[7] >= 10 && (c[8] ?? 0) >= 0);
+    // the wave's original (never a copy): under 30 minutes old, already ×2, and buyers piling in right now (on the curve:
+    // 10+ buyers in 2 minutes and the price not falling; after it: 20+ buys in 5 minutes and the price holding)
+    const c0 = (t.coins ?? [])[0];
+    const live = (c) => (c[12] ? c[13] && c[13].b5 >= 20 && (c[13].ch5 ?? 0) >= -5 : c[7] >= 10 && (c[8] ?? 0) >= -0.05);
+    const lead = c0 && !c0[11] && now - c0[2] < 1_800_000 && (c0[4] ?? 0) >= 2 && live(c0) ? c0 : null;
     if (!lead || seen[lead[0]]) continue;
     seen[lead[0]] = now;
-    const [mint, sym, t0, , nowX, , , wallets2, ch2] = lead;
+    const [mint, sym, t0, , nowX, , , wallets2, ch2, , , , moved, dex] = lead;
     const x = (v) => (v == null ? "" : `×${v >= 10 ? v.toFixed(0) : v.toFixed(1)}`);
     const mins = Math.max(1, Math.round((now - t0) / 60000));
     chrome.notifications.create(`wave:${mint}`, {
       type: "basic",
       iconUrl: "icons/128.png",
       title: `Meme wave ${String(t.theme).toUpperCase()}: $${sym ?? "?"} ${x(nowX)}`,
-      message: `${t.n30} launches in 30 min (×${Math.round(t.burst)} usual). $${sym ?? "?"} is ${mins} min old, ${wallets2} buyers in 2 min, ${(ch2 ?? 0) >= 0 ? "+" : ""}${Math.round((ch2 ?? 0) * 100)}% now. Passed yeppo's checks.`,
+      message: moved
+        ? `${t.n30} launches in 30 min (×${Math.round(t.burst)} usual). The original, ${mins} min old, finished the curve: ${dex.b5} buys in 5 min, ${(dex.ch5 ?? 0) >= 0 ? "+" : ""}${Math.round(dex.ch5 ?? 0)}%. Passed yeppo's checks.`
+        : `${t.n30} launches in 30 min (×${Math.round(t.burst)} usual). The original, ${mins} min old: ${wallets2} buyers in 2 min, ${(ch2 ?? 0) >= 0 ? "+" : ""}${Math.round((ch2 ?? 0) * 100)}% now. Passed yeppo's checks.`,
       contextMessage: "Click to open it. yeppo reads it there.",
       priority: 1,
     });

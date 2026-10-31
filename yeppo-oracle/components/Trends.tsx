@@ -69,10 +69,10 @@ export default function Trends({ compact, pkey, pdev }: { compact?: boolean; pke
             </p>
           ) : (
             <div className="tr-coins">
-              {t.coins.map(([mint, sym, t0, , nowX, hiX, buys2, wallets2, ch2, bun, outS], i) => (
+              {t.coins.map(([mint, sym, t0, , nowX, hiX, buys2, wallets2, ch2, bun, outS, copy, moved, dex], i) => (
                 <a
                   key={mint}
-                  className={`tr-coin ${i === 0 ? "lead" : ""}`}
+                  className={`tr-coin ${i === 0 && !copy ? "lead" : ""} ${copy ? "copy" : ""}`}
                   href={compact ? `https://pump.fun/coin/${mint}` : `/c/${mint}`}
                   target={compact ? "_blank" : undefined}
                   rel="noreferrer"
@@ -81,16 +81,28 @@ export default function Trends({ compact, pkey, pdev }: { compact?: boolean; pke
                     {sym ? `$${sym}` : short(mint)}
                     <span className="when">{age(now - t0)}</span>
                   </span>
-                  <span className="mono mute">{wallets2} buyers · 2m</span>
+                  <span className="mono mute">{moved ? `${dex?.b5 ?? 0} buys · 5m` : `${wallets2} buyers · 2m`}</span>
                   <span className="mono">
                     {x(nowX)} <span className="dim">high {x(hiX)}</span>
                   </span>
                   <span className="tr-flags">
-                    <span className={`chip tone ${(ch2 ?? 0) >= 0 ? "t-up" : "t-mid"}`}>
-                      {(ch2 ?? 0) >= 0 ? "+" : ""}
-                      {Math.round((ch2 ?? 0) * 100)}% in 2 min
-                    </span>
-                    <span className="chip tone t-learn">{buys2} buys</span>
+                    {i === 0 && !copy && <span className="chip tone t-up">Leader</span>}
+                    {copy && <span className="chip tone t-mid">Copy</span>}
+                    {moved && <span className="chip tone t-learn">Graduated</span>}
+                    {moved ? (
+                      <span className={`chip tone ${(dex?.ch5 ?? 0) >= 0 ? "t-up" : "t-mid"}`}>
+                        {(dex?.ch5 ?? 0) >= 0 ? "+" : ""}
+                        {Math.round(dex?.ch5 ?? 0)}% in 5 min
+                      </span>
+                    ) : (
+                      <>
+                        <span className={`chip tone ${(ch2 ?? 0) >= 0 ? "t-up" : "t-mid"}`}>
+                          {(ch2 ?? 0) >= 0 ? "+" : ""}
+                          {Math.round((ch2 ?? 0) * 100)}% in 2 min
+                        </span>
+                        <span className="chip tone t-learn">{buys2} buys</span>
+                      </>
+                    )}
                     {(bun ?? 0) >= 0.05 && <span className="chip tone t-mid">Bundle {Math.round((bun ?? 0) * 100)}%</span>}
                     {outS != null && <span className="chip tone t-learn">Dev out</span>}
                   </span>

@@ -2022,3 +2022,4 @@ img {
 .tr-sym { font-weight: 600; display: flex; gap: 6px; align-items: baseline; }
 .tr-flags { grid-column: 1 / -1; display: flex; gap: 4px; flex-wrap: wrap; }
 .tr-flags:empty { display: none; }
+.tr-coin.copy { opacity: 0.55; }
