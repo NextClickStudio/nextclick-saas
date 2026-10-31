@@ -415,20 +415,19 @@ function PaperBox({ mint, given }: { mint: string; given: string | null }) {
   );
 }
 
-/** a free read: what Pro adds, and a place for the key */
+/** a free read: what Pro adds, how to get it step by step, and the place for the key */
 function ProBox({ onKey }: { onKey: (k: string) => void }) {
-  const [open, setOpen] = useState(false);
   const [k, setK] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const check = async () => {
     const key = k.trim().toUpperCase();
-    if (!key) return;
+    if (!key) return setErr("Paste your key first.");
     setBusy(true);
     setErr(null);
     const l = await license(key).catch(() => null);
     setBusy(false);
-    if (!l?.ok) return setErr(l ? "That key is not active." : "Can't check the key right now. Try again.");
+    if (!l?.ok) return setErr(l ? "That key is not active. Check it, or write to info@yeppo.it." : "Can't check the key right now. Try again.");
     writeLocal("yo:key", key);
     tellExtension({ yeppo: "key", key });
     onKey(key);
@@ -436,37 +435,42 @@ function ProBox({ onKey }: { onKey: (k: string) => void }) {
   return (
     <section className="cp-box cp-pro">
       <header>
-        <h3>Pro</h3>
+        <h3>Unlock Pro</h3>
         <span className="grow" />
-        <span className="chip tone t-learn">Locked</span>
+        <span className="chip tone t-learn">Free plan</span>
       </header>
       <p className="cp-line" style={{ fontSize: 12.5, margin: "0 0 10px" }}>
-        When to get in: Momentum or Wait, live. Plus the outlook on 4 timeframes and the money trail behind the creator.
+        Free shows you the bad coins. Pro tells you when to get in: Momentum or Wait, live, plus the outlook and the money trail.
       </p>
-      <div className="pp-row">
-        <a className="btn btn-sm btn-go" href="https://yeppo.it/pricing" target="_blank" rel="noreferrer">
-          Get Pro
-        </a>
-        <button className="btn btn-sm" onClick={() => setOpen((o) => !o)}>
-          I have a key
+      <ol className="pro-steps">
+        <li>
+          Open{" "}
+          <a href="https://yeppo.it/pricing" target="_blank" rel="noreferrer">
+            yeppo.it/pricing
+          </a>{" "}
+          and pick a plan.
+        </li>
+        <li>Pay in SOL from Phantom, Solflare or Backpack: scan the QR or tap &ldquo;Open in my wallet&rdquo;.</li>
+        <li>Your key shows up on the page. With this extension installed, Pro turns on by itself.</li>
+        <li>Didn&apos;t? Paste the key below and tap Unlock.</li>
+      </ol>
+      <form
+        className="field"
+        style={{ marginTop: 10 }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          void check();
+        }}
+      >
+        <input value={k} onChange={(e) => setK(e.target.value)} placeholder="YEP-XXXXX-XXXXX-XXXXX-XXXXX" spellCheck={false} />
+        <button className="btn btn-sm btn-go" disabled={busy}>
+          {busy ? "…" : "Unlock"}
         </button>
-      </div>
-      {open && (
-        <form
-          className="field"
-          style={{ marginTop: 8 }}
-          onSubmit={(e) => {
-            e.preventDefault();
-            void check();
-          }}
-        >
-          <input value={k} onChange={(e) => setK(e.target.value)} placeholder="YEP-XXXXX-XXXXX-XXXXX-XXXXX" spellCheck={false} autoFocus />
-          <button className="btn btn-sm" disabled={busy}>
-            {busy ? "…" : "Unlock"}
-          </button>
-        </form>
-      )}
+      </form>
       {err && <p className="pp-msg down">{err}</p>}
+      <a className="btn btn-sm" style={{ width: "100%", marginTop: 8, textAlign: "center" }} href="https://yeppo.it/pricing" target="_blank" rel="noreferrer">
+        Get a Pro key ↗
+      </a>
     </section>
   );
 }
