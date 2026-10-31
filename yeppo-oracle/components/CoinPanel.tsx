@@ -7,10 +7,10 @@ import type { Fate } from "@/lib/decide";
 import { mins } from "@/lib/decide";
 import { age, ago, mult, short, usd } from "@/lib/format";
 import { useNow, usePoll } from "@/lib/hooks";
-import { paperBuy, paperSell, paperState, refreshPx, type PaperState } from "@/lib/paper";
-import { readCoin, type Read } from "@/lib/read";
-import { readLocal } from "@/lib/supabase";
-import { CoinImg } from "./Bits";
+import { paperBuy, paperOpen, paperSell, paperState, refreshPx, traceMoney, type PaperState } from "@/lib/paper";
+import { type Money, readCoin, type Read } from "@/lib/read";
+import { readLocal, writeLocal } from "@/lib/supabase";
+import { CoinImg, Num } from "./Bits";
 import Overlay from "./Overlay";
 
 const FATE: Record<Fate, string> = { rug: "Rugged", dead: "Faded", ran: "Ran", grad: "Graduated" };
@@ -174,6 +174,8 @@ export default function CoinPanel({ mint, compact, paper }: { mint: string; comp
         )}
       </section>
 
+      <MoneyBox mint={mint} dev={c?.dev ?? null} m={r.money} devOut={!!r.dev?.out} />
+
       <section className="cp-box">
         <header>
           <h3>Safety</h3>
@@ -213,14 +215,67 @@ export default function CoinPanel({ mint, compact, paper }: { mint: string; comp
   );
 }
 
-/** the owner's paper trading, only where the lab key and paper wallet are saved */
+/** where the creator's SOL came from, and what the same money did before. Information only: the call never
+ *  depends on it. Asks yr-fund to trace the wallet the first time, then shows the result on the next refresh. */
+function MoneyBox({ mint, dev, m, devOut }: { mint: string; dev: string | null; m: Money | null; devOut: boolean }) {
+  const [asked, setAsked] = useState<string | null>(null);
+  useEffect(() => {
+    if (dev && m && !m.checked && asked !== dev) {
+      setAsked(dev);
+      void traceMoney(dev, mint);
+    }
+  }, [dev, m, mint, asked]);
+  if (!dev) return null;
+  let tone = "t-learn";
+  let head = "Tracing…";
+  const lines: string[] = [];
+  if (!m || !m.checked) lines.push("Following the creator's money on-chain. A few seconds.");
+  else if (m.kind === "exchange") {
+    head = "Exchange";
+    lines.push("The creator was funded from an exchange. The trail stops there.");
+  } else if (m.kind === "old") {
+    head = "Old wallet";
+    lines.push("Old wallet with a long history. Not traced.");
+  } else if (m.kind !== "wallet") {
+    head = "No trail";
+    lines.push("No funding transfer found.");
+  } else {
+    const bad = m.rugs > 0 || m.dirty > 0 || m.family >= 2;
+    tone = bad ? (devOut && m.dirty === 0 && m.family < 2 ? "t-mid" : "t-down") : m.coins > 0 ? "t-up" : "t-learn";
+    head = bad ? "Suspicious" : m.coins > 0 ? "Clean so far" : "New money";
+    if (m.rugs > 0) {
+      lines.push(`The creator's SOL came from ${short(m.funder)}, a wallet tied to ${m.rugs} rug${m.rugs > 1 ? "s" : ""}${m.rug_syms.length ? ` (${m.rug_syms.map((x) => `$${x}`).join(", ")})` : ""}.`);
+      lines.push(devOut ? "The creator already sold everything: they can't dump this one on you." : "The creator still holds: they could dump.");
+    } else if (m.coins > 0) {
+      lines.push(`Same money launched ${m.coins} other coin${m.coins > 1 ? "s" : ""}: ${m.ran} ran, ${m.coins - m.ran} faded, no rugs.${m.best && m.best >= 2 ? ` Best ×${m.best.toFixed(1)}.` : ""}`);
+    } else lines.push(`Funded by ${short(m.funder)}${m.sol ? ` (${m.sol.toFixed(2)} SOL)` : ""}. No other coins from this money yet.`);
+    if (m.family > 0) lines.push(`${m.family} early buyer${m.family > 1 ? "s were" : " was"} paid by the same money as the creator.`);
+    if (m.dirty > 0) lines.push(`${m.dirty} early buyer${m.dirty > 1 ? "s are" : " is"} tied to past rugs.`);
+  }
+  return (
+    <section className={`cp-box cp-money ${tone}`}>
+      <header>
+        <h3>Money trail</h3>
+        <span className="grow" />
+        <span className={`chip tone ${tone}`}>{head}</span>
+      </header>
+      {lines.map((l) => (
+        <p key={l} className="cp-line" style={{ fontSize: 12.5, margin: "0 0 4px" }}>
+          {l}
+        </p>
+      ))}
+    </section>
+  );
+}
+
+/** paper trading with 10 free paper SOL at real prices. The wallet id is the only key: kept in this browser, or by
+ *  the extension (its frame cannot keep yeppo.it's storage, so the id comes back in the URL). */
 function PaperBox({ mint, given }: { mint: string; given: string | null }) {
   const [acct, setAcct] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => {
-    if (given) setAcct(given);
-    else if (readLocal<string | null>("yo:lab", null)) setAcct(readLocal<string | null>("yo:paper", null));
+    setAcct(given ?? readLocal<string | null>("yo:paper", null));
   }, [given]);
   // coins past pump.fun's curve get their DexScreener price refreshed first, so the wallet can value them
   const { data: st, reload } = usePoll<PaperState>(
@@ -230,17 +285,17 @@ function PaperBox({ mint, given }: { mint: string; given: string | null }) {
           return paperState(acct);
         }
       : null,
-    3000,
+    2000,
     acct ?? "",
   );
   useEffect(() => setMsg(null), [mint]);
-  if (!acct) return null;
   const pos = st?.positions.find((q) => q[0] === mint);
   const run = async (what: string, f: () => Promise<unknown>, done: string) => {
-    if (busy) return;
+    if (busy || !acct) return;
     setBusy(what);
     setMsg(null);
     try {
+      await refreshPx([mint]);
       await f();
       setMsg({ ok: true, text: done });
       reload();
@@ -249,42 +304,83 @@ function PaperBox({ mint, given }: { mint: string; given: string | null }) {
     }
     setBusy(null);
   };
+  const start = async () => {
+    setBusy("open");
+    try {
+      const id = await paperOpen();
+      writeLocal("yo:paper", id);
+      // the extension keeps it for its frames
+      window.parent?.postMessage({ yeppo: "paper", id }, "*");
+      setAcct(id);
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : "Something went wrong" });
+    }
+    setBusy(null);
+  };
+  if (!acct)
+    return (
+      <section className="cp-box">
+        <header>
+          <h3>Paper trade</h3>
+          <span className="grow" />
+          <span>practice, no real money</span>
+        </header>
+        <button className="btn btn-sm btn-go" style={{ width: "100%" }} disabled={!!busy} onClick={() => void start()}>
+          {busy ? "Opening…" : "Start with 10 free paper SOL"}
+        </button>
+        {msg && <p className={`pp-msg ${msg.ok ? "up" : "down"}`}>{msg.text}</p>}
+      </section>
+    );
+  const value = pos ? pos[6] : 0;
+  const pnl = pos && pos[3] > 0 ? pos[6] / pos[3] - 1 : 0;
   return (
-    <section className="cp-box">
+    <section className="cp-box pp">
       <header>
         <h3>Paper trade</h3>
         <span className="grow" />
-        <span>{st ? `${st.sol.toFixed(2)} SOL` : "…"}</span>
+        <span className="mono">{st ? <Num value={st.sol} fmt={(v) => `${v.toFixed(2)} SOL`} /> : "…"}</span>
       </header>
-      {pos ? (
-        <>
-          <p className="cp-line">
-            In {pos[3].toFixed(2)} SOL · <b className={`mono ${pos[7] >= 0 ? "up" : "down"}`}>{mult(pos[3] > 0 ? pos[6] / pos[3] : 1)}</b>
-          </p>
-          <div className="pp-row">
-            {[0.5, 1].map((f) => (
-              <button key={f} className="btn btn-sm" disabled={!!busy} onClick={() => void run(`s${f}`, async () => {
-                await refreshPx([mint]);
-                return paperSell(acct, mint, f);
-              }, "Sold ✓")}>
-                {busy === `s${f}` ? "Selling…" : `Sell ${f * 100}%`}
-              </button>
-            ))}
+      {pos && (
+        <div className="pp-pos">
+          <div>
+            <span>in</span>
+            <b className="mono">{pos[3].toFixed(2)}</b>
           </div>
-        </>
-      ) : (
-        <div className="pp-row">
-          {[0.1, 0.25, 0.5].map((v) => (
-            <button key={v} className="btn btn-sm btn-go" disabled={!!busy} onClick={() => void run(`b${v}`, async () => {
-                await refreshPx([mint]);
-                return paperBuy(acct, mint, v, null);
-              }, "Bought ✓")}>
-              {busy === `b${v}` ? "Buying…" : `Buy ${v}`}
+          <div>
+            <span>now</span>
+            <b className="mono">
+              <Num value={value} fmt={(v) => v.toFixed(3)} dur={500} />
+            </b>
+          </div>
+          <div>
+            <span>P&amp;L</span>
+            <b className={`mono ${pnl >= 0 ? "up" : "down"}`}>
+              <Num value={pnl * 100} fmt={(v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`} dur={500} />
+            </b>
+          </div>
+        </div>
+      )}
+      <div className="pp-row">
+        {[0.1, 0.25, 0.5, 1].map((v) => (
+          <button key={v} className={`btn btn-sm btn-go pp-b ${busy === `b${v}` ? "is-busy" : ""}`} disabled={!!busy} onClick={() => void run(`b${v}`, () => paperBuy(acct, mint, v, null), pos ? `Added ${v} SOL ✓` : "Bought ✓")}>
+            {busy === `b${v}` ? "…" : `${pos ? "+" : "Buy "}${v}`}
+          </button>
+        ))}
+      </div>
+      {pos && (
+        <div className="pp-row" style={{ marginTop: 6 }}>
+          {[0.25, 0.5, 1].map((f) => (
+            <button key={f} className={`btn btn-sm pp-s ${busy === `s${f}` ? "is-busy" : ""}`} disabled={!!busy} onClick={() => void run(`s${f}`, () => paperSell(acct, mint, f), "Sold ✓")}>
+              {busy === `s${f}` ? "…" : `Sell ${f * 100}%`}
             </button>
           ))}
         </div>
       )}
-      {msg && <p className={`pp-msg ${msg.ok ? "up" : "down"}`}>{msg.text}</p>}
+      {msg && (
+        <p key={msg.text} className={`pp-msg cp-word-in ${msg.ok ? "up" : "down"}`}>
+          {msg.text}
+        </p>
+      )}
     </section>
   );
 }

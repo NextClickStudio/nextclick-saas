@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "yeppo",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Safety, creator history and the live moment of the memecoin you are looking at. Momentum, Wait or Don't buy.",
   "icons": {
     "16": "icons/16.png",

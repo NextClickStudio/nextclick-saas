@@ -9,7 +9,8 @@ type P = { searchParams: Promise<{ mint?: string; lab?: string; paper?: string }
 export default async function Page({ searchParams }: P) {
   const q = await searchParams;
   const m = q.mint ?? "";
-  const paper = q.lab && q.paper ? q.paper : null;
+  // the extension hands over the paper wallet it keeps (an unguessable uuid)
+  const paper = q.paper && /^[0-9a-f-]{36}$/.test(q.paper) ? q.paper : null;
   return (
     <main className="panel-page">
       {isMint(m) ? (

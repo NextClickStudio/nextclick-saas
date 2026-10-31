@@ -1,5 +1,5 @@
-// The owner's private paper wallet: pretend SOL, real curve prices (see 020_paper.sql). Never shown to users:
-// it only appears where the lab key is saved in this browser.
+// Paper wallets: pretend SOL at real prices (see 020_paper.sql). Anyone can open one (yr_paper_open, 038); its id
+// is the only key to it.
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 import { readLocal, rpc } from "./supabase";
 
@@ -52,5 +52,21 @@ export async function refreshPx(mints: string[]) {
     });
   } catch {
     /* the curve price, or the last one, will do */
+  }
+}
+
+export const paperOpen = () => rpc<string>("yr_paper_open");
+
+/** asks yr-fund to trace where a creator's SOL came from (and the coin's launch bundle); never throws */
+export async function traceMoney(dev: string, mint: string) {
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/yr-fund`, {
+      method: "POST",
+      headers: { "content-type": "application/json", apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      body: JSON.stringify({ dev, mint }),
+      signal: AbortSignal.timeout(30000),
+    });
+  } catch {
+    /* tried again on the next open */
   }
 }

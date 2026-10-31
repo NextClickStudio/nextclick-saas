@@ -25,7 +25,7 @@ export default function ExtensionPage() {
               Download the extension
             </a>
           </div>
-          <p className="hero-note">Version 2.0 · installs in a minute</p>
+          <p className="hero-note">Version 2.1 · installs in a minute</p>
         </Reveal>
 
         <span className="label">Install in 4 steps</span>

@@ -106,6 +106,13 @@ export default function Pricing() {
           <p>No account, no card, no email. Pay from any Solana wallet, get a key.</p>
         </Reveal>
 
+        {open && (
+          <Reveal className="card beta">
+            <b>Early access.</b>
+            <span>Every feature is free during the beta. A plan backs yeppo now and its days start today.</span>
+          </Reveal>
+        )}
+
         {!open && (
           <Reveal className="card beta">
             <b>Free during the beta.</b>

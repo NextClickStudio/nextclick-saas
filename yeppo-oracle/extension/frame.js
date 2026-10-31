@@ -4,13 +4,15 @@ const p = new URLSearchParams(location.search);
 const mint = p.get("mint");
 const tab = Number(p.get("tab"));
 const view = document.getElementById("view");
-chrome.storage.local.get(["lab", "paper"], (r) => {
+chrome.storage.local.get(["paper"], (r) => {
   const q = new URLSearchParams({ mint });
-  if (r.lab && r.paper) {
-    q.set("lab", r.lab);
-    q.set("paper", r.paper);
-  }
+  if (r.paper) q.set("paper", r.paper);
   view.src = `${SITE}/panel?${q}`;
+});
+// the view opened a paper wallet: keep it for every frame
+window.addEventListener("message", (e) => {
+  if (e.source !== view.contentWindow || e.origin !== SITE || e.data?.yeppo !== "paper") return;
+  if (typeof e.data.id === "string" && /^[0-9a-f-]{36}$/.test(e.data.id)) chrome.storage.local.set({ paper: e.data.id });
 });
 document.getElementById("full").href = `${SITE}/c/${mint}`;
 document.getElementById("close").onclick = () => parent.postMessage({ yeppo: "close" }, "*");

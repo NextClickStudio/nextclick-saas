@@ -2,6 +2,8 @@
 //  * safety: RugCheck's free report (holders, creator, insiders, mint and freeze authority, locked liquidity), plus
 //    the launch bundle yeppo saw itself (wallets that bought in the first 3 seconds and what they still hold);
 //  * the creator: their other coins from yeppo's index (yr_cc, 14 days) and how each one ended;
+//  * the money trail: who funded the creator, and the coins of the other wallets paid by the same money
+//    (information only, it never changes the call);
 //  * the moment and the outlook: the last minute against the four before, and the bigger picture over several
 //    timeframes, from yeppo's own trades while the coin is on pump.fun's curve, from DexScreener once it trades
 //    elsewhere.
@@ -9,7 +11,7 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/config";
 import { type Check, type CoinRow, creatorOf, decide, type DevNow, launchOf, outlookCurve, outlookOutside, pulseOf, pulseOutside } from "@/lib/decide";
 import { isMint } from "@/lib/format";
-import type { Read } from "@/lib/read";
+import type { Money, Read } from "@/lib/read";
 import { rugChecks, rugReport } from "@/lib/rugcheck";
 
 export const runtime = "edge";
@@ -40,6 +42,21 @@ type Me = {
   bun0: number | null;
 };
 type CreatorRpc = { now: number; dev: string | null; me: Me | null; uri: string | null; total: number; coins: CoinRow[]; steps: number[][]; from: number; w60: number };
+
+/** the creator's money trail (yr_fund_read): null when the database does not answer in time */
+async function moneyRpc(dev: string, mint: string): Promise<Money | null> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_fund_read`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, authorization: `Bearer ${SUPABASE_ANON_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({ p_dev: dev, p_mint: mint }),
+      signal: AbortSignal.timeout(2500),
+    });
+    return r.ok ? ((await r.json()) as Money) : null;
+  } catch {
+    return null;
+  }
+}
 
 async function creatorRpc(mint: string, dev: string | null): Promise<CreatorRpc | null> {
   try {
@@ -121,7 +138,7 @@ export async function GET(req: Request) {
   const now = cr?.now ?? Date.now();
   const steps = cr?.steps ?? [];
   const onCurve = !!me && !me.grad && steps.length > 0;
-  const out = onCurve ? null : await dexscreener(mint);
+  const [out, money] = await Promise.all([onCurve ? null : dexscreener(mint), cr?.dev ? moneyRpc(cr.dev, mint) : null]);
   if (!rug && !cr && !out) return Response.json({ error: "yeppo is busy, retrying" }, { status: 503, headers: { ...CORS, "cache-control": "no-store" } });
 
   const checks: Check[] = rug ? rugChecks(rug) : [];
@@ -189,6 +206,7 @@ export async function GET(req: Request) {
     pulse,
     outlook,
     creator,
+    money,
     dev,
     path,
   };

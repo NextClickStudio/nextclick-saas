@@ -4,29 +4,31 @@ const view = document.getElementById("view");
 const where = document.getElementById("where");
 let active = null;
 let saved = {};
-chrome.storage.local.get(["lab", "paper"], (r) => {
+chrome.storage.local.get(["paper"], (r) => {
   saved = r;
   void follow();
 });
 chrome.storage.onChanged.addListener((ch, area) => {
   if (area !== "local") return;
-  if (ch.lab || ch.paper) {
-    if (ch.lab) saved.lab = ch.lab.newValue;
-    if (ch.paper) saved.paper = ch.paper.newValue;
+  if (ch.paper && ch.paper.newValue !== saved.paper) {
+    saved.paper = ch.paper.newValue;
     view.src = viewUrl(shown);
   }
 });
 
-/** the view's address: the coin, plus the owner's paper wallet when linked */
+/** the view's address: the coin, plus the paper wallet the extension keeps */
 function viewUrl(mint) {
   const q = new URLSearchParams();
   if (mint) q.set("mint", mint);
-  if (saved.lab && saved.paper) {
-    q.set("lab", saved.lab);
-    q.set("paper", saved.paper);
-  }
+  if (saved.paper) q.set("paper", saved.paper);
   return `${SITE}/panel?${q}`;
 }
+
+// the view opened a paper wallet: keep it for every frame
+window.addEventListener("message", (e) => {
+  if (e.source !== view.contentWindow || e.origin !== SITE || e.data?.yeppo !== "paper") return;
+  if (typeof e.data.id === "string" && /^[0-9a-f-]{36}$/.test(e.data.id)) chrome.storage.local.set({ paper: e.data.id });
+});
 
 let shown = undefined;
 function render(coin) {
