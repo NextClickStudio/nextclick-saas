@@ -41,6 +41,7 @@ body {
 /* the page colour sits on html only: a background on body would paint over the moving backdrop (.bd, z-index -1) */
 html {
   background: var(--bg);
+  overflow-x: clip;
 }
 body {
   background: transparent;
@@ -937,7 +938,10 @@ img {
 }
 .foot nav {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-width: 0;
+  max-width: 100%;
 }
 .foot a:hover {
   color: var(--fg);
