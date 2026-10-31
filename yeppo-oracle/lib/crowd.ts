@@ -17,6 +17,10 @@ export type Crowd = {
   level: ReturnType<typeof levelOf>;
   /** first-time buyers now / 5 minutes before */
   growing: number | null;
+  /** off the curve: DexScreener's trades, buys and sells of the last 5 minutes (it does not count wallets) */
+  trades5: number | null;
+  buys5: number | null;
+  sells5: number | null;
   traders5: number | null;
   newBuyers5: number | null;
   /** first-time buyers of the 5 minutes before: is the crowd growing? */
@@ -153,19 +157,24 @@ export function crowdOf(o: {
   steps: number[][];
   nowStep: number;
   mcSol: number | null;
-  dex: { ch5: number | null; liq: number | null; boosts: number; socials: number } | null;
+  dex: { ch5: number | null; liq: number | null; boosts: number; socials: number; m5: { buys: number; sells: number } | null } | null;
   rug: { insiders: number; insiderWallets: number } | null;
   extras: Extras;
+  /** the coin left pump.fun's curve: yeppo's own trades of it stopped, DexScreener's 5-minute counts take over */
+  offCurve: boolean;
 }): Crowd {
   const { xp } = o.extras;
   const vol = volatilityOf(o.steps, o.nowStep, o.mcSol, o.dex);
-  const d = o.db;
+  const d = o.offCurve ? null : o.db;
+  const m5 = o.offCurve ? (o.dex?.m5 ?? null) : null;
+  const trades5 = m5 ? m5.buys + m5.sells : null;
   // interest: traders and new buyers of the last 5 minutes, the X post, DexScreener boosts and socials, each capped and
   // log scaled (75 points); pump.fun's comments and livestream add the other 25 in the panel (withPump)
   const lg = (v: number | null | undefined, full: number) => (v && v > 0 ? Math.min(1, Math.log1p(v) / Math.log1p(full)) : 0);
   const parts: [number, number][] = [
-    [lg(d?.w5, 400), 35],
-    [lg(d?.new5, 300), 20],
+    // off the curve DexScreener counts trades, not wallets: a busy PumpSwap pool does thousands in 5 minutes
+    m5 ? [lg(trades5, 3000), 35] : [lg(d?.w5, 400), 35],
+    m5 ? [lg(m5.buys, 2000), 20] : [lg(d?.new5, 300), 20],
     [lg(xp?.likes, 2000), 10],
     [Math.min(1, (o.dex?.boosts ?? 0) / 500 + (o.dex?.socials ?? 0) / 6), 10],
   ];
@@ -182,12 +191,16 @@ export function crowdOf(o: {
     parts2.push(
       `${vol.regime}: swings of ${pct(vol.move5)} within 5 min are normal here${vol.impact1 != null ? `, and a 1 SOL buy lifts it ${pct(vol.impact1)}` : ""}.`,
     );
+  if (m5 && trades5) parts2.push(`${m5.buys.toLocaleString("en-US")} buys and ${m5.sells.toLocaleString("en-US")} sells in 5 min since it left the curve.`);
   if (d && d.w5 > 0) parts2.push(`${d.w5} wallets traded in 5 min, ${d.new5} of them new${growing != null && growing >= 1.5 ? ", more than before" : ""}.`);
   if (bubbles && bubbles.held >= 0.1) parts2.push(`Wallets that bought together hold ${pct(bubbles.held)}: they can move it at once.`);
   return {
     interest,
     level,
     growing,
+    trades5,
+    buys5: m5?.buys ?? null,
+    sells5: m5?.sells ?? null,
     traders5: d?.w5 ?? null,
     newBuyers5: d?.new5 ?? null,
     newBuyersPrev: d?.newPrev ?? null,

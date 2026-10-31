@@ -194,7 +194,10 @@ export async function GET(req: Request) {
   const me = cr?.me ?? null;
   const now = cr?.now ?? Date.now();
   const steps = cr?.steps ?? [];
-  const onCurve = !!me && !me.grad && steps.length > 0;
+  // graduation reaches yeppo's record a minute or two late: a coin DexScreener already sees trading in another pool
+  // (PumpSwap, Raydium...) has left the curve, and its curve trades have stopped
+  const moved = !!dex && dex.dex !== "pumpfun" && (dex.m5?.buys ?? 0) + (dex.m5?.sells ?? 0) > 0;
+  const onCurve = !!me && !me.grad && !moved && steps.length > 0;
   const out = onCurve ? null : dex;
   // the crowd's outside sources (pump.fun comments and livestream, the coin's X post) while the money trail is read
   const [money, extras] = await Promise.all([cr?.dev ? moneyRpc(cr.dev, mint) : null, crowdExtras(cr?.uri ?? null)]);
@@ -260,7 +263,8 @@ export async function GET(req: Request) {
     steps: onCurve ? steps : [],
     nowStep,
     mcSol,
-    dex: dex ? { ch5: dex.ch5, liq: dex.liq, boosts: dex.boosts, socials: dex.socials } : null,
+    dex: dex ? { ch5: dex.ch5, liq: dex.liq, boosts: dex.boosts, socials: dex.socials, m5: dex.m5 } : null,
+    offCurve: !onCurve,
     rug: rug ? { insiders: rug.insiders, insiderWallets: rug.insiderWallets } : null,
     extras,
   });

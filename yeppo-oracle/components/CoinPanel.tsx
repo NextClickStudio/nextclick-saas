@@ -336,8 +336,15 @@ function CrowdBox({ k: base, pf }: { k: Crowd; pf: PumpStats | null }) {
   const b = k.bubbles;
   const v = k.vol;
   const cells: [string, string, string?][] = [
-    ["traders 5m", n0(k.traders5)],
-    ["new buyers 5m", n0(k.newBuyers5), k.newBuyersPrev ? `${n0(k.newBuyersPrev)} before` : undefined],
+    ...((k.trades5 != null
+      ? [
+          ["trades 5m", n0(k.trades5)],
+          ["buys / sells 5m", `${n0(k.buys5)} / ${n0(k.sells5)}`],
+        ]
+      : [
+          ["traders 5m", n0(k.traders5)],
+          ["new buyers 5m", n0(k.newBuyers5), k.newBuyersPrev ? `${n0(k.newBuyersPrev)} before` : undefined],
+        ]) as [string, string, string?][]),
     ["comments 10m", n0(k.comments10), k.comments != null ? `${n0(k.comments)} total` : undefined],
     [k.live ? "watching live" : "X post", k.live ? n0(k.watching) : k.xLikes != null ? `${n0(k.xLikes)} ♥` : k.xHandle ? `@${k.xHandle}` : "–", k.xReplies != null && !k.live ? `${n0(k.xReplies)} replies` : undefined],
   ];
