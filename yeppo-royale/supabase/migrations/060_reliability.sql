@@ -1,4 +1,5 @@
--- 060: yeppo measures itself, every day, for free.
+-- 060: yeppo measures itself, every day, for free. Cost measured before applying: 0.2 s for two minutes of coins, about
+-- 2.5 MB a day; yr_eval keeps 7 days, and each run stops itself after 10 s.
 -- 1. yr_eval (shadow test): each pump.fun coin, once, when it is 18 minutes old (its trades still in yr_ticks), is replayed
 --    in 10 s steps with the Momentum rule of lib/decide.ts (pulseOf "hot": +8% in a minute, 55%+ buys, more trades than
 --    before, 6+ buying wallets; momentumBlock: first 2 minutes, a +50% minute, the creator sold, a 15%+ launch bundle).
@@ -39,7 +40,7 @@ create index if not exists yr_calls_mint_t on yr_calls (mint, t);
 create index if not exists yr_calls_open on yr_calls (t) where not done;
 
 create or replace function yr_eval_roll() returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public set statement_timeout = '10s' as $$
 declare now_ms bigint := yr_now(); wm bigint; hi bigint; n int := 0;
 begin
   if not pg_try_advisory_xact_lock(hashtext('yr_eval_roll')) then return jsonb_build_object('busy', true); end if;
@@ -113,7 +114,7 @@ begin
 
   insert into yr_okv (k, v) values ('eval_wm', hi) on conflict (k) do update set v = excluded.v;
   if extract(hour from clock_timestamp()) = 4 and extract(minute from clock_timestamp()) = 3 then
-    delete from yr_eval where t0 < now_ms - 30 * 86400000::bigint;
+    delete from yr_eval where t0 < now_ms - 7 * 86400000::bigint;
     delete from yr_calls where t < now_ms - 30 * 86400000::bigint;
   end if;
   return jsonb_build_object('coins', n);
@@ -122,7 +123,7 @@ revoke all on function yr_eval_roll() from public, anon, authenticated;
 
 -- the outcome of real calls: 10 minutes after each call, from yr_ticks (coins on pump.fun's curve)
 create or replace function yr_calls_roll() returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public set statement_timeout = '10s' as $$
 declare now_ms bigint := yr_now(); n int := 0;
 begin
   update yr_calls k set hi10 = o.hi, lo10 = o.lo, end10 = o.en, done = true
