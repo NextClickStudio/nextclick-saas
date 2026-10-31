@@ -1,6 +1,6 @@
 # yeppo: Chrome Web Store listing
 
-Everything the Chrome Web Store asks for, ready to paste. Upload `public/yeppo-extension.zip` (version 2.2.0).
+Everything the Chrome Web Store asks for, ready to paste. Upload `public/yeppo-extension.zip` (version 2.3.0).
 Developer account: https://chrome.google.com/webstore/devconsole (one-time 5 USD fee).
 
 ## Store listing
@@ -25,8 +25,10 @@ yeppo reads the Solana memecoin you are looking at on pump.fun, GMGN, Axiom, Pho
 Click the badge for the full read:
 • Safety checks: top holders, the creator's share, insiders, mint and freeze authority, locked liquidity, the launch bundle.
 • The creator's other coins, drawn over this one: which ones they dumped in seconds, which ones ran.
-• Outlook on 4 timeframes and the money trail behind the creator (Pro).
+• Outlook on 4 timeframes and the money trail behind the creator.
 • Paper trading with 10 free pretend SOL at real prices and real fees.
+
+yeppo works with a Pro key, paid in SOL on yeppo.it/pricing (no account, no card). Paste it once in the extension, or it turns on by itself after paying.
 
 yeppo only reads the coin address on the page. It never sees your wallet, your keys or your passwords, and it cannot trade.
 
@@ -51,7 +53,7 @@ Show a safety and timing read of the Solana memecoin open on the current trading
 
 **Permission justifications:**
 - `sidePanel`: shows yeppo's read in Chrome's side panel next to the trading site.
-- `storage`: remembers the user's settings (badge on or off, badge position), their paper trading wallet id and their Pro key, on their own device.
+- `storage`: remembers the user's settings (badge on or off, badge position), their paper trading wallet id, their Pro key and a random device id (a key works on 3 devices), on their own device.
 - Host permissions (content scripts on pump.fun, gmgn.ai, axiom.trade, photon-sol.tinyastro.io, bullx.io, dexscreener.com, birdeye.so, solscan.io, jup.ag): read the coin address in the page's URL or links, to show the badge. Nothing else on the page is read.
 - Content script on yeppo.it: receives the Pro key or paper wallet the user creates on yeppo.it, so they don't have to paste it.
 
