@@ -1983,3 +1983,17 @@ img {
   background: color-mix(in srgb, #9a85ff 16%, transparent);
 }
 .pro-steps a { color: #c7bbff; }
+.cp-live {
+  margin-left: auto;
+  align-self: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1fd47c;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #1fd47c 40%, transparent);
+  animation: cp-live 1.6s ease-in-out infinite;
+}
+@keyframes cp-live { 50% { opacity: 0.45; } }

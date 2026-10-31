@@ -1,5 +1,6 @@
 // yeppo.it/api/read: the one call the extension and the coin page need (see app/api/read).
 import type { Check, Creator, Decision, DevNow, Outlook, Pulse } from "./decide";
+import type { LiveBase } from "./live";
 
 /** where the creator's SOL came from, and what the same money did before (yr_fund_read) */
 export type Money = {
@@ -48,6 +49,10 @@ export type Read = {
   /** no valid Pro key: nothing but the way in (reason: nokey, unknown, expired, devices, nodevice) */
   locked?: boolean;
   reason?: string;
+  /** where the panel's live trades start from (coins on pump.fun's curve) */
+  live?: LiveBase | null;
+  /** the owner's key: the paper trading lab shows */
+  owner?: boolean;
 };
 
 export async function readCoin(mint: string, key?: string | null, dev?: string | null): Promise<Read> {

@@ -82,7 +82,7 @@ async function creatorRpc(mint: string, dev: string | null): Promise<CreatorRpc 
 
 const KEY = /^YEP-[0-9A-F]{5}-[0-9A-F]{5}-[0-9A-F]{5}-[0-9A-F]{5}$/;
 const DEV = /^[0-9a-f-]{36}$/;
-type Access = { pro: boolean; reason?: string };
+type Access = { pro: boolean; reason?: string; owner?: boolean };
 const access = new Map<string, { t: number; v: Access }>();
 
 /** does this key unlock yeppo on this device (yr_access)? Kept a minute per key and device. When the database does
@@ -102,8 +102,8 @@ async function accessOf(key: string | null, dev: string | null): Promise<Access>
       signal: AbortSignal.timeout(2500),
     });
     if (!r.ok) throw new Error(`${r.status}`);
-    const j = (await r.json()) as { pro?: boolean; reason?: string };
-    const v = { pro: !!j.pro, reason: j.reason };
+    const j = (await r.json()) as { pro?: boolean; reason?: string; owner?: boolean };
+    const v = { pro: !!j.pro, reason: j.reason, owner: !!j.owner };
     if (access.size > 5000) access.clear();
     access.set(ck, { t: Date.now(), v });
     return v;
@@ -201,7 +201,7 @@ export async function GET(req: Request) {
   if (!acc.pro) return Response.json(lockedRead(mint, acc.reason), { headers: { ...CORS, "cache-control": "private, no-store" } });
   // everything that does not depend on anything else, at once
   const hot = readCache.get(mint);
-  if (hot && Date.now() - hot.t < 4000) return Response.json(hot.body, { headers: { ...CORS, "cache-control": "public, s-maxage=5, stale-while-revalidate=10" } });
+  if (hot && Date.now() - hot.t < 2000) return Response.json({ ...hot.body, owner: !!acc.owner }, { headers: { ...CORS, "cache-control": "public, s-maxage=2" } });
   if (Date.now() < rugDownUntil) void chainPrefetch(mint);
   const [rug, first, sol, dex] = await Promise.all([rugReport(mint), creatorRpc(mint, null), solPrice(), dexscreener(mint)]);
   rugDownUntil = rug ? 0 : Date.now() + 120_000;
@@ -298,8 +298,10 @@ export async function GET(req: Request) {
     path,
     down,
     pro: true,
+    // the starting point for the panel's live trades (coins on pump.fun's curve)
+    live: onCurve && cr ? { from: cr.from, now, steps, w60: cr.w60 ?? null, sol } : null,
   };
   if (readCache.size > 300) readCache.clear();
   readCache.set(mint, { t: Date.now(), body });
-  return Response.json(body, { headers: { ...CORS, "cache-control": "public, s-maxage=5, stale-while-revalidate=10" } });
+  return Response.json({ ...body, owner: !!acc.owner }, { headers: { ...CORS, "cache-control": "public, s-maxage=2" } });
 }

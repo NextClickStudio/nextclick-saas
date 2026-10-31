@@ -8,6 +8,7 @@ import { mins } from "@/lib/decide";
 import { age, ago, mult, short, usd } from "@/lib/format";
 import { useNow, usePoll } from "@/lib/hooks";
 import { paperBuy, paperOpen, paperSell, paperState, refreshPx, traceMoney, type PaperState } from "@/lib/paper";
+import { liveCall, livePulse, useLiveTrades } from "@/lib/live";
 import { type Money, readCoin, type Read } from "@/lib/read";
 import { license, savedKey } from "@/lib/pay";
 import { readLocal, writeLocal } from "@/lib/supabase";
@@ -63,6 +64,13 @@ export default function CoinPanel({
     `${mint}:${key === undefined ? "?" : (key ?? "-")}`,
   );
   const now = useNow(1000);
+  // the coin's trades straight from the chain, while it trades on pump.fun's curve
+  const { trades, live } = useLiveTrades(mint, !!r?.live && !r?.locked);
+  const [skew, setSkew] = useState(0);
+  const liveNow = r?.live?.now;
+  useEffect(() => {
+    if (liveNow) setSkew(liveNow - Date.now());
+  }, [liveNow]);
   if (!r)
     return (
       <div className="cp">
@@ -100,8 +108,9 @@ export default function CoinPanel({
       </div>
     );
 
-  const d = r.decision;
-  const p = r.pulse;
+  const lp = r.live && live ? livePulse(r.live, trades, skew) : null;
+  const p = lp ?? r.pulse;
+  const d = lp ? liveCall(r.decision, lp, r.t0 ? (now - r.t0) / 1000 : null) : r.decision;
   const c = r.creator;
   const bad = r.checks.filter((k) => !k.ok).length;
   return (
@@ -125,6 +134,11 @@ export default function CoinPanel({
         <div key={d.word} className="cp-word cp-word-in">
           <i />
           {d.word}
+          {lp && (
+            <span className="cp-live" title="Updated with every trade, straight from the chain">
+              live
+            </span>
+          )}
         </div>
         <p>{d.why}</p>
       </section>
@@ -262,7 +276,7 @@ export default function CoinPanel({
         </div>
       </section>
 
-      <PaperBox mint={mint} given={paper ?? null} />
+      {r.owner && <PaperBox mint={mint} given={paper ?? null} />}
 
       <div className="cp-foot">
         <span>Short-term read. Not advice.</span>
@@ -299,7 +313,7 @@ function MoneyBox({ mint, dev, m, devOut }: { mint: string; dev: string | null; 
   if (!m || !m.checked) lines.push("Following the creator's money on-chain. A few seconds.");
   else if (m.kind === "exchange") {
     head = "Exchange";
-    lines.push("The creator was funded from an exchange. The trail stops there.");
+    lines.push("The creator was funded from an exchange or a launch service used by many people. The trail stops there.");
   } else if (m.kind === "old") {
     head = "Old wallet";
     lines.push("Old wallet with a long history. Not traced.");
@@ -484,7 +498,7 @@ function ProBox({ onKey }: { onKey: (k: string) => void }) {
         <span className="chip tone t-learn">Pro key</span>
       </header>
       <p className="cp-line" style={{ fontSize: 12.5, margin: "0 0 10px" }}>
-        The call (Momentum, Wait, Don&apos;t buy), the safety checks, the creator&apos;s past coins, the money trail and paper trading. One key, paid
+        The call (Momentum, Wait, Don&apos;t buy), the safety checks, the creator&apos;s past coins and the money trail. One key, paid
         in SOL.
       </p>
       <ol className="pro-steps">

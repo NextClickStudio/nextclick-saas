@@ -13,7 +13,7 @@ const PRO = [
   "Safety checks and the launch bundle",
   "The creator's past coins on your chart",
   "Outlook on 4 timeframes and the money trail",
-  "Paper trading with real fees",
+  "Live: the call updates with every trade",
 ];
 
 /** hand the key to the extension (its content script on yeppo.it listens), so nothing has to be pasted */
