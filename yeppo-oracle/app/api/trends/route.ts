@@ -28,7 +28,11 @@ export type SmartCoin = {
   smart: number; out: number; hit: number; first: number; who: [string, number, number, number][];
   buys2: number; sells2: number; wal2: number; ch2: number | null; bun: number | null; grad: boolean;
 };
-export type Smart = { smart: SmartCoin[]; wallets: number; learning: number };
+/** coins proven wallets are in that did not pass yeppo's checks, with the first reason */
+export type NearCoin = { mint: string; sym: string | null; t0: number; mc: number; smart: number; hit: number; why: string };
+/** past calls: best market cap within an hour against the call's (median), how many did +50% and ×2 */
+export type SmartRecord = { calls: number; up50: number; up2: number; median: number };
+export type Smart = { smart: SmartCoin[]; near?: NearCoin[]; record?: SmartRecord | null; wallets: number; learning: number };
 
 let cache: { t: number; v: Trend[]; s: Smart | null } | null = null;
 
