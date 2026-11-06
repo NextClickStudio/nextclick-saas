@@ -137,7 +137,7 @@ export const GUIDES: Guide[] = [
       {
         h: "How yeppo shows it",
         p: [
-          "Every read shows what the launch bundle still holds. The Crowd & volatility box goes further: it groups wallets that bought in the same two seconds for the same amount at any point, the same clusters a bubble map draws, and shows what they hold now.",
+          "Every read shows what the launch bundle still holds, what the snipers of the first 15 seconds still hold, and the biggest single wallet. When they hold enough to crash a push, yeppo never says Momentum.",
         ],
       },
     ],
@@ -205,8 +205,8 @@ export const GUIDES: Guide[] = [
       {
         h: "What yeppo shows",
         p: [
-          "The Crowd & volatility box lists groups of three or more wallets whose first buy landed in the same two seconds for the same amount (within 10%), and what those groups still hold. It also shows RugCheck's insider networks, linked through funding.",
-          "When clusters hold 10 to 15% of the supply or more, they can move the price at once, up or down.",
+          "The Safety box shows the launch bundle, the snipers of the first 15 seconds and what they still hold, the biggest single wallet, and RugCheck's insider networks, linked through funding.",
+          "When snipers hold 10% of the supply or more, or one wallet holds 8% or more, yeppo holds Momentum back. At 20% for snipers, or 15% for one wallet, it says Don't buy.",
         ],
       },
     ],
@@ -245,7 +245,7 @@ export const GUIDES: Guide[] = [
       {
         h: "Volatility",
         p: [
-          "The same move means different things on different coins. The Crowd & volatility box tells you how far the coin usually swings within five minutes and how much a 1 SOL buy moves it, so you can size a trade to the coin.",
+          "The same move means different things on different coins. The Outlook box shows the coin's moves over several timeframes, so you can size a trade to the coin.",
         ],
       },
     ],
@@ -269,7 +269,7 @@ export const GUIDES: Guide[] = [
         h: "What you get",
         list: [
           "A badge on the page: Momentum, Wait or Don't buy, updated live while the coin trades.",
-          "One click for the full read: safety checks, the creator's past coins, the money trail, outlook, crowd and volatility.",
+          "One click for the full read: safety checks, snipers and big holders, the creator's past coins, the money trail and the outlook.",
           "A side panel that follows the coin in your active tab.",
           "Scanner alerts: a Chrome notification when proven wallets pile into a new coin.",
         ],

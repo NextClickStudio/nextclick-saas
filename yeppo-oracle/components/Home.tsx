@@ -1,7 +1,7 @@
 import Link from "next/link";
 import JsonLd from "./JsonLd";
 import { SITE_URL } from "@/lib/config";
-import Demo, { MiniOverlay } from "./Demo";
+import Demo from "./Demo";
 import Nav, { Footer } from "./Nav";
 import Reveal from "./Reveal";
 import Search from "./Search";
@@ -17,7 +17,7 @@ export default function Home() {
           <div>
             <Reveal>
               <span className="kicker">
-                <i className="live" /> Reading every pump.fun launch, live
+                <i className="live" /> Every pump.fun launch, live
               </span>
             </Reveal>
             <Reveal delay={80}>
@@ -28,7 +28,7 @@ export default function Home() {
               </h1>
             </Reveal>
             <Reveal delay={160}>
-              <p className="lead">Open any memecoin. In one second yeppo tells you if it&apos;s safe, what its creator did before, and if now is the moment.</p>
+              <p className="lead">Safety, creator, top traders and the exit. On any coin, in one second.</p>
             </Reveal>
             <Reveal delay={240} className="hero-cta">
               <Link href="/extension" className="btn btn-go btn-lg">
@@ -40,7 +40,6 @@ export default function Home() {
             </Reveal>
             <Reveal delay={320} className="hero-try">
               <Search label="Read it" />
-              <p className="hero-note">Or paste a coin here. No wallet, no sign-up.</p>
             </Reveal>
           </div>
           <Reveal delay={200}>
@@ -62,13 +61,12 @@ export default function Home() {
           <Reveal className="sec-head">
             <span className="label">How it works</span>
             <h2>three reads. one second.</h2>
-            <p>Everything you would check by hand, done before you can open a second tab.</p>
           </Reveal>
           <div className="three">
             <Reveal className="card feat" delay={0}>
               <div className="feat-art">
                 <div className="art-checks">
-                  {["Top 10 hold 14%", "Creator holds 0%", "No insider group", "Liquidity can't be pulled"].map((t, i) => (
+                  {["Top 10 hold 14%", "Creator holds 0%", "No hidden bundle", "Liquidity locked"].map((t, i) => (
                     <div key={t} style={{ "--i": i } as React.CSSProperties}>
                       <i>✓</i>
                       {t}
@@ -76,35 +74,48 @@ export default function Home() {
                   ))}
                 </div>
               </div>
-              <span className="label" style={{ display: "block", marginTop: 16 }}>
-                Safety
-              </span>
+              <span className="label feat-k">Safety</span>
               <h3>Is it a trap?</h3>
-              <p>Holders, creator bag, insider groups, frozen coins, pullable liquidity. One fail and it&apos;s a no.</p>
             </Reveal>
             <Reveal className="card feat" delay={90}>
               <div className="feat-art">
-                <MiniOverlay />
-              </div>
-              <span className="label" style={{ display: "block", marginTop: 16, color: "var(--dev)" }}>
-                Creator
-              </span>
-              <h3>What did they do last time?</h3>
-              <p>Every coin the same wallet launched, laid over this one. You see exactly where they dump.</p>
-            </Reveal>
-            <Reveal className="card feat" delay={180}>
-              <div className="feat-art">
-                <div className="art-eq">
-                  {Array.from({ length: 18 }, (_, i) => (
-                    <i key={i} style={{ "--i": i } as React.CSSProperties} />
+                <div className="art-kols">
+                  {[
+                    ["Cented", "12 SOL", "holding", "in"],
+                    ["decu", "3.5 SOL", "sold", "out"],
+                    ["milito", "2.1 SOL", "holding", "in"],
+                  ].map(([n, v, st, c], i) => (
+                    <div key={n} className={c} style={{ "--i": i } as React.CSSProperties}>
+                      <i />
+                      <b>{n}</b>
+                      <span className="mono">{v}</span>
+                      <span className="mono st">{st}</span>
+                    </div>
                   ))}
                 </div>
               </div>
-              <span className="label" style={{ display: "block", marginTop: 16, color: "var(--up)" }}>
-                Moment
+              <span className="label feat-k" style={{ color: "var(--cyan)" }}>
+                Top traders
               </span>
-              <h3>Is now the time?</h3>
-              <p>The last minute against the four before: price, buyers, sellers, wallets. Volatility, read live.</p>
+              <h3>Who&apos;s in, who&apos;s out?</h3>
+            </Reveal>
+            <Reveal className="card feat" delay={180}>
+              <div className="feat-art">
+                <div className="art-exit">
+                  <span className="art-pill">
+                    <i />
+                    Safe
+                  </span>
+                  <span className="art-pill x">
+                    <i />
+                    Big wallet 11%
+                  </span>
+                </div>
+              </div>
+              <span className="label feat-k" style={{ color: "var(--down)" }}>
+                Big wallets
+              </span>
+              <h3>Who could dump it?</h3>
             </Reveal>
           </div>
         </section>
@@ -117,25 +128,8 @@ export default function Home() {
               </span>
               <div className="sec-head" style={{ margin: 0 }}>
                 <h2>most rugs are reruns.</h2>
-                <p>The same wallets launch coin after coin and dump them the same way. yeppo remembers every one.</p>
+                <p>Same wallet, same dump. yeppo remembers every coin they launched.</p>
               </div>
-              <ul className="cre-list">
-                <li>
-                  <span>
-                    <b>Every coin they made</b> in the last 14 days, with how it ended: dumped in seconds, faded or ran.
-                  </span>
-                </li>
-                <li>
-                  <span>
-                    <b>When they usually sell</b>, and at what price. So you sell first.
-                  </span>
-                </li>
-                <li>
-                  <span>
-                    <b>What they&apos;re doing now</b> on this coin: holding, selling or already out.
-                  </span>
-                </li>
-              </ul>
             </Reveal>
             <Reveal delay={120} className="card cre-art glow-edge">
               <div className="cp">
@@ -174,14 +168,14 @@ export default function Home() {
 
         <section className="sec">
           <Reveal className="sec-head center">
-            <span className="label">The call</span>
+            <span className="label">The verdict</span>
             <h2>three words. no noise.</h2>
           </Reveal>
           <div className="words">
             {[
-              ["up", "Momentum", "Safe, clean creator, and buyers are piling in right now."],
-              ["mid", "Wait", "Nothing wrong, but no push. Wait for volume to come back."],
-              ["down", "Don't buy", "A trap, a rugger, or already dumped. Walk away."],
+              ["up", "Safe", "Nothing wrong found."],
+              ["mid", "Risky", "Something to watch."],
+              ["down", "Danger", "A trap. Walk away."],
             ].map(([t, w, p], i) => (
               <Reveal key={w} className={`card word t-${t}`} delay={i * 90}>
                 <WordViz tone={t} />
@@ -203,9 +197,9 @@ export default function Home() {
           <div className="steps">
             <i className="steps-line" aria-hidden />
             {[
-              ["Add yeppo to Chrome", "Works in Chrome, Brave, Edge and Arc. Turn it on with a Pro key, paid in SOL."],
-              ["Open any coin", "On pump.fun, GMGN, Axiom, Photon or DexScreener."],
-              ["Read the call", "A badge on the page. Click it for the full read."],
+              ["Add to Chrome", "Chrome, Brave, Edge, Arc."],
+              ["Open any coin", "pump.fun, Axiom, GMGN…"],
+              ["Read the call", "Click the icon: it opens on the side."],
             ].map(([h, p], i) => (
               <Reveal key={h} className="card step" delay={i * 90}>
                 <StepIcon n={i} />
@@ -260,8 +254,8 @@ export default function Home() {
             operatingSystem: "Chrome, Brave, Edge, Arc",
             url: SITE_URL,
             description:
-              "Chrome extension and site that checks any Solana memecoin on pump.fun, GMGN and Axiom: rug checks, launch bundles, the creator's past coins, the money behind the creator, and a live Momentum, Wait or Don't buy call.",
-            featureList: ["Pump.fun rug checker", "Dev wallet history", "Bundle checker", "Bubble map of wallets that bought together", "Memecoin scanner", "Live momentum call"],
+              "Chrome extension and site that checks any Solana memecoin on pump.fun, GMGN and Axiom: rug checks, launch bundles, the creator's past coins, the money behind the creator, and one verdict: Safe, Risky or Danger.",
+            featureList: ["Pump.fun rug checker", "Dev wallet history", "Bundle checker", "Bubble map of wallets that bought together", "Memecoin scanner", "Safe, Risky or Danger verdict"],
           },
           {
             "@context": "https://schema.org",
@@ -275,7 +269,7 @@ export default function Home() {
 }
 
 const FAQ: [string, string][] = [
-  ["What is yeppo?", "A Chrome extension and site that reads any Solana memecoin in one second: safety checks, the creator's past coins, the money behind the creator, the crowd and the live moment, summed up as Momentum, Wait or Don't buy."],
+  ["What is yeppo?", "A Chrome extension and site that reads any Solana memecoin in one second: safety checks, snipers and big holders, the creator's past coins, the money behind the creator, the big wallets, summed up in one verdict: Safe, Risky or Danger."],
   ["How does yeppo check if a coin is a rug?", "It checks the top holders, the creator's share, linked insider wallets, the launch bundle, mint and freeze authority and locked liquidity, and compares the creator's earlier coins: how many ran, faded or were dumped in seconds."],
   ["Which sites does it work on?", "pump.fun, GMGN, Axiom, Photon, BullX, DexScreener, Birdeye, Solscan and Jupiter, in Chrome, Brave, Edge and Arc."],
   ["Does yeppo touch my wallet?", "No. It only reads the coin address on the page. It never sees your wallet, keys or passwords and cannot trade."],

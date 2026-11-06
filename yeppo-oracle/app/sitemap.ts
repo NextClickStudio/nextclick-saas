@@ -14,7 +14,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     page("", 1, "weekly"),
     page("/extension", 0.9, "weekly"),
     page("/pricing", 0.8, "monthly"),
-    page("/trends", 0.8, "hourly"),
+    page("/record", 0.7, "daily"),
     page("/learn", 0.8, "weekly"),
     ...GUIDES.map((g) => page(`/learn/${g.slug}`, 0.7, "monthly")),
     page("/terms", 0.2, "yearly"),

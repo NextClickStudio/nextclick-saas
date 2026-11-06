@@ -19,9 +19,6 @@ export default function Page() {
         <b>In your browser only.</b> Your license key and your settings are saved in your own browser (local storage). They are not sent to
         yeppo, except the key when the tool checks it, which it does not store.
       </p>
-      <p>
-        <b>Paper trading.</b> A paper wallet is an anonymous id with its pretend balance and trades. A paper wallet unused for 30 days is deleted.
-      </p>
       <h2>The extension</h2>
       <p>
         The extension reads the address of the coin shown on supported trading sites, and nothing else on the page. It does not read your wallet,

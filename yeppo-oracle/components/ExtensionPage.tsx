@@ -19,14 +19,14 @@ export default function ExtensionPage() {
           <h1>
             yeppo, <span className="grad">next to your chart.</span>
           </h1>
-          <p>Open a coin. A badge tells you Momentum, Wait or Don&apos;t buy. Click it for the full read.</p>
+          <p>Open a coin, click the yeppo icon: the read opens on the side, live.</p>
           <div className="hero-cta" style={{ marginTop: 22 }}>
             <a className="btn btn-go btn-lg" href="/yeppo-extension.zip" download>
               Download the extension
             </a>
           </div>
           <p className="hero-note">
-            Version 2.5.2 · installs in a minute · needs a <a href="/pricing">Pro key</a>
+            Version 3.3.1 · installs in a minute · needs a <a href="/pricing">Pro key</a>
           </p>
         </Reveal>
 

@@ -1,5 +1,4 @@
-// yeppo: finds the coin on the trading page and shows a small badge with yeppo's read of it.
-// Click the badge for the full read in a card on the page; the toolbar button opens it in the side panel.
+// yeppo: finds the coin on the trading page and tells the side panel (the toolbar button opens it).
 (() => {
   if (window.top !== window || window.__yeppo) return;
   window.__yeppo = true;
@@ -83,208 +82,46 @@
     return top >= 3 ? best : null;
   }
 
-  const detect = () => fromUrl() ?? (POOL_PAGE() ? fromPage() : null);
-
-  // ---- the badge -------------------------------------------------------------------------------------
-  const host = document.createElement("div");
-  host.style.cssText = "all:initial;position:fixed;z-index:2147483646;right:16px;bottom:16px;";
-  const root = host.attachShadow({ mode: "open" });
-  root.innerHTML = `
-    <style>
-      :host { all: initial; }
-      * { box-sizing: border-box; font-family: Geist, Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-      .pill { --t: #9a85ff; display: flex; align-items: center; gap: 9px; height: 36px; padding: 0 4px 0 12px; border-radius: 12px;
-        cursor: pointer; background: rgba(9, 8, 18, .86); color: #f3f3f6; border: 1px solid rgba(255, 255, 255, .1);
-        box-shadow: 0 12px 34px -10px rgba(0, 0, 0, .8), inset 0 1px 0 rgba(255, 255, 255, .05);
-        backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
-        user-select: none; transition: transform .2s cubic-bezier(.2,.8,.2,1), border-color .3s; font-size: 13px; white-space: nowrap; }
-      .pill:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--t) 55%, transparent); }
-      .mark { width: 14px; height: 14px; border-radius: 4px; flex: none; position: relative;
-        background: conic-gradient(from 210deg, #5b6cff, #ff5fd2, #45d6ff, #5b6cff); }
-      .mark::after { content: ""; position: absolute; inset: 3.5px; border-radius: 2px; background: #09081a; }
-      .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--t); flex: none; animation: ping 1.8s ease-out infinite; }
-      @keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--t) 60%, transparent); } 80%, 100% { box-shadow: 0 0 0 7px transparent; } }
-      .lbl { font-weight: 600; letter-spacing: -.01em; color: var(--t); }
-      .x { width: 26px; height: 26px; border-radius: 8px; border: 0; background: transparent; color: #5f5f74; font-size: 14px; cursor: pointer; }
-      .x:hover { background: rgba(255,255,255,.07); color: #f3f3f6; }
-      .t-up { --t: #1fd47c; } .t-mid { --t: #ffb23e; } .t-down { --t: #ff5b3d; } .t-learn { --t: #9a85ff; }
-      .t-down { border-color: rgba(255, 91, 61, .4); }
-      .card { position: absolute; right: 0; bottom: 46px; width: 380px; height: min(700px, calc(100vh - 80px)); border-radius: 16px; overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, .1); box-shadow: 0 40px 90px -20px rgba(0, 0, 0, .9); background: #07060e; display: none; }
-      .card.on { display: block; animation: rise .28s cubic-bezier(.2,.8,.2,1); }
-      @keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.98); } }
-      iframe { width: 100%; height: 100%; border: 0; display: block; }
-    </style>
-    <div class="card"></div>
-    <div class="pill t-learn" title="yeppo: click for the full read">
-      <i class="mark"></i><i class="dot"></i><span class="lbl">Reading…</span>
-      <button class="x" title="Hide on this tab">×</button>
-    </div>`;
-  const pill = root.querySelector(".pill");
-  const card = root.querySelector(".card");
-  const lbl = root.querySelector(".lbl");
-
-  let mint = null;
-  let tabId = null;
-  let hidden = false;
-  let badgeOn = true;
-  let timer = 0;
-
-  chrome.runtime.sendMessage({ t: "hello" }, (r) => {
-    tabId = r?.tab ?? null;
-    badgeOn = r?.badge !== false;
-    show();
-  });
-  chrome.storage.onChanged.addListener((ch, area) => {
-    if (area === "local" && ch.badge) {
-      badgeOn = ch.badge.newValue !== false;
-      show();
-    }
-  });
-
-  function show() {
-    const on = !!mint && !hidden && badgeOn;
-    if (on && !host.isConnected) document.documentElement.appendChild(host);
-    if (!on && host.isConnected) host.remove();
-  }
-
-  function paint(r) {
-    const d = r && !r.error ? r.decision : null;
-    pill.className = `pill t-${d?.tone ?? "learn"}`;
-    lbl.textContent = d ? d.word : r?.error ? "Retrying…" : "Reading…";
-    pill.title = d ? `${d.word}: ${d.why}` : "yeppo: click for the full read";
-  }
-
-  let liveUntil = 0; // an open card or side panel is following the coin's trades: its call wins for a few seconds
-  function read() {
-    clearTimeout(timer);
-    if (!mint) return;
-    const m = mint;
-    // the next read is booked first: an answer that never comes can't stop the badge's refresh
-    timer = setTimeout(read, document.hidden ? 60000 : 15000);
+  // the address in a pool page's URL: Axiom, Photon and DexScreener put either the pool or the coin itself there.
+  // The extension asks DexScreener which coin it is (kept per address); until it answers, the page's links decide.
+  const resolved = new Map(); // address in the URL -> coin, or null when DexScreener knows neither
+  function fromPoolUrl() {
+    const a = (location.pathname.match(ADDR) || []).find(is32);
+    if (!a) return null;
+    if (resolved.has(a)) return resolved.get(a);
+    resolved.set(a, undefined);
     try {
-      chrome.runtime.sendMessage({ t: "read", mint: m }, (r) => {
-        if (chrome.runtime.lastError || m !== mint) return;
-        if (Date.now() >= liveUntil) paint(r);
-        // a coin that is trading: every 4 seconds, so the badge turns the moment buyers come in
-        if (!document.hidden && (r?.pulse?.trades1m ?? 0) >= 6) {
-          clearTimeout(timer);
-          timer = setTimeout(read, 4000);
-        }
+      chrome.runtime.sendMessage({ t: "resolve", addr: a }, (r) => {
+        if (chrome.runtime.lastError) return;
+        resolved.set(a, typeof r?.mint === "string" && is32(r.mint) ? r.mint : null);
+        tries = 0; // look again now that the answer is in
       });
     } catch {
-      /* the extension was reloaded: this page keeps its last badge */
+      /* the extension was reloaded */
     }
+    return undefined;
   }
 
-  // ---- pump.fun's comments and livestream ------------------------------------------------------------------------
-  // pump.fun refuses servers, so yeppo reads them here, on the pump.fun page, with the page's own access, every 30 s
-  // while the coin is open, and hands them to yeppo's card and side panel through the extension. Read only.
-  const onPump = /(^|\.)pump\.fun$/.test(location.hostname);
-  let pfTimer = 0;
-  async function pfJson(url) {
-    for (const credentials of ["omit", "include"]) {
-      try {
-        const r = await fetch(url, { credentials, headers: { accept: "application/json" } });
-        if (r.ok) return await r.json();
-      } catch {
-        /* next way */
-      }
-    }
-    return null;
-  }
-  async function pumpStats() {
-    clearTimeout(pfTimer);
-    if (!onPump || !mint) return;
-    const m = mint;
-    pfTimer = setTimeout(pumpStats, document.hidden ? 120000 : 30000);
-    const [coin, rep] = await Promise.all([
-      pfJson(`https://frontend-api-v3.pump.fun/coins/${m}`),
-      pfJson(`https://frontend-api-v3.pump.fun/replies/${m}?limit=100&offset=0&reverseOrder=true`),
-    ]);
-    if (m !== mint || (!coin && !rep)) return;
-    const list = Array.isArray(rep) ? rep : Array.isArray(rep?.replies) ? rep.replies : [];
-    const since = Date.now() - 600000;
-    const recent = list.filter((x) => {
-      const t = Number(x?.timestamp ?? x?.created_timestamp);
-      return Number.isFinite(t) && (t < 1e12 ? t * 1000 : t) > since;
-    });
-    const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-    const d = {
-      comments: n(coin?.reply_count),
-      comments10: list.length ? recent.length : null,
-      commenters10: list.length ? new Set(recent.map((x) => String(x?.user ?? x?.username ?? ""))).size : null,
-      live: coin?.is_currently_live === true,
-      watching: n(coin?.num_participants) ?? n(coin?.livestream_participants),
-    };
+  const detect = () => {
+    const u = fromUrl();
+    if (u) return u;
+    if (!POOL_PAGE()) return null;
+    const p = fromPoolUrl();
+    return p === undefined ? fromPage() : (p ?? fromPage());
+  };
+
+  // the coin in this tab, for the side panel (the toolbar button opens it). No badge on the page and no reads from here:
+  // the panel reads the coin itself, only while it is open.
+  let mint = null;
+  function setCoin(next) {
+    if (next === mint) return;
+    mint = next;
     try {
-      chrome.runtime.sendMessage({ t: "pf", mint: m, d });
+      chrome.runtime.sendMessage({ t: "coin", mint });
     } catch {
       /* the extension was reloaded */
     }
   }
-
-  function setCoin(next) {
-    if (next === mint) return;
-    mint = next;
-    void pumpStats();
-    chrome.runtime.sendMessage({ t: "coin", mint });
-    paint(null);
-    if (card.classList.contains("on")) openCard();
-    show();
-    read();
-  }
-
-  function openCard() {
-    const src = chrome.runtime.getURL(`frame.html?mint=${mint}&tab=${tabId ?? ""}`);
-    const f = card.querySelector("iframe");
-    if (f) {
-      if (f.src !== src) f.src = src;
-    } else card.innerHTML = `<iframe src="${src}" allow="clipboard-write"></iframe>`;
-    card.classList.add("on");
-  }
-
-  // click opens the card; drag moves the badge (remembered per site)
-  let drag = null;
-  pill.addEventListener("pointerdown", (e) => {
-    if (e.target.closest(".x")) return;
-    drag = { x: e.clientX, y: e.clientY, r: parseFloat(host.style.right), b: parseFloat(host.style.bottom), moved: false };
-    pill.setPointerCapture(e.pointerId);
-  });
-  pill.addEventListener("pointermove", (e) => {
-    if (!drag) return;
-    const dx = e.clientX - drag.x;
-    const dy = e.clientY - drag.y;
-    if (!drag.moved && Math.hypot(dx, dy) < 5) return;
-    drag.moved = true;
-    host.style.right = `${Math.max(4, Math.min(innerWidth - 120, drag.r - dx))}px`;
-    host.style.bottom = `${Math.max(4, Math.min(innerHeight - 50, drag.b - dy))}px`;
-  });
-  pill.addEventListener("pointerup", () => {
-    if (!drag) return;
-    const moved = drag.moved;
-    drag = null;
-    if (moved) chrome.storage.local.set({ [`pos:${location.hostname}`]: { r: host.style.right, b: host.style.bottom } });
-    else if (card.classList.contains("on")) card.classList.remove("on");
-    else openCard();
-  });
-  root.querySelector(".x").addEventListener("click", (e) => {
-    e.stopPropagation();
-    hidden = true;
-    show();
-  });
-  chrome.storage.local.get(`pos:${location.hostname}`, (r) => {
-    const p = r[`pos:${location.hostname}`];
-    if (p) [host.style.right, host.style.bottom] = [p.r, p.b];
-  });
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg?.t !== "live" || msg.mint !== mint || !msg.d) return;
-    liveUntil = Date.now() + 10000;
-    paint({ decision: msg.d });
-  });
-  window.addEventListener("message", (e) => {
-    if (e.data?.yeppo === "close" && e.source === card.querySelector("iframe")?.contentWindow) card.classList.remove("on");
-  });
 
   // single-page apps change the URL without reloading: look again on every change, a few times while it loads
   let href = "";
@@ -300,7 +137,4 @@
     if (found) setCoin(found);
     else if (!POOL_PAGE() || tries >= 8) setCoin(null);
   }, 1200);
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && mint) read();
-  });
 })();

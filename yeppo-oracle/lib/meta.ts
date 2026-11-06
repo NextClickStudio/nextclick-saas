@@ -2,7 +2,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 
 // Coin pictures and socials from the coin's metadata json (IPFS), and the SOL price, both free.
 
-export type CoinJson = { image: string | null; twitter: string | null; telegram: string | null; website: string | null; description: string | null };
+export type CoinJson = { image: string | null; twitter: string | null; telegram: string | null; website: string | null; description: string | null; post: { author: string; text: string } | null };
 const jsonCache = new Map<string, CoinJson | null>();
 const jsonWait = new Map<string, Promise<CoinJson | null>>();
 let jsonActive = 0;
@@ -48,6 +48,7 @@ export function coinJson(uri: string | null | undefined): Promise<CoinJson | nul
             telegram: link(j.telegram, "tg"),
             website: link(j.website, "web"),
             description: typeof j.description === "string" ? j.description : null,
+            post: j.post && typeof j.post === "object" ? (j.post as { author: string; text: string }) : null,
           };
         }
       } catch {

@@ -21,6 +21,8 @@ type Report = {
 export type Rug = {
   dev: string | null;
   top10: number;
+  /** the biggest single holder, pools, lockers and the creator left out */
+  top1: number;
   creator: number;
   insiders: number;
   insiderWallets: number;
@@ -32,6 +34,8 @@ export type Rug = {
   holders: number | null;
   danger: string[];
   rugged: boolean;
+  /** the real top holders (pools, lockers and the creator left out): wallet and share, biggest first */
+  tops: { owner: string; pct: number; insider: boolean }[];
 };
 
 const cache = new Map<string, { t: number; v: Rug }>();
@@ -72,6 +76,7 @@ function digest(j: Report): Rug {
   return {
     dev: j.creator ?? null,
     top10,
+    top1: (people.find((h) => h.owner !== j.creator)?.pct ?? 0) / 100,
     creator,
     insiders: nets.reduce((a, n) => a + (n.currentHolding || 0), 0) / supply,
     insiderWallets: nets.reduce((a, n) => a + (n.size || 0), 0),
@@ -82,8 +87,13 @@ function digest(j: Report): Rug {
     holders: j.totalHolders ?? null,
     danger: (j.risks ?? []).filter((r) => r.level === "danger" && !COVERED.test(r.name)).map((r) => r.name),
     rugged: !!j.rugged,
+    tops: people.filter((h) => h.owner !== j.creator).slice(0, 20).map((h) => ({ owner: h.owner, pct: h.pct / 100, insider: !!h.insider })),
   };
 }
+
+/** the top 10 wallets make it a Don't buy only from here: below it, separate wallets (insiders are judged on their own)
+ *  holding a third of a young coin is normal, and they can't sell it in one block. 25% marked good coins as traps. */
+const TOP10_NO = 0.45;
 
 const p = (x: number) => `${Math.round(Math.max(0, x) * 100)}%`;
 
@@ -109,7 +119,7 @@ export function extraChecks(r: Rug): Check[] {
 export function rugChecks(r: Rug): Check[] {
   const lockOk = r.curve || (r.locked ?? 0) >= 0.9;
   return [
-    { ok: r.top10 < 0.25, label: r.top10 < 0.25 ? `Top 10 hold ${p(r.top10)}` : `Top 10 hold ${p(r.top10)}. They can crash it.` },
+    { ok: r.top10 < TOP10_NO, label: r.top10 < TOP10_NO ? `Top 10 hold ${p(r.top10)}` : `Top 10 hold ${p(r.top10)}. They can crash it.` },
     { ok: r.creator < 0.05, label: r.creator < 0.05 ? `Creator holds ${p(r.creator)}` : `Creator still holds ${p(r.creator)}. Can dump on you.` },
     ...extraChecks(r).slice(0, 1),
     { ok: !r.mintAuth, label: r.mintAuth ? "Creator can print more coins." : "No new coins can be printed" },
@@ -211,7 +221,7 @@ async function chainHolders(mint: string): Promise<Holders | null> {
         return !o || o.owner === SYSTEM;
       });
       const top10 = people.slice(0, 10).reduce((a, t) => a + t[1], 0) / supply;
-      base.push({ ok: top10 < 0.25, label: top10 < 0.25 ? `Top 10 hold ${p(top10)}` : `Top 10 hold ${p(top10)}. They can crash it.` });
+      base.push({ ok: top10 < TOP10_NO, label: top10 < TOP10_NO ? `Top 10 hold ${p(top10)}` : `Top 10 hold ${p(top10)}. They can crash it.` });
     } else byOwner = null;
   }
   base.push(

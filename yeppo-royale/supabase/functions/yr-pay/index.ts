@@ -1,10 +1,11 @@
 // yr-pay: checkout in SOL, straight to the owner's wallet (yr_config 'pay_wallet'). Checkout opens only when
 // yr_config 'pay_open' is 'true' as well, so the wallet can be set ahead of the launch.
 //  POST {action: "plans"}          the plans and whether checkout is open
-//  POST {action: "order", plan}    a new order: a unique amount and a Solana Pay reference
+//  POST {action: "order", plan, key?}  a new order: a unique amount and a Solana Pay reference (key: the one it renews)
 //  POST {action: "check", id}      looks for the payment on-chain; once found, returns the license key
 // A payment is matched by its Solana Pay reference, or by the order's exact amount reaching the wallet after
-// the order was made. A payer who already has a running license gets it extended. Public Solana RPC only.
+// the order was made. An order made with a license key (the one saved in the buyer's browser) extends that key;
+// any other gets a new key. Never by paying wallet: exchanges pay many buyers from one wallet. Public Solana RPC only.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 
 // publicnode refuses history lookups without a token now: the Solana Foundation node goes first
@@ -40,6 +41,7 @@ function b58(bytes: Uint8Array) {
   return out;
 }
 const isUuid = (s: unknown): s is string => typeof s === "string" && /^[0-9a-f-]{36}$/.test(s);
+const isKey = (s: unknown): s is string => typeof s === "string" && /^YEP-[0-9A-F]{5}-[0-9A-F]{5}-[0-9A-F]{5}-[0-9A-F]{5}$/.test(s);
 
 async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   let last: unknown = null;
@@ -116,7 +118,13 @@ Deno.serve(async (req) => {
       }
       if (!lamports) return json({ error: "Try again" }, 503);
       const ref = b58(crypto.getRandomValues(new Uint8Array(32)));
-      const { data: o, error } = await sb.from("yr_orders").insert({ plan: plan.id, lamports, ref }).select("id").single();
+      // the key this order renews: only one that exists
+      let renew: string | null = null;
+      if (isKey(body.key)) {
+        const { data: l } = await sb.from("yr_licenses").select("key").eq("key", body.key).maybeSingle();
+        renew = l?.key ?? null;
+      }
+      const { data: o, error } = await sb.from("yr_orders").insert({ plan: plan.id, lamports, ref, renew }).select("id").single();
       if (error) throw new Error(error.message);
       const sol = (lamports / 1e9).toFixed(6);
       const url = `solana:${wallet}?amount=${sol}&reference=${ref}&label=yeppo&message=${encodeURIComponent(`yeppo ${plan.name}`)}`;
@@ -179,15 +187,14 @@ Deno.serve(async (req) => {
 
       const plan = plans.find((p) => p.id === o.plan) ?? { id: o.plan, name: "Pro", days: 30, sol: 0 };
       const days = plan.days * 86400_000;
-      // the same payer with a running license gets it extended, so the key in their extension keeps working
-      const { data: running } = found.payer
-        ? await sb.from("yr_licenses").select("key,until").eq("payer", found.payer).gt("until", new Date().toISOString()).order("until", { ascending: false }).limit(1)
-        : { data: null };
+      // the key the order was made with gets extended (from its end, or from now once it has run out), so the key
+      // in the extension keeps working; any other order gets a new key
+      const { data: renewing } = o.renew ? await sb.from("yr_licenses").select("key,until").eq("key", o.renew).maybeSingle() : { data: null };
       let key: string;
       let until: number;
-      if (running?.length) {
-        key = running[0].key;
-        until = new Date(running[0].until).getTime() + days;
+      if (renewing) {
+        key = renewing.key;
+        until = Math.max(new Date(renewing.until).getTime(), Date.now()) + days;
         await sb.from("yr_licenses").update({ until: new Date(until).toISOString(), plan: plan.id }).eq("key", key);
       } else {
         key = newKey();
@@ -201,6 +208,7 @@ Deno.serve(async (req) => {
     }
     return json({ error: "Unknown action" }, 400);
   } catch (e) {
-    return json({ error: e instanceof Error ? e.message : "Something went wrong" }, 502);
+    console.error(e);
+    return json({ error: "Something went wrong on yeppo's side. Try again in a minute: a payment already sent is not lost." }, 502);
   }
 });

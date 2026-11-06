@@ -17,7 +17,8 @@ export type Access = { pro: boolean; reason?: string; owner?: boolean };
 const access = new Map<string, { t: number; v: Access }>();
 
 /** does this key unlock yeppo on this device (yr_access)? Kept a minute per key and device. When the database does
- *  not answer, the last answer stands; with none, a well-formed key is let through and no key is not. */
+ *  not answer, a key it confirmed in the last day keeps working; a key it never confirmed waits, so a made-up key can't
+ *  get in while the database is down. */
 export async function accessOf(key: string | null, dev: string | null): Promise<Access> {
   const k = key && KEY.test(key) ? key : "";
   const d = dev && DEV.test(dev) ? dev : "";
@@ -39,7 +40,8 @@ export async function accessOf(key: string | null, dev: string | null): Promise<
     access.set(ck, { t: Date.now(), v });
     return v;
   } catch {
-    return hit?.v ?? { pro: !!k, reason: k ? undefined : "nokey" };
+    if (hit && Date.now() - hit.t < 86_400_000) return hit.v;
+    return { pro: false, reason: k ? "busy" : "nokey" };
   }
 }
 
@@ -49,5 +51,6 @@ export const LOCKED: Record<string, string> = {
   expired: "Your Pro key has expired. Renew it on yeppo.it/pricing: the same key keeps working.",
   devices: "This key is already used on 3 devices. Write to info@yeppo.it to move it.",
   nodevice: "Reload the extension, then try again.",
+  busy: "yeppo can't check your key this second. It tries again by itself.",
 };
 

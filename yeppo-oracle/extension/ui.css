@@ -141,3 +141,34 @@ iframe {
   font-weight: 600;
   cursor: pointer;
 }
+
+.foot .j7 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#j7dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dim);
+}
+#j7dot.on {
+  background: #1fd47c;
+  box-shadow: 0 0 8px #1fd47c;
+}
+#j7dot.wait {
+  background: #ffb23e;
+}
+#j7btn {
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(69, 214, 255, 0.35);
+  background: rgba(69, 214, 255, 0.08);
+  color: #45d6ff;
+  font: inherit;
+  cursor: pointer;
+}
+#j7btn:hover {
+  background: rgba(69, 214, 255, 0.16);
+}

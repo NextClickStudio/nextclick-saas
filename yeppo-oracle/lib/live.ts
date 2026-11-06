@@ -5,14 +5,14 @@
 // connection, so yeppo's servers and database do no work for it. Coins on pump.fun's curve paired with SOL only;
 // anything else keeps the regular refresh.
 import { useEffect, useRef, useState } from "react";
-import { type Decision, momentumBlock, pulseOf, type Pulse } from "./decide";
+import { type Decision, momentumBlock, possible, pulseOf, type Pulse, type Top, topSelling } from "./decide";
 
 const WS = "wss://api.mainnet-beta.solana.com";
 const TRADE = "Program data: vdt/007mYe";
 const DISC = [189, 219, 127, 211, 78, 230, 97, 238];
 const KEEP_MS = 6 * 60_000;
 
-export type LiveTrade = { t: number; buy: boolean; sol: number; price: number; who: string };
+export type LiveTrade = { t: number; buy: boolean; sol: number; price: number; who: string; tok: number };
 /** what the server sent to start from: 10 s steps [step, close, high, low, buys, sells, SOL in, SOL out] */
 export type LiveBase = { from: number; now: number; steps: number[][]; w60: number | null; sol: number; devSold?: boolean; bun0?: number | null };
 
@@ -52,7 +52,7 @@ function parse(line: string, mint: Uint8Array): LiveTrade | null {
   if (!(vsol > 0) || !(vtok > 0)) return null; // a curve paired with another token: the regular refresh covers it
   let who = "";
   for (let i = 57; i < 89; i++) who += b[i].toString(16).padStart(2, "0");
-  return { t: Date.now(), buy: b[56] === 1, sol: Number(dv.getBigUint64(40, true)) / 1e9, price: (vsol / vtok) * 1e9, who };
+  return { t: Date.now(), buy: b[56] === 1, sol: Number(dv.getBigUint64(40, true)) / 1e9, price: (vsol / vtok) * 1e9, who, tok: Number(dv.getBigUint64(48, true)) / 1e6 };
 }
 
 /** live trades of one coin while `on`; `live` is true while the connection is up */
@@ -154,19 +154,50 @@ export function livePulse(base: LiveBase, trades: LiveTrade[], skew: number): Pu
 
 const pct = (v: number) => `${v >= 0 ? "+" : ""}${Math.round(v * 100)}%`;
 
+/** a dump happening now, from the live trades: the price 35%+ under its high of the last 20 seconds. Rugs on pump.fun
+ *  take one block, so the call turns at once instead of waiting for the next read. */
+export function liveDump(trades: LiveTrade[]): Decision | null {
+  const cut = Date.now() - 20_000;
+  const recent = trades.filter((t) => t.t > cut);
+  if (recent.length < 2) return null;
+  const high = Math.max(...recent.map((t) => t.price));
+  const last = recent[recent.length - 1].price;
+  if (!(high > 0) || last > high * 0.65) return null;
+  const sold = recent.filter((t) => !t.buy).reduce((a, t) => a + t.sol, 0);
+  return { word: "Don't buy", tone: "down", why: `Dumping right now: ${pct(last / high - 1)} in seconds, ${sold.toFixed(1)} SOL sold. Stay out.` };
+}
+
 /** the call with the live minute: buyers piling in right now turn it to Momentum at once, and a Momentum whose
- *  buyers stepped back turns to Wait. Every reason to stay out (Don't buy) stands as the server said it. */
-export function liveCall(server: Decision, p: Pulse, ageS: number | null, base?: LiveBase): Decision {
+ *  buyers stepped back turns to Wait. Every reason to stay out (Don't buy) stands as the server said it, and so does
+ *  hold: snipers or one big wallet that could dump the push keep it from being a Momentum. */
+export function liveCall(server: Decision, p: Pulse, ageS: number | null, base?: LiveBase, hold?: string | null, watch?: string | null, clear = true): Decision {
   if (server.word === "Don't buy" || server.word === "Locked") return server;
+  // a coin the server found something on never turns green from the trades alone
+  if (!clear && p.state === "hot") return server;
   if (ageS != null && ageS < 30) return server;
-  const block = momentumBlock({ ageS, ch1m: p.ch1m, devSold: !!base?.devSold, bun0: base?.bun0 ?? null });
-  if (block && (p.state === "hot" || server.word === "Momentum")) return { word: "Wait", tone: "mid", why: block };
+  const mb = momentumBlock({ ageS, ch1m: p.ch1m, devSold: !!base?.devSold, bun0: base?.bun0 ?? null });
+  const block = mb ?? hold ?? null;
+  const good = server.word === "Momentum" || server.word === "Opportunity";
+  if (block && (p.state === "hot" || good)) return !mb && watch ? possible(watch) : { word: "Wait", tone: "mid", why: block };
   if (p.state === "hot") {
     const ch = p.ch1m != null ? `${pct(p.ch1m)} in 1 min` : "buyers piling in";
     const w = p.wallets1m ? `, ${p.wallets1m} wallets` : "";
     return { word: "Momentum", tone: "up", why: `Buyers are in right now: ${ch}${w}.` };
   }
-  if (server.word === "Momentum" && (p.state === "cooling" || p.state === "quiet"))
+  // a pullback Opportunity is about the quiet minute: it stands while the coin catches its breath
+  if (good && !server.pullback && (p.state === "cooling" || p.state === "quiet"))
     return { word: "Wait", tone: "mid", why: p.state === "quiet" ? "Trading just went quiet. Wait for buyers to come back." : "Buyers stepped back in the last minute. Wait for them to return." };
   return server;
+}
+
+/** the biggest holders selling, from the chain within the second: the server's top holders of 90 seconds ago,
+ *  against the sells seen live since then. Null while none of them sells a real part of their bag. */
+export function liveSellers(trades: LiveTrade[], tops: Top[] | undefined, since: number): string | null {
+  if (!tops?.length || !trades.length) return null;
+  const hex = new Map<string, Top>();
+  for (const t of tops) hex.set(Array.from(b58bytes(t.w), (x) => x.toString(16).padStart(2, "0")).join(""), t);
+  const sold = new Map<string, number>();
+  for (const x of trades) if (!x.buy && x.t >= since && hex.has(x.who)) sold.set(x.who, (sold.get(x.who) ?? 0) + x.tok / 1e9);
+  if (!sold.size) return null;
+  return topSelling([...hex].map(([k, t]) => ({ had: t.h + t.s90, sold: t.s90 + (sold.get(k) ?? 0) })));
 }

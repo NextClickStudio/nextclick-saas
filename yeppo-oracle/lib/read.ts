@@ -1,7 +1,10 @@
 // yeppo.it/api/read: the one call the extension and the coin page need (see app/api/read).
-import type { Check, Creator, Decision, DevNow, Outlook, Pulse } from "./decide";
-import type { Crowd } from "./crowd";
+import type { Check, Creator, Decision, DevNow, Outlook, Pulse, Risk } from "./decide";
 import type { LiveBase } from "./live";
+import type { Odds } from "./odds";
+import type { TheCoin } from "./thecoin";
+import type { Origin } from "./origin";
+import type { XSignals } from "./xsignals";
 
 /** where the creator's SOL came from, and what the same money did before (yr_fund_read) */
 export type Money = {
@@ -46,16 +49,42 @@ export type Read = {
   path: [number, number][];
   /** sources that did not answer this time: RugCheck, or yeppo's own creator history */
   down: ("rugcheck" | "history")[];
-  /** who seems to be on it and how wildly it moves: information only, the call never depends on it */
-  crowd?: Crowd | null;
+  /** who could dump it on a buyer: snipers, the biggest wallet, a big holder selling, proven wallets in it */
+  risk?: Risk | null;
+  /** why who holds it keeps it from being a Momentum, even when buyers pile in (the live call respects it) */
+  hold?: string | null;
+  /** a reason to get out now (creator selling, a big holder dumping, the top traders gone): the badge says Exit */
+  exit?: string | null;
+  /** the one thing to keep an eye on when the coin is an Opportunity (a holder that is not an insider) */
+  watch?: string | null;
+  /** how often coins like this one made ×2 and ×3 from this point (pump.fun curve, first 16 minutes) */
+  odds?: Odds | null;
+  /** no failed check, holder warning or exit reason: the panel's live read may turn the call green */
+  clear?: boolean;
+  /** the other coins with this name: the original, the leader, and whether this one is THE coin */
+  thecoin?: TheCoin | null;
+  /** where the coin comes from on X: the post or account its creator linked, and who is behind it */
+  origin?: Origin | null;
+  /** what X says beyond the link: the same account or post on other coins, and how fast the post spreads */
+  xs?: XSignals | null;
+  /** the launch bundle read from the chain: wallets of the first 2 blocks, what they took, what they hold now */
+  launch?: { wallets: number; took: number; now: number | null } | null;
+  /** the launch bundle still on its way from the chain: about how many seconds until it is in */
+  launchEta?: number | null;
+  /** where the launch read stands: in (exact insiders), reading (countdown), unavailable, null (coin past 2 hours) */
+  launchState?: "in" | "reading" | "unavailable" | null;
+  /** which attempt of the launch read is running (1-3) */
+  launchTry?: number | null;
+  /** which parts of the read are in for real (holders on chain, creator history, launch bundle, X origin) */
+  ready?: { holders: boolean; creator: boolean; launch: boolean; x: boolean };
+  /** DexScreener boosts paid for right now */
+  boosts?: number;
   pro: boolean;
   /** no valid Pro key: nothing but the way in (reason: nokey, unknown, expired, devices, nodevice) */
   locked?: boolean;
   reason?: string;
   /** where the panel's live trades start from (coins on pump.fun's curve) */
   live?: LiveBase | null;
-  /** the owner's key: the paper trading lab shows */
-  owner?: boolean;
 };
 
 export async function readCoin(mint: string, key?: string | null, dev?: string | null): Promise<Read> {

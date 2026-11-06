@@ -23,12 +23,12 @@ yeppo reads the Solana memecoin you are looking at on pump.fun, GMGN, Axiom, Pho
 • Don't buy: a rug, a coin farm, a dump, or a failed safety check.
 
 Click the badge for the full read:
-• Safety checks: top holders, the creator's share, insiders, mint and freeze authority, locked liquidity, the launch bundle.
+• Safety checks: top holders, the creator's share, insiders, mint and freeze authority, locked liquidity, the launch bundle, snipers and the biggest wallet. yeppo never says Momentum when they can dump it.
 • The creator's other coins, drawn over this one: which ones they dumped in seconds, which ones ran.
 • Outlook on 4 timeframes and the money trail behind the creator.
 • Live: on pump.fun coins the call updates with every trade, straight from the chain.
-• Crowd & volatility: how many wallets are trading it and how many are new, pump.fun comments and livestream, the coin's X post, wallets that bought together, and how wildly it swings.
-• Scanner: a notification when several wallets with a record of catching runners early buy the same new coin, or when a meme starts trending on pump.fun, with the coin leading it.
+• Radar: every pump.fun launch read the second it happens, matched to the post that started it (connect your J7Tracker feed), scored with the reasons, rugs, bundles and snipers kept out. One click opens the coin on Axiom.
+• Meme waves: every coin launched with the same name, the original marked, new ones the second they launch.
 
 yeppo works with a Pro key, paid in SOL on yeppo.it/pricing (no account, no card). Paste it once in the extension, or it turns on by itself after paying.
 

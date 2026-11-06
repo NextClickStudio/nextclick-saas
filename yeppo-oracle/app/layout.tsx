@@ -1,12 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./y.css";
-import Backdrop from "@/components/Backdrop";
 import { SITE_URL } from "@/lib/config";
 import { mono, sans } from "@/lib/fonts";
 import JsonLd from "@/components/JsonLd";
 
 const DESCRIPTION =
-  "yeppo is a Solana memecoin rug checker and scanner for pump.fun, GMGN and Axiom. Open any coin: in one second it checks holders, bundles, the dev wallet's past coins and the money behind it, and tells you Momentum, Wait or Don't buy.";
+  "yeppo is a Solana memecoin rug checker and scanner for pump.fun, GMGN and Axiom. Open any coin: in one second it checks holders, bundles, the dev wallet's past coins and the money behind it, and tells you if it's Safe, Risky or Danger.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -40,13 +39,12 @@ export const metadata: Metadata = {
   category: "finance",
 };
 
-export const viewport: Viewport = { themeColor: "#07060e", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#000000", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body>
-        <Backdrop />
         {children}
         <JsonLd
           data={[

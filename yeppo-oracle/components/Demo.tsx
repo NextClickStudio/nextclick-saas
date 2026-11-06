@@ -24,37 +24,46 @@ const SCENES = [
     sym: "$GLORP",
     mc: "$18.4k",
     tone: "up",
-    word: "Momentum",
-    why: "Buyers are in now: +18% in 1 min, 41 wallets. This creator usually sells around ×2.6, after 4m.",
+    word: "Safe",
+    why: "Nothing wrong found: insiders 9%, creator: 4 coins, 0 rugged, 10/10 checks safe.",
     stats: ["+18%", "64 / 19", "41", "$3.1k"],
     me: me(path(2.1, 330, 1.9, 0.04, 3), 8),
     ghosts: [ghost("a", "ran", path(4.2, 600, 2.8, 0.05, 5)), ghost("b", "dead", path(2.4, 260, 0.8, 0.06, 8)), ghost("c", "ran", path(3.1, 420, 2.2, 0.05, 11))],
     sell: [240, 2.6] as [number, number],
     line: "4 coins: 3 ran, 0 rugged, 1 faded.",
+    kols: [["Cented", "12 SOL", "+41s", 1], ["milito", "2.1 SOL", "+1m", 1], ["decu", "3.5 SOL", "+3s", 0]] as [string, string, string, number][],
+    hold: [0.02, 0.03, 0.04, 0.58],
+    exit: null as string | null,
   },
   {
     sym: "$MOONDOG",
     mc: "$9.2k",
     tone: "down",
-    word: "Don't buy",
-    why: "This creator rugged 6 of their last 7 coins.",
+    word: "Danger",
+    why: "This creator dumped 6 of their last 7 coins in seconds.",
     stats: ["+31%", "88 / 12", "57", "$5.6k"],
     me: me(path(2.2, 300, 2, 0.03, 13), 7),
     ghosts: [ghost("d", "rug", path(2.6, 210, 0.35, 0.03, 17)), ghost("e", "rug", path(2.2, 180, 0.3, 0.03, 19)), ghost("f", "rug", path(3, 240, 0.32, 0.03, 23)), ghost("g", "rug", path(2.4, 200, 0.4, 0.03, 29))],
     sell: [205, 2.4] as [number, number],
     line: "Serial rugger: dumped 6 of 7 coins in seconds.",
+    kols: [] as [string, string, string, number][],
+    hold: [0.12, 0.24, 0.09, 0.2],
+    exit: null as string | null,
   },
   {
     sym: "$SNEK",
     mc: "$41.0k",
     tone: "mid",
-    word: "Wait",
-    why: "Sellers are in control. Wait for the next push.",
+    word: "Risky",
+    why: "One wallet holds 11%. It can crash the price on its own.",
     stats: ["−9%", "14 / 31", "22", "$1.2k"],
     me: me(path(4.4, 420, 3.2, 0.05, 31), 18),
     ghosts: [ghost("h", "ran", path(5.1, 560, 3.8, 0.05, 37)), ghost("i", "dead", path(1.8, 150, 0.9, 0.05, 41))],
     sell: [480, 4.6] as [number, number],
     line: "2 coins: 1 ran, 0 rugged, 1 faded.",
+    kols: [["Cented", "8.0 SOL", "+2m", 0], ["theo", "1.4 SOL", "+3m", 0]] as [string, string, string, number][],
+    hold: [0, 0.05, 0.02, 0.71],
+    exit: "Every top trader is out (Cented, theo)." as string | null,
   },
 ];
 
@@ -103,24 +112,48 @@ export default function Demo() {
             <p key={s.why} className="cp-word-in">
               {s.why}
             </p>
-          </section>
-          <div className="cp-stats">
-            {["1 min", "buys / sells", "wallets", "vol 1 min"].map((l, k) => (
-              <div key={l} className="cp-stat">
-                <span>{l}</span>
-                <b className={`mono ${k === 0 ? (s.stats[0].startsWith("+") ? "up" : "down") : ""}`}>{s.stats[k]}</b>
+            {s.exit && (
+              <div className="cp-exit cp-word-in">
+                <b>Exit</b>
+                {s.exit}
               </div>
-            ))}
-          </div>
-          <section className="cp-box" key={i}>
+            )}
+          </section>
+          <section className="cp-row" key={`k${i}`}>
             <header>
-              <h3>vs. the creator&apos;s coins</h3>
+              <h3>Top traders</h3>
               <span className="grow" />
-              <span className="cp-dev mono" style={{ fontSize: 11 }}>
-                {s.line}
+              <span className={`cp-sum ${s.kols.length ? (s.kols.some((k) => k[3]) ? "up" : "down") : ""}`}>
+                {s.kols.length ? `${s.kols.filter((k) => k[3]).length} in · ${s.kols.filter((k) => !k[3]).length} out` : "None"}
               </span>
             </header>
-            <Overlay me={s.me} ghosts={s.ghosts} sellS={s.sell[0]} sellX={s.sell[1]} />
+            {s.kols.length ? (
+              <div className="cp-kols">
+                {s.kols.map(([n, v, t, held], k) => (
+                  <div key={n} className={`cp-kol cp-word-in ${held ? "in" : "out"}`} style={{ animationDelay: `${k * 90}ms` }}>
+                    <i />
+                    <b>{n}</b>
+                    <span className="mono">{v}</span>
+                    <span className="mono dim">{t}</span>
+                    <span className="mono">{held ? "holding" : "sold"}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="cp-line mute">None of the top traders bought it.</p>
+            )}
+          </section>
+          <section className="cp-row">
+            <header>
+              <h3>Who holds it</h3>
+              <span className="grow" />
+              <span className={`cp-sum ${s.hold[0] + s.hold[1] + s.hold[2] >= 0.25 ? "down" : "up"}`}>Insiders {Math.round((s.hold[0] + s.hold[1] + s.hold[2]) * 100)}%</span>
+            </header>
+            <div className="cp-bar">
+              {s.hold.map((v, k) => (
+                <i key={k} style={{ width: `${v * 100}%`, background: ["var(--dev)", "var(--down)", "var(--mid)", "var(--up)"][k] }} />
+              ))}
+            </div>
           </section>
         </div>
       </div>

@@ -9,11 +9,11 @@ import Nav, { Footer } from "./Nav";
 import Reveal from "./Reveal";
 
 const PRO = [
-  "The call on any coin: Momentum, Wait or Don't buy",
-  "Safety checks and the launch bundle",
-  "The creator's past coins on your chart",
-  "Outlook on 4 timeframes and the money trail",
-  "Live: the call updates with every trade",
+  "The verdict on any coin: Safe, Risky or Danger",
+  "Top traders in the coin: who bought, who sold",
+  "Big wallets and insiders, on real balances",
+  "Safety checks, launch bundle and who holds it",
+  "The creator's past coins and the money trail",
 ];
 
 /** hand the key to the extension (its content script on yeppo.it listens), so nothing has to be pasted */
@@ -122,7 +122,8 @@ export default function Pricing() {
   const buy = async (p: PayPlan) => {
     setErr(null);
     try {
-      const o = await pay<Order>({ action: "order", plan: p.id });
+      // the key saved in this browser is the one the payment renews (none: a new key)
+      const o = await pay<Order>({ action: "order", plan: p.id, ...(savedKey() ? { key: savedKey() } : {}) });
       // kept in this browser until it is paid, so closing the page never loses the key
       writeLocal("yo:order", o);
       setOrder(o);

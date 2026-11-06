@@ -33,9 +33,9 @@ export default function Image() {
         </div>
         <div style={{ display: "flex", gap: 16, fontSize: 28, color: "#a9a9bd" }}>
           {[
-            ["#1fd47c", "Momentum"],
-            ["#ffb23e", "Wait"],
-            ["#ff5b3d", "Don't buy"],
+            ["#1fd47c", "Safe"],
+            ["#ffb23e", "Risky"],
+            ["#ff5b3d", "Danger"],
           ].map(([c, t]) => (
             <span key={t} style={{ display: "flex", alignItems: "center", gap: 10, color: c }}>
               <span style={{ width: 14, height: 14, borderRadius: 7, background: c }} />

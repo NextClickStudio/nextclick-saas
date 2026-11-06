@@ -5,11 +5,14 @@ import { solPrice, solPriceNow } from "./meta";
 
 /** call fn now and every ms (four times slower while the tab is hidden); keeps the last good value.
  *  reload() calls it again right away, keeping what is shown until the new value lands. */
-export function usePoll<T>(fn: (() => Promise<T>) | null, ms: number, key: string) {
+/** ms: the wait between calls, or a function asked before each wait (so it can follow what the last call returned) */
+export function usePoll<T>(fn: (() => Promise<T>) | null, ms: number | (() => number), key: string) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fnRef = useRef(fn);
   fnRef.current = fn;
+  const msRef = useRef(ms);
+  msRef.current = ms;
   const again = useRef<() => void>(() => {});
   useEffect(() => {
     setData(null);
@@ -29,7 +32,8 @@ export function usePoll<T>(fn: (() => Promise<T>) | null, ms: number, key: strin
         if (!alive || my !== seq) return;
         setError(e instanceof Error ? e.message : "Something went wrong");
       }
-      timer = setTimeout(tick, document.hidden ? ms * 4 : ms);
+      const wait = typeof msRef.current === "function" ? msRef.current() : msRef.current;
+      timer = setTimeout(tick, document.hidden ? wait * 4 : wait);
     };
     void tick();
     again.current = () => {
@@ -48,7 +52,8 @@ export function usePoll<T>(fn: (() => Promise<T>) | null, ms: number, key: strin
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", vis);
     };
-  }, [ms, key]);
+    // ms is read through msRef at each wait: a new value (or a new function each render) must not restart the calls
+  }, [key]);
   return { data, error, reload: () => again.current() };
 }
 
