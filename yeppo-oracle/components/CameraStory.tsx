@@ -3,9 +3,7 @@
 // The home's opening: one sticky stage driven by scroll. A camera moves across a single world (pan to the checks,
 // pull back onto the wallet radar, drop to a post, drop to the week's numbers) and every element either travels out of
 // frame or turns into the next one: no fades, no slides. Example data on the stage, real numbers at the end.
-import Link from "next/link";
 import { useEffect, useRef } from "react";
-import Search from "./Search";
 
 const CHECKS: [string, string, boolean][] = [
   ["Launch bundle", "3.1% · 4 wallets", true],
@@ -189,22 +187,9 @@ export default function CameraStory() {
       <div className="cs-stage">
         <div className="cs-world">
           <div className="cs-el cs-hero">
-            <span className="kicker">
-              <i className="live" /> Every pump.fun launch, live
-            </span>
-            <h1>Every coin, read in one second.</h1>
-            <p className="lead">Open any pump.fun coin on Axiom, GMGN or pump.fun. yeppo reads who holds it, who launched it and who funded them, then gives you one word: Safe, Risky or Danger.</p>
-            <div className="hero-cta">
-              <Link href="/extension" className="btn btn-go btn-lg">
-                Add to Chrome
-              </Link>
-              <a href="#how" className="btn btn-lg btn-ghost">
-                What it reads
-              </a>
-            </div>
-            <div className="hero-try">
-              <Search label="Read it" />
-            </div>
+            <span className="ns-k">The panel</span>
+            <h2 className="cs-h">Open a coin. Get one word.</h2>
+            <p className="lead">On Axiom, GMGN or pump.fun the panel opens beside the chart. Scroll: the camera walks through one read.</p>
           </div>
 
           <div className="cs-el cs-card cs-coin">

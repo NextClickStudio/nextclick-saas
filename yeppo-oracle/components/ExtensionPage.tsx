@@ -26,7 +26,7 @@ export default function ExtensionPage() {
             </a>
           </div>
           <p className="hero-note">
-            Version 3.3.1 · installs in a minute · needs a <a href="/pricing">Pro key</a>
+            Version 3.4.0 · installs in a minute · needs a <a href="/pricing">Pro key</a>
           </p>
         </Reveal>
 

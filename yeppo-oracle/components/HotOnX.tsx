@@ -134,12 +134,19 @@ export function HotList({ signals, status, idq, now }: { signals: Signal[]; stat
       .filter((c) => (seen.has(c[1]) ? false : (seen.add(c[1]), true)))
       .slice(0, 6)
       .map((c) => ({ mint: c[1], sym: c[2], mc: c[4], hix: c[5], t: c[3], v: verdicts[c[1]]?.word ?? null, mine: mine[c[1]] ?? [] }));
+    // the viewer's wallets first: a post, a coin born after it, and wallets they follow buying it is the signal
+    list.sort((a, b) => b.mine.length - a.mine.length);
     const shown = safeOnly ? list.filter((c) => c.v === "Safe" || c.mine.length > 0) : list;
     const hidden = list.length - shown.length;
     const star = shown.some((c) => c.v === "Safe") || shown.some((c) => c.mine.length > 0);
     return { s, list: shown.slice(0, 4), hidden, star };
   });
   rows.sort((a, b) => Number(b.star) - Number(a.star) || Number(b.list.length > 0) - Number(a.list.length > 0) || b.s.at - a.s.at);
+  // a post with no new coin is noise here: only posts with coins born after them stay
+  const withCoins = rows.filter((r) => r.list.length > 0);
+  const quiet = rows.length - withCoins.length;
+  // the strongest signal on top: a coin born after a post that the viewer's own wallets are buying
+  const hits = withCoins.flatMap((r) => r.list.filter((c) => c.mine.length > 0).map((c) => ({ c, s: r.s }))).slice(0, 3);
   const topics = (() => {
     const m = new Map<string, { posts: number; born: number; safe: number }>();
     for (const s of posts)
@@ -185,7 +192,24 @@ export function HotList({ signals, status, idq, now }: { signals: Signal[]; stat
           )}
         </div>
       )}
-      {rows.map(({ s, list, hidden, star }) => (
+      {hits.length > 0 && (
+        <div className="hot-hits">
+          {hits.map(({ c, s }) => (
+            <a key={c.mint} href={`https://yeppo.it/go/${c.mint}`} target="_blank" rel="noreferrer">
+              <b>{c.sym ? `$${c.sym.replace(/^\$/, "")}` : "Coin"}</b> born after @{s.author}&apos;s post · {c.mine.slice(0, 2).join(", ")}
+              {c.mine.length > 2 ? ` +${c.mine.length - 2}` : ""} in{c.v ? ` · ${c.v}` : ""}
+            </a>
+          ))}
+        </div>
+      )}
+      {!withCoins.length && (
+        <p className="hot-none">
+          {rows.length} important post{rows.length === 1 ? "" : "s"} in the last 30 minutes, none with a new {safeOnly ? "Safe " : ""}coin yet. A post shows here
+          the moment a coin is born after it.
+        </p>
+      )}
+      {quiet > 0 && withCoins.length > 0 && <p className="hot-none">{quiet} more posts without a new coin are hidden.</p>}
+      {withCoins.map(({ s, list, hidden, star }) => (
         <div key={s.id} className={`hot-post ${star ? "star" : ""}`}>
           <a className="hot-head" href={s.url ?? undefined} target="_blank" rel="noreferrer">
             <b>@{s.author}</b>

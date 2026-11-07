@@ -144,7 +144,7 @@ export default function Radar({ pkey, pdev, compact }: { pkey: string | null; pd
           return j;
         }
       : null,
-    10_000,
+    5_000,
     idq || "-",
   );
   const book = usePoll<Book>(
@@ -168,7 +168,7 @@ export default function Radar({ pkey, pdev, compact }: { pkey: string | null; pd
       const r = await fetch("/api/radar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: id.key, dev: id.dev, list }) });
       const j = (await r.json()) as { saved?: number; error?: string; why?: string };
       if (!r.ok || j.error) throw new Error(j.why ?? j.error ?? "Could not save");
-      setNote(`${j.saved ?? 0} wallets saved. Their buys show up here within 10 seconds.`);
+      setNote(`${j.saved ?? 0} wallets saved. Their buys show up here within 5 seconds, each with yeppo's full read.`);
       setPaste("");
       live.reload();
       book.reload();
@@ -212,7 +212,7 @@ export default function Radar({ pkey, pdev, compact }: { pkey: string | null; pd
           {live.data && !coins.length && (
             <p className="cp-j7">
               {tracked
-                ? "None of your wallets bought a pump.fun coin in the last 15 minutes. yeppo checks every 10 seconds."
+                ? "None of your wallets bought a pump.fun coin in the last 15 minutes. yeppo checks every 5 seconds."
                 : "Paste your wallets below to see what they buy. Meanwhile yeppo shows the coins its proven wallets are buying."}
             </p>
           )}

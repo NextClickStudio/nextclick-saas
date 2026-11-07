@@ -24,7 +24,7 @@ export type RadarCoin = {
   signal: boolean;
   flags: { rug: boolean; bundle: number; dev_holds: number; dev_out_s: number | null; grad: boolean; dev_cex: boolean };
   wallets: RadarWallet[];
-  /** yeppo's full read, for the signal coins only */
+  /** yeppo's full read, for the coins the viewer's wallets just got into */
   verdict?: { word: string; why: string } | null;
   /** the user's rule, line by line: an early call only when every line passes and the read is Safe */
   checklist?: { label: string; ok: boolean; why: string }[];
@@ -110,10 +110,14 @@ export async function GET(req: Request) {
       return Response.json(b, { headers: { ...CORS, "cache-control": "private, no-store" } });
     }
     const hit = cache.get(key);
-    if (hit && Date.now() - hit.t < 5000) return Response.json(hit.v, { headers: { ...CORS, "cache-control": "private, no-store" } });
+    if (hit && Date.now() - hit.t < 4000) return Response.json(hit.v, { headers: { ...CORS, "cache-control": "private, no-store" } });
     const [r, sol] = await Promise.all([rpc<Omit<Radar, "sol">>("yr_radar_s", { p_key: key, p_dev: dev }), solPrice()]);
-    // the full read for the first three signal coins: an early call needs yeppo's Safe
-    const sig = r.coins.filter((c) => c.signal).slice(0, 3);
+    // the full read, at once, for every coin one of the viewer's wallets just got into (newest first, signals first):
+    // the analysis is there the moment a wallet enters, an early call still needs every line of the checklist
+    const sig = [...r.coins]
+      .filter((c) => c.own > 0)
+      .sort((a, b) => Number(b.signal) - Number(a.signal) || b.last - a.last)
+      .slice(0, 4);
     const reads = await Promise.all(sig.map((c) => readOf(u.origin, c.mint, key, dev)));
     sig.forEach((c, i) => {
       const rd = reads[i];
