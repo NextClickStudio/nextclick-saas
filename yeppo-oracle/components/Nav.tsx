@@ -7,6 +7,7 @@ import { DISCORD_INVITE, INSTAGRAM } from "@/lib/discord";
 
 const LINKS = [
   { href: "/#how", label: "How it works" },
+  { href: "/radar", label: "Radar" },
   { href: "/record", label: "Record" },
   { href: "/extension", label: "Extension" },
   { href: "/pricing", label: "Pricing" },

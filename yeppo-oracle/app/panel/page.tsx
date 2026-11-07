@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import CoinPanel from "@/components/CoinPanel";
 import HotOnX from "@/components/HotOnX";
+import Radar from "@/components/Radar";
 import { isMint } from "@/lib/format";
 
 export const metadata: Metadata = { title: "yeppo", robots: { index: false } };
@@ -22,6 +23,7 @@ export default async function Page({ searchParams }: P) {
             <b>Open a coin</b>
             On pump.fun, Axiom, GMGN or DexScreener: yeppo reads it here.
           </div>
+          <Radar pkey={key} pdev={dev} compact />
           <HotOnX pkey={key} pdev={dev} />
         </div>
       )}
