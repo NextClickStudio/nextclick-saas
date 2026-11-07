@@ -45,4 +45,4 @@
   - radar + X as looping examples side by side; price / guides / FAQ packed in one row.
   - CameraStory.tsx and Chrome3D.tsx deleted (three stays in package.json, unused).
   - CHECKS lives in lib/checks.ts: a server component importing an array from a "use client" file gets a client reference, not the array.
-- yr_wins_s was failing on every call (GROUP BY error), so /record "wins" were empty: fix in migration 097_wins_fix.sql (written; apply only with the user's OK). Next migration: 098.
+- yr_wins_s was failing on every call (GROUP BY error), so /record "wins" were empty: fix in migration 097_wins_fix.sql, applied 7 Nov (returns 6 calls). Next migration: 098. Deployed 4adc92d to yeppo.it, health ok, zip 3.4.1 live.
