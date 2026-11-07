@@ -85,7 +85,8 @@ export function deepRead(
     .filter((x): x is { n: number; share: number; text: string } => !!x)
     .sort((a, b) => b.share - a.share)[0];
   const cluster = big?.share ?? 0;
-  if (big) lines.push({ tone: big.share >= 0.05 || big.n >= 5 ? "bad" : "warn", text: `${big.text}: likely one buyer, ${pc(big.share)} of the supply.` });
+  // a group under 1% of the supply can't move the price: not worth a line
+  if (big && big.share >= 0.01) lines.push({ tone: big.share >= 0.05 ? "bad" : "warn", text: `${big.text}: likely one buyer, ${pc(big.share)} of the supply.` });
   else if (d.seen && d.early >= 5) lines.push({ tone: "ok", text: `No same-amount buys among the first ${d.early} buyers.` });
   else if (!d.seen && (o.ageS ?? 0) > 1200) lines.push({ tone: "info", text: "Launch buys are past yeppo's 20-minute window: same-amount check not run." });
 

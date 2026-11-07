@@ -32,12 +32,12 @@ alter table yr_radar_log enable row level security;
 
 create or replace function yr_deep_s(p_mint text) returns jsonb
 language plpgsql stable security definer set search_path = public set statement_timeout = '4s' as $$
-declare now_ms bigint := yr_now(); c record; handle text; out jsonb;
+declare now_ms bigint := yr_now(); c record; v_handle text; out jsonb;
 begin
   perform yr_guard();
   select mint, dev, t0, sym, coalesce(nullif(mc0, 0), 27.96) b0 into c from yr_cc where mint = p_mint;
   if c.mint is null then return null; end if;
-  select lower(x.handle) into handle from yr_xlink x where x.mint = p_mint;
+  select lower(x.handle) into v_handle from yr_xlink x where x.mint = p_mint;
   with early as (
     select x.who, sum(x.sol) sol, sum(x.tok) tok from yr_ticks x
     where x.mint = p_mint and x.k = 1 and x.who <> c.dev and x.t < c.t0 + 180000
@@ -56,10 +56,10 @@ begin
       from yr_cc o where lower(o.sym) = lower(c.sym) and o.mint <> c.mint and o.t0 < c.t0 and o.t0 > now_ms - 7 * 86400000
         and o.ath >= coalesce(nullif(o.mc0, 0), 27.96) * 10
       order by o.ath desc limit 1),
-    'x_handle', handle,
-    'x_other', case when handle is null then null else (select jsonb_build_object('n', count(*),
+    'x_handle', v_handle,
+    'x_other', case when v_handle is null then null else (select jsonb_build_object('n', count(*),
         'died', count(*) filter (where o.rug_s is not null or (o.ath < coalesce(nullif(o.mc0, 0), 27.96) * 2 and o.t0 < now_ms - 3600000)))
-      from yr_xlink l join yr_cc o on o.mint = l.mint where lower(l.handle) = handle and l.mint <> p_mint and o.t0 > now_ms - 14 * 86400000) end,
+      from yr_xlink l join yr_cc o on o.mint = l.mint where lower(l.handle) = v_handle and l.mint <> p_mint and o.t0 > now_ms - 14 * 86400000) end,
     'buyers5', (select count(distinct x.who) from yr_ticks x where x.mint = p_mint and x.k = 1 and x.t > now_ms - 300000),
     'buyers5_before', (select count(distinct x.who) from yr_ticks x where x.mint = p_mint and x.k = 1 and x.t > now_ms - 600000 and x.t <= now_ms - 300000),
     'buys5', (select count(*) from yr_ticks x where x.mint = p_mint and x.k = 1 and x.t > now_ms - 300000),
