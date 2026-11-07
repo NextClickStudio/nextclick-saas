@@ -31,3 +31,8 @@
   groups under 1% of supply). Checked on live coins: SUIT 3 wallets x 0.782 SOL = 3.6%. Deployed c8ff2af.
   yr_wfresh still empty until someone opens a coin with a Pro key: check yr_wfresh and edge logs of yr-fresh then.
   Next migration: 097.
+- 7 Nov ~01:40: published c099ce5: home rebuilt like noiz.bio (components/Chrome3D.tsx: three.js 0.169 chrome wordmark,
+  hero specs, CameraStory as "The panel", 24 checks big number, radar/X sections, guide rows, price, FAQ), radar reads
+  every coin with >=1 of your wallets (top 4, every 5 s), Hot on X hides posts without new coins and lists your
+  wallets' coins first (hot-hits), extension 3.4.0 (radar icons, warm monochrome ui.css, new description), favicon.
+  OPEN: user says "opening a coin is still buggy": no server errors seen; need a screenshot / exact behaviour.
