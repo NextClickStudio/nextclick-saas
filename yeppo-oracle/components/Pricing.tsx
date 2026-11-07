@@ -8,6 +8,12 @@ import { readLocal, writeLocal } from "@/lib/supabase";
 import { Paper } from "./Nav";
 import Reveal from "./Reveal";
 
+// the plans as the payment service lists them; shown as they are when it can't be reached, with checkout paused
+const FALLBACK: PayPlan[] = [
+  { id: "m1", name: "30 days", days: 30, sol: 0.2 },
+  { id: "m3", name: "90 days", days: 90, sol: 0.5 },
+];
+
 const PRO = [
   "The verdict on any coin: Safe, Risky or Danger",
   "Top traders in the coin: who bought, who sold",
@@ -80,7 +86,11 @@ export default function Pricing() {
         setPlans(r.plans);
         setOpen(r.open);
       })
-      .catch(() => setPlans([]));
+      .catch(() => {
+        setPlans(FALLBACK);
+        setOpen(false);
+        setErr("Checkout can't be reached this second. Reload the page in a moment to pay.");
+      });
     // an order still waiting for its payment (the page was closed or reloaded): pick it up again
     const o = readLocal<Order | null>("yo:order", null);
     if (o && o.expires > Date.now()) setOrder(o);
@@ -143,7 +153,7 @@ export default function Pricing() {
         </Reveal>
 
         <div className="plans">
-          {(plans ?? []).map((p, i) => (
+          {(plans && plans.length ? plans : plans ? FALLBACK : []).map((p, i) => (
             <Reveal key={p.id} className={`card plan ${i === 1 ? "glow-edge" : ""}`} delay={i * 80}>
               {i === 1 && (
                 <span className="chip tone t-up" style={{ position: "absolute", top: 16, right: 16 }}>
@@ -162,7 +172,7 @@ export default function Pricing() {
                 ))}
               </ul>
               <button className={`btn ${i === 1 ? "btn-go" : ""}`} disabled={!open} onClick={() => void buy(p)}>
-                {open ? `Pay ${p.sol} SOL` : "Opens soon"}
+                {open ? `Pay ${p.sol} SOL` : err ? "Reload to pay" : "Opens soon"}
               </button>
             </Reveal>
           ))}

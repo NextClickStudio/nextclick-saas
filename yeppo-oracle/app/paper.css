@@ -671,7 +671,7 @@ body:has(.pp) {
   gap: 4px;
 }
 .h-fig .odo {
-  font: 900 clamp(34px, 4.2vw, 60px) / 1 var(--font-head);
+  font: 900 clamp(30px, 3vw, 46px) / 1 var(--font-head);
   font-stretch: 125%;
   font-variation-settings: "wdth" 125;
   letter-spacing: -0.05em;
