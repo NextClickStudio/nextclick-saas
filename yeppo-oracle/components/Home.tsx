@@ -139,7 +139,7 @@ export default async function Home() {
 
       <section className="h-sec" id="stamps">
         <p className="p-sec">
-          <i>§4</i> Three stamps, written rules
+          <i>§4</i> Three verdicts, written rules
         </p>
         <h2 className="h-h2">One word, and why.</h2>
         <Stamps />

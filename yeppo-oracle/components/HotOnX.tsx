@@ -5,7 +5,7 @@
 // its words, first born first, and the fresh coins it hands out: the early entries a post creates, not old coins
 // that share a word. Newest post first. The feed stays in the browser; yeppo is asked only which coins carry the words.
 import { useEffect, useMemo, useState } from "react";
-import type { HotCoin } from "@/app/api/hot/route";
+import type { HotCoin, XPost } from "@/app/api/hot/route";
 import type { Headline } from "@/app/api/news/route";
 import type { Radar } from "@/app/api/radar/route";
 import type { Verdict } from "@/app/api/verdicts/route";
@@ -118,9 +118,16 @@ export function HotList({ signals, status, idq, now }: { signals: Signal[]; stat
       .catch(() => setNews([]));
   }, [topic]);
 
-  if (status === "off" || status === "denied")
-    return <p className="cp-j7">Connect J7 (button at the bottom) to see the posts that matter right now and the coins born from them.</p>;
-  if (!posts.length) return <p className="cp-j7">{status === "live" ? "No post from a big or known account in your J7 feed in the last 30 minutes." : "Reading your J7 feed…"}</p>;
+  // no J7, or nothing in it: the posts on X that coins launched from, as yeppo sees them on its own
+  if (status === "off" || status === "denied" || (status === "live" && !posts.length))
+    return (
+      <XFeed
+        idq={idq}
+        now={now}
+        note={status === "live" ? "Nothing big in your J7 feed right now. From X, as yeppo sees it:" : "Connect J7 (button at the bottom) for your own feed. Meanwhile, from X as yeppo sees it:"}
+      />
+    );
+  if (!posts.length) return <p className="cp-j7">Reading your J7 feed…</p>;
 
   // each post with its coins: launched after it from its words (2 minutes of slack for clocks), or handed out in it
   // and under an hour older than it; first born first
@@ -136,7 +143,9 @@ export function HotList({ signals, status, idq, now }: { signals: Signal[]; stat
       .map((c) => ({ mint: c[1], sym: c[2], mc: c[4], hix: c[5], t: c[3], v: verdicts[c[1]]?.word ?? null, mine: mine[c[1]] ?? [] }));
     // the viewer's wallets first: a post, a coin born after it, and wallets they follow buying it is the signal
     list.sort((a, b) => b.mine.length - a.mine.length);
-    const shown = safeOnly ? list.filter((c) => c.v === "Safe" || c.mine.length > 0) : list;
+    // Safe only hides the coins yeppo read as Risky or Danger; a coin not read yet stays, marked as reading (before, it
+    // was hidden too, and with fresh coins mostly unread the list was always empty)
+    const shown = safeOnly ? list.filter((c) => c.mine.length > 0 || (c.v !== "Risky" && c.v !== "Danger")) : list;
     const hidden = list.length - shown.length;
     const star = shown.some((c) => c.v === "Safe") || shown.some((c) => c.mine.length > 0);
     return { s, list: shown.slice(0, 4), hidden, star };
@@ -224,7 +233,7 @@ export function HotList({ signals, status, idq, now }: { signals: Signal[]; stat
                   {sol ? ` ${usd(c.mc * sol)}` : ""}
                   {c.hix >= 1.5 ? ` ×${c.hix.toFixed(1)}` : ""}
                   <span className="hot-age"> {ago(now - c.t)}</span>
-                  {c.v && <span className={`hot-v ${c.v === "Safe" ? "up" : c.v === "Danger" ? "down" : "mid"}`}> {c.v}</span>}
+                  <span className={`hot-v ${c.v === "Safe" ? "up" : c.v === "Danger" ? "down" : "mid"}`}> {c.v ?? "reading"}</span>
                   {c.mine.length > 0 && <span className="hot-mine"> · {c.mine.slice(0, 2).join(", ")}{c.mine.length > 2 ? ` +${c.mine.length - 2}` : ""}</span>}
                 </a>
               ))}
@@ -235,6 +244,103 @@ export function HotList({ signals, status, idq, now }: { signals: Signal[]; stat
           {list.length > 0 && hidden > 0 && <p className="hot-none">+{hidden} not Safe, hidden</p>}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** the posts on X that coins launched from in the last hour, from yeppo's own link of each coin to its post: no J7
+ *  needed. Most coins first; each coin with yeppo's stamp (Risky and Danger hidden unless the viewer asks) */
+function XFeed({ idq, now, note }: { idq: string; now: number; note: string }) {
+  const [posts, setPosts] = useState<XPost[] | null>(null);
+  const [sol, setSol] = useState(0);
+  const [safeOnly, setSafeOnly] = useState(true);
+  const [verdicts, setVerdicts] = useState<Record<string, Verdict | null>>({});
+  useEffect(() => {
+    if (!idq) return;
+    let alive = true;
+    const get = () =>
+      fetch(`/api/hot?feed=1&${idq}`, { signal: AbortSignal.timeout(8000) })
+        .then((r) => r.json())
+        .then((j: { posts?: XPost[]; sol?: number }) => {
+          if (!alive) return;
+          setPosts(j.posts ?? []);
+          if (j.sol) setSol(j.sol);
+        })
+        .catch(() => alive && setPosts((p) => p ?? []));
+    void get();
+    const t = setInterval(get, 20_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [idq]);
+  // the stamp of the coins most traded across the posts, six at a time (the verdicts API reads at most six)
+  const mintsKey = useMemo(
+    () =>
+      (posts ?? [])
+        .flatMap((p) => p[3])
+        .sort((a, b) => b[3] - a[3])
+        .map((c) => c[0])
+        .filter((m) => !(m in verdicts))
+        .slice(0, 6)
+        .sort()
+        .join(","),
+    [posts, verdicts],
+  );
+  useEffect(() => {
+    if (!mintsKey || !idq) return;
+    let alive = true;
+    fetch(`/api/verdicts?mints=${mintsKey}&${idq}`, { signal: AbortSignal.timeout(15_000) })
+      .then((r) => r.json())
+      .then((j: Record<string, Verdict | null>) => alive && !("locked" in j) && setVerdicts((v) => ({ ...v, ...j })))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [mintsKey, idq]);
+  if (!posts) return <p className="cp-j7">Reading X…</p>;
+  if (!posts.length) return <p className="cp-j7">No coin launched from a post on X in the last hour yet.</p>;
+  const bad = (m: string) => verdicts[m]?.word === "Risky" || verdicts[m]?.word === "Danger";
+  return (
+    <div className="hot">
+      <p className="hot-none" style={{ marginTop: 0 }}>
+        {note}
+      </p>
+      <div className="hot-bar">
+        <button type="button" className={`hot-toggle ${safeOnly ? "on" : ""}`} onClick={() => setSafeOnly((v) => !v)} aria-pressed={safeOnly}>
+          {safeOnly ? "Risky and Danger hidden" : "All coins"}
+        </button>
+      </div>
+      {posts.slice(0, 8).map(([handle, post, first, coins]) => {
+        const shown = coins.filter((c) => !safeOnly || !bad(c[0]));
+        return (
+          <div key={`${handle}:${post}`} className={`hot-post ${shown.some((c) => verdicts[c[0]]?.word === "Safe") ? "star" : ""}`}>
+            <a className="hot-head" href={post ? `https://x.com/${handle}/status/${post}` : `https://x.com/${handle}`} target="_blank" rel="noreferrer">
+              <b>@{handle}</b> · {coins.length} coin{coins.length > 1 ? "s" : ""} launched from it · first {ago(now - first)}
+            </a>
+            {shown.length ? (
+              <div className="hot-coins">
+                {shown.slice(0, 4).map(([mint, sym, t0, , mc, hix]) => {
+                  const v = verdicts[mint]?.word ?? null;
+                  return (
+                    <a key={mint} href={`https://yeppo.it/go/${mint}`} target="_blank" rel="noreferrer" className={(hix ?? 0) >= 2 ? "up" : ""}>
+                      {sym ? "$" + sym.replace(/^[$]/, "") : "Coin"}
+                      {sol ? ` ${usd(mc * sol)}` : ""}
+                      {(hix ?? 0) >= 1.5 ? ` ×${(hix ?? 0).toFixed(1)}` : ""}
+                      <span className="hot-age"> {ago(now - t0)}</span>
+                      <span className={`hot-v ${v === "Safe" ? "up" : v === "Danger" ? "down" : "mid"}`}> {v ?? "reading"}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="hot-none">
+                {coins.length} coin{coins.length > 1 ? "s" : ""}, all Risky or Danger
+              </p>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -275,7 +381,7 @@ export default function HotOnX({ pkey: pk, pdev: pd }: { pkey: string | null; pd
       <header>
         <h3>Hot on X</h3>
         <span className="grow" />
-        <span className="cp-sum">from your J7 feed</span>
+        <span className="cp-sum">{status === "live" ? "from your J7 feed" : "from X"}</span>
       </header>
       {pkey ? <HotList signals={signals} status={status} idq={idq} now={now} /> : <p className="cp-j7">Needs a Pro key.</p>}
     </section>

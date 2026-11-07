@@ -1410,3 +1410,192 @@ body:has(.pp) {
 .cf-why {
   max-width: 52%;
 }
+
+/* ---- §3 finale: the cards become the coin's fingerprint, the word rises above it ------------------------------- */
+.pp .xe-cell.bar {
+  background: var(--safe);
+  border-color: transparent;
+  box-shadow: 0 0 16px -4px color-mix(in srgb, var(--safe) 70%, transparent);
+  border-radius: 0;
+}
+.pp .xe-cell.warn.bar {
+  background: var(--risky);
+  box-shadow: 0 0 16px -4px color-mix(in srgb, var(--risky) 70%, transparent);
+}
+.pp .xe-cell.bar > * {
+  visibility: hidden;
+}
+.pp .xe-cell {
+  transition: background 0.35s, box-shadow 0.35s, border-radius 0.35s;
+}
+.pp .xe-frame {
+  transition: background 0.3s;
+}
+.pp .xe-word {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+.pp .xe-word b {
+  font: 900 clamp(84px, 13vw, 190px) / 0.82 var(--font-head);
+  font-stretch: 125%;
+  font-variation-settings: "wdth" 125;
+  letter-spacing: -0.06em;
+}
+.pp .xe-word .xe-cap {
+  order: 2;
+  margin-top: 14px;
+  font: 500 11px var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+/* ---- §4 the three verdicts as one table: word, fingerprint, rule ------------------------------------------------ */
+.vt {
+  margin-top: 34px;
+  border-top: 1px solid rgba(235, 232, 223, 0.55);
+}
+.vt-row {
+  --c: var(--safe);
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.15fr) minmax(0, 0.9fr);
+  gap: clamp(18px, 3vw, 44px);
+  align-items: center;
+  padding: 26px 0;
+  border-bottom: 1px solid var(--line2);
+  transition: opacity 0.3s, transform 0.4s var(--ease);
+}
+.vt-row.t-risky {
+  --c: var(--risky);
+}
+.vt-row.t-danger {
+  --c: var(--danger);
+}
+.vt.hov .vt-row:not(.lit) {
+  opacity: 0.38;
+}
+.vt-row.lit {
+  transform: translateX(10px);
+}
+/* the word: outlined until the row comes in, then filled from the left in its own ink */
+.vt-word {
+  font: 900 clamp(40px, 5.2vw, 84px) / 0.86 var(--font-head);
+  font-stretch: 125%;
+  font-variation-settings: "wdth" 125;
+  letter-spacing: -0.055em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1.2px var(--c);
+  background: linear-gradient(90deg, var(--c) 0 50%, transparent 50% 100%) 100% 0 / 200% 100% no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  transition: background-position 0.9s cubic-bezier(0.7, 0, 0.2, 1);
+  transition-delay: calc(var(--r) * 0.22s + 0.2s);
+}
+.vt.on .vt-word {
+  background-position: 0 0;
+}
+/* the fingerprint: 24 bars rise in reading order; clean ones in bone, the failing ones in the row's ink */
+.vt-print {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 4px;
+  align-items: end;
+  height: 72px;
+  padding-bottom: 22px;
+}
+.vt-print i {
+  display: block;
+  height: 100%;
+  background: rgba(235, 232, 223, 0.8);
+  transform-origin: 50% 100%;
+  transform: scaleY(0.04);
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.3s;
+  transition-delay: calc(var(--r) * 0.22s + var(--i) * 0.025s);
+}
+.vt-print i.warn {
+  background: var(--risky);
+  box-shadow: 0 0 12px -3px var(--risky);
+}
+.vt-print i.bad {
+  background: var(--danger);
+  box-shadow: 0 0 12px -3px var(--danger);
+}
+.vt.on .vt-print i {
+  transform: scaleY(0.62);
+}
+.vt.on .vt-print i.warn {
+  transform: scaleY(0.82);
+}
+.vt.on .vt-print i.bad {
+  transform: scaleY(1);
+}
+.vt-row.lit .vt-print i.ok {
+  background: var(--c);
+}
+.vt-count {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  font: 500 10.5px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.vt-rule h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.vt-rule ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.vt-rule li {
+  font-size: 13.5px;
+  color: var(--ink2);
+  padding-left: 16px;
+  position: relative;
+}
+.vt-rule li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 8px;
+  height: 1px;
+  background: var(--c);
+}
+@media (max-width: 860px) {
+  .vt-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .vt-row.lit {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vt-word,
+  .vt-print i {
+    transition: none;
+  }
+}
+
+/* the hero's stamp: crisp ink, no grunge, no glow (the user found the rough pastel stamps cheap) */
+.cf-stamp {
+  filter: none;
+  mix-blend-mode: normal;
+  border-width: 3px;
+  border-radius: 3px;
+  outline-width: 1px;
+  background: color-mix(in srgb, var(--ink-c) 10%, transparent);
+  backdrop-filter: blur(1px);
+  letter-spacing: 0.04em;
+}

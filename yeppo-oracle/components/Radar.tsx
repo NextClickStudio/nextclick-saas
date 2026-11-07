@@ -127,7 +127,7 @@ export default function Radar({ pkey, pdev, compact }: { pkey: string | null; pd
   const [id, setId] = useState<{ key: string | null; dev: string | null }>({ key: pkey, dev: pdev });
   useEffect(() => setId({ key: pkey ?? savedKey(), dev: pdev ?? deviceId() }), [pkey, pdev]);
   const idq = id.key ? `key=${id.key}${id.dev ? `&dev=${id.dev}` : ""}` : "";
-  const [tab, setTab] = useState<"live" | "mine" | "found">("live");
+  const [tab, setTab] = useState<"live" | "mine" | "suggested" | "found">("live");
   const [paste, setPaste] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -160,6 +160,26 @@ export default function Radar({ pkey, pdev, compact }: { pkey: string | null; pd
     60_000,
     `${idq}|${tab}`,
   );
+
+  // the suggested wallets go into the viewer's own list, next to the ones already there (the list is saved whole)
+  async function addSuggested() {
+    const mine = book.data?.mine ?? [];
+    const have = new Set(mine.map((w) => w.who));
+    const add = (book.data?.suggested ?? []).filter((w) => !have.has(w.who));
+    if (!add.length) return setNote("They are all in your list already.");
+    const list = [...mine, ...add].slice(0, 500).map((w) => ({ trackedWalletAddress: w.who, name: w.name ?? null, emoji: w.emoji ?? null }));
+    setNote("Adding…");
+    try {
+      const r = await fetch("/api/radar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: id.key, dev: id.dev, list }) });
+      const j = (await r.json()) as { saved?: number; error?: string; why?: string };
+      if (!r.ok || j.error) throw new Error(j.why ?? j.error ?? "Could not save");
+      setNote(`${add.length} wallets added. Your radar follows ${j.saved ?? list.length} wallets now.`);
+      live.reload();
+      book.reload();
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Could not save");
+    }
+  }
 
   async function save() {
     const list = parseList(paste);
@@ -199,9 +219,9 @@ export default function Radar({ pkey, pdev, compact }: { pkey: string | null; pd
         <span className="cp-sum">{tracked ? `${tracked} wallets · ${live.data?.proven ?? 0} proven by yeppo` : "add your wallets"}</span>
       </header>
       <div className="rd-tabs" role="tablist">
-        {(["live", "mine", "found"] as const).map((t) => (
+        {(["live", "mine", "suggested", "found"] as const).map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
-            {t === "live" ? "Live" : t === "mine" ? "Your wallets" : "Found by yeppo"}
+            {t === "live" ? "Live" : t === "mine" ? "Your wallets" : t === "suggested" ? "Suggested" : "Found by yeppo"}
           </button>
         ))}
       </div>
@@ -251,6 +271,40 @@ export default function Radar({ pkey, pdev, compact }: { pkey: string | null; pd
             </>
           ) : (
             !book.error && <p className="cp-j7">{book.data ? "No wallets yet: paste your list below." : "Loading…"}</p>
+          )}
+        </>
+      )}
+
+      {tab === "suggested" && (
+        <>
+          {book.data?.suggested?.length ? (
+            <>
+              <p className="rd-dim" style={{ margin: "0 0 8px" }}>
+                {book.data.suggested.length} wallets the yeppo team follows on Axiom. Add them to your radar in one tap, or copy them straight into
+                Axiom&apos;s wallet tracker.
+              </p>
+              <div className="rd-row" style={{ marginBottom: 10 }}>
+                <button type="button" className="btn btn-sm btn-go" onClick={() => void addSuggested()}>
+                  Add all to my radar
+                </button>
+                <Copy text={axiomExport(book.data.suggested, "suggested")} label="Copy for Axiom" />
+                {note && <span className="rd-dim">{note}</span>}
+              </div>
+              <div className="rd-book">
+                {book.data.suggested.map((w) => (
+                  <div key={w.who} className="rd-bw" title={w.who}>
+                    <span>
+                      {w.emoji ? `${w.emoji} ` : ""}
+                      {w.name ?? short(w.who)}
+                      {w.mine ? " ✓" : ""}
+                    </span>
+                    <span className="rd-dim">{w.tries ? `${w.wins ?? 0}/${w.tries} doubled` : short(w.who)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            !book.error && <p className="cp-j7">{book.data ? "No suggested wallets yet." : "Loading…"}</p>
           )}
         </>
       )}

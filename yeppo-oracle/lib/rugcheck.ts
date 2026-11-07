@@ -36,25 +36,46 @@ export type Rug = {
   rugged: boolean;
   /** the real top holders (pools, lockers and the creator left out): wallet and share, biggest first */
   tops: { owner: string; pct: number; insider: boolean }[];
+  /** where it came from: RugCheck's report, or yeppo's own read of the chain when RugCheck didn't answer */
+  src?: "rugcheck" | "chain";
 };
 
 const cache = new Map<string, { t: number; v: Rug }>();
 const TTL = 20_000;
 
-export async function rugReport(mint: string): Promise<Rug | null> {
+// RugCheck builds a new coin's first report slowly. A read never waits more than 3.5 s for it, but the request
+// itself is not cut: it goes on (up to 12 s) and fills the cache, so the next poll, 1.5 s later, has it. Cutting it at
+// 3.5 s every time meant a slow coin never got its report, and the panel showed a verdict with no holders.
+const inflight = new Map<string, Promise<Rug | null>>();
+function fetchRug(mint: string): Promise<Rug | null> {
+  const going = inflight.get(mint);
+  if (going) return going;
+  const p = fetch(`https://api.rugcheck.xyz/v1/tokens/${mint}/report`, { signal: AbortSignal.timeout(12_000) })
+    .then(async (r) => {
+      if (!r.ok) return null;
+      const v = digest((await r.json()) as Report);
+      // the oldest entry goes, not the whole cache
+      while (cache.size >= 800) cache.delete(cache.keys().next().value as string);
+      cache.set(mint, { t: Date.now(), v });
+      return v;
+    })
+    .catch(() => null)
+    .finally(() => inflight.delete(mint));
+  inflight.set(mint, p);
+  return p;
+}
+
+export async function rugReport(mint: string, waitMs = 3500): Promise<Rug | null> {
   const hit = cache.get(mint);
   if (hit && Date.now() - hit.t < TTL) return hit.v;
-  try {
-    const r = await fetch(`https://api.rugcheck.xyz/v1/tokens/${mint}/report`, { signal: AbortSignal.timeout(3500) });
-    if (!r.ok) return hit?.v ?? null;
-    const v = digest((await r.json()) as Report);
-    if (cache.size > 500) cache.clear();
-    cache.set(mint, { t: Date.now(), v });
-    return v;
-  } catch {
-    return hit?.v ?? null;
-  }
+  const p = fetchRug(mint);
+  const v = await Promise.race([p, new Promise<undefined>((ok) => setTimeout(() => ok(undefined), waitMs))]);
+  // a report from the last minutes beats none at all
+  return v ?? hit?.v ?? null;
 }
+
+/** RugCheck's request for this coin, still on its way (the route keeps itself alive for it) */
+export const rugPending = (mint: string) => inflight.get(mint) ?? null;
 
 // RugCheck's own warnings that the checks below already say in plain words
 const COVERED = /mint authority|freeze authority|lp unlocked|liquidity unlocked|top 10|holder|creator/i;
@@ -99,6 +120,8 @@ const p = (x: number) => `${Math.round(Math.max(0, x) * 100)}%`;
 
 /** the checks that only RugCheck can see on a coin yeppo followed: wallets linked to each other, and its warnings */
 export function extraChecks(r: Rug): Check[] {
+  // read from the chain: RugCheck's linked-wallet groups and warnings are not known, so nothing is claimed about them
+  if (r.src === "chain") return [];
   const out: Check[] = [
     {
       ok: r.insiders < 0.15,
@@ -118,13 +141,15 @@ export function extraChecks(r: Rug): Check[] {
 /** the full safety checks, for any coin */
 export function rugChecks(r: Rug): Check[] {
   const lockOk = r.curve || (r.locked ?? 0) >= 0.9;
+  // from the chain, a pool's lock isn't known (pump.fun burns it when a coin graduates): no claim either way
+  const lockKnown = r.src !== "chain" || r.curve || r.locked != null;
   return [
     { ok: r.top10 < TOP10_NO, label: r.top10 < TOP10_NO ? `Top 10 hold ${p(r.top10)}` : `Top 10 hold ${p(r.top10)}. They can crash it.` },
     { ok: r.creator < 0.05, label: r.creator < 0.05 ? `Creator holds ${p(r.creator)}` : `Creator still holds ${p(r.creator)}. Can dump on you.` },
     ...extraChecks(r).slice(0, 1),
     { ok: !r.mintAuth, label: r.mintAuth ? "Creator can print more coins." : "No new coins can be printed" },
     { ok: !r.freezeAuth, label: r.freezeAuth ? "Creator can freeze your coins." : "Your coins can't be frozen" },
-    { ok: lockOk, label: lockOk ? "Liquidity can't be pulled" : "Liquidity can be pulled." },
+    ...(lockKnown ? [{ ok: lockOk, label: lockOk ? "Liquidity can't be pulled" : "Liquidity can be pulled." }] : []),
     ...extraChecks(r).slice(1),
   ];
 }
@@ -170,7 +195,16 @@ async function rpc<T>(method: string, params: unknown[], ms: number, nodes = RPC
 }
 
 export type ChainRead = { checks: Check[]; holders: number | null; hasHolders: boolean };
-type Holders = { base: Check[]; holders: number | null; byOwner: Map<string, number> | null; supply: number };
+type Holders = {
+  base: Check[];
+  holders: number | null;
+  byOwner: Map<string, number> | null;
+  supply: number;
+  /** the biggest real wallets (program-owned accounts left out), biggest first */
+  people: [string, number][];
+  mintAuth: boolean;
+  freezeAuth: boolean;
+};
 const holdersCache = new Map<string, { t: number; v: Holders }>();
 
 /** when RugCheck does not answer, the same checks straight from the chain, through the free public Solana node:
@@ -187,6 +221,7 @@ async function chainHolders(mint: string): Promise<Holders | null> {
   const base: Check[] = [];
   let holders: number | null = null;
   let byOwner: Map<string, number> | null = null;
+  let people: [string, number][] = [];
   // every token account of this coin: just its owner and amount (bytes 32..72)
   const filters: unknown[] = [{ memcmp: { offset: 0, bytes: mint } }];
   if (m.value.owner === TOKEN) filters.push({ dataSize: 165 });
@@ -216,7 +251,7 @@ async function chainHolders(mint: string): Promise<Holders | null> {
       2500,
     );
     if (owners) {
-      const people = top.filter((_, i) => {
+      people = top.filter((_, i) => {
         const o = owners.value[i];
         return !o || o.owner === SYSTEM;
       });
@@ -228,7 +263,7 @@ async function chainHolders(mint: string): Promise<Holders | null> {
     { ok: !info.mintAuthority, label: info.mintAuthority ? "Creator can print more coins." : "No new coins can be printed" },
     { ok: !info.freezeAuthority, label: info.freezeAuthority ? "Creator can freeze your coins." : "Your coins can't be frozen" },
   );
-  const v = { base, holders, byOwner, supply };
+  const v = { base, holders, byOwner, supply, people, mintAuth: !!info.mintAuthority, freezeAuth: !!info.freezeAuthority };
   if (holdersCache.size > 300) holdersCache.clear();
   holdersCache.set(mint, { t: Date.now(), v });
   return v;
@@ -246,4 +281,31 @@ export async function chainChecks(mint: string, dev: string | null): Promise<Cha
     checks.splice(1, 0, { ok: c < 0.05, label: c < 0.05 ? `Creator holds ${p(c)}` : `Creator still holds ${p(c)}. Can dump on you.` });
   }
   return { checks, holders: h.holders, hasHolders: !!h.byOwner };
+}
+
+/** RugCheck didn't answer: the same report, as far as the chain alone can tell it. The top holders, the creator's
+ *  share, mint and freeze authority come from the chain; RugCheck's linked-wallet groups and warnings are left out
+ *  rather than guessed. `curve`: the coin is still on pump.fun's bonding curve (no pool to pull). */
+export async function chainRug(mint: string, dev: string | null, curve: boolean): Promise<Rug | null> {
+  const h = await chainHolders(mint).catch(() => null);
+  if (!h || !h.byOwner || h.supply <= 0) return null;
+  const share = (amt: number) => amt / h.supply;
+  const people = h.people.filter(([o]) => o !== dev);
+  return {
+    dev,
+    top10: people.slice(0, 10).reduce((a, [, amt]) => a + share(amt), 0),
+    top1: people[0] ? share(people[0][1]) : 0,
+    creator: dev ? share(h.byOwner.get(dev) ?? 0) : 0,
+    insiders: 0,
+    insiderWallets: 0,
+    mintAuth: h.mintAuth,
+    freezeAuth: h.freezeAuth,
+    locked: null,
+    curve,
+    holders: h.holders,
+    danger: [],
+    rugged: false,
+    tops: people.slice(0, 20).map(([owner, amt]) => ({ owner, pct: share(amt), insider: false })),
+    src: "chain",
+  };
 }

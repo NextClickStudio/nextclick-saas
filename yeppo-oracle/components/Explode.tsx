@@ -24,7 +24,7 @@ export default function Explode() {
     const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
     const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let G = { W: 0, H: 0, cols: 6, cw: 0, ch: 0, gx: 0, gy: 0, gap: 6, card: { x: 0, y: 0, w: 0, h: 0 }, rowH: 15, as: 1, clipH: 27 };
+    let G = { W: 0, H: 0, cols: 6, cw: 0, ch: 0, gx: 0, gy: 0, gap: 6, card: { x: 0, y: 0, w: 0, h: 0 }, rowH: 15, as: 1, clipH: 27, fp: { x: 0, y: 0, w: 0, bw: 0, bh: 0, gap: 0 } };
     const layout = () => {
       const W = stage.clientWidth, H = stage.clientHeight;
       const cols = W >= 1080 ? 6 : W >= 700 ? 4 : 3;
@@ -42,7 +42,11 @@ export default function Explode() {
       // folded, each check shows only its first line: the clip height in the cell's own pixels, then the row it takes
       const as = Math.min(1, (cardW - 40) / 2 / cw), clipH = W < 700 ? 19 : 27, rowH = clipH * as + 2;
       const cardH = 60 + Math.ceil(cells.length / 2) * rowH + 14;
-      G = { W, H, cols, cw, ch, gx: side, gy, gap, card: { x: (W - cardW) / 2, y: Math.max(top, (H - cardH) / 2), w: cardW, h: cardH }, rowH, as, clipH };
+      // the coin's fingerprint: one thin bar per check, in a row under the word
+      const fpW = Math.min(W - 2 * side, 760), fgap = W < 700 ? 3 : 6;
+      const bw = (fpW - (cells.length - 1) * fgap) / cells.length, bh = W < 700 ? 44 : 64;
+      const fp = { x: (W - fpW) / 2, y: H / 2 + (W < 700 ? 24 : 36), w: fpW, bw, bh, gap: fgap };
+      G = { W, H, cols, cw, ch, gx: side, gy, gap, card: { x: (W - cardW) / 2, y: Math.max(top, (H - cardH) / 2), w: cardW, h: cardH }, rowH, as, clipH, fp };
       cells.forEach((c) => {
         c.style.width = cw + "px";
         c.style.height = ch + "px";
@@ -57,13 +61,12 @@ export default function Explode() {
     };
     const render = () => {
       const p = progress();
-      const { cw, ch, gx, gy, gap, cols, card, rowH, W, H, as, clipH } = G;
+      const { cw, ch, gx, gy, gap, cols, card, rowH, W, H, as, clipH, fp } = G;
       const open = ease(clamp((p - 0.08) / 0.26)); // card → grid
       const close = ease(clamp((p - 0.74) / 0.18)); // grid → word
       const gridW = cols * cw + (cols - 1) * gap, gridH = Math.ceil(cells.length / cols) * (ch + gap) - gap;
-      // the frame: the card's border opens to the grid, then closes round the word
-      const wordBox = { w: Math.min(W - 32, 520), h: 180 };
-      const f0 = card, f1 = { x: gx - 10, y: gy - 10, w: gridW + 20, h: gridH + 20 }, f2 = { x: (W - wordBox.w) / 2, y: (H - wordBox.h) / 2, ...wordBox };
+      // the frame: the card's border opens to the grid, then closes into the rule under the fingerprint
+      const f0 = card, f1 = { x: gx - 10, y: gy - 10, w: gridW + 20, h: gridH + 20 }, f2 = { x: fp.x, y: fp.y + fp.bh + 14, w: fp.w, h: 1 };
       const fx = close > 0 ? lerp(f1.x, f2.x, close) : lerp(f0.x, f1.x, open);
       const fy = close > 0 ? lerp(f1.y, f2.y, close) : lerp(f0.y, f1.y, open);
       const fw = close > 0 ? lerp(f1.w, f2.w, close) : lerp(f0.w, f1.w, open);
@@ -90,20 +93,20 @@ export default function Explode() {
         // in depth while flying: tilt one way out, the other way in
         const tilt = Math.sin(k * Math.PI) * (col - (cols - 1) / 2) * 9;
         const tx = Math.sin(k * Math.PI) * (row - 2) * -7;
-        const cxw = (W - cw) / 2, cyw = (H - ch) / 2;
-        x = lerp(x, cxw, kc);
-        y = lerp(y, cyw, kc);
-        s = lerp(s, 0.04, kc);
+        // then every card narrows into its bar of the fingerprint, in reading order
+        x = lerp(x, fp.x + i * (fp.bw + fp.gap), kc);
+        y = lerp(y, fp.y, kc);
+        const sx = lerp(s, fp.bw / cw, kc), sy = lerp(s, fp.bh / ch, kc);
         // laid out like index cards on a desk: each one a little off square
         const rot = (((i * 37) % 7) - 3) * 0.55 * k * (1 - kc);
-        c.style.transform = `translate3d(${x}px, ${y}px, 0) rotateY(${tilt}deg) rotateX(${tx}deg) rotate(${rot}deg) scale(${s})`;
+        c.style.transform = `translate3d(${x}px, ${y}px, 0) rotateY(${tilt * (1 - kc)}deg) rotateX(${tx * (1 - kc)}deg) rotate(${rot}deg) scale(${sx}, ${sy})`;
         c.style.clipPath = `inset(0 0 ${lerp(Math.max(0, ch - clipH), 0, k)}px 0)`;
         c.classList.toggle("on", p > 0.42 && by + ch / 2 < scanned + 1);
-        c.style.visibility = kc > 0.98 ? "hidden" : "visible";
+        c.classList.toggle("bar", kc > 0.35);
       });
-      // the word comes in from below its own line
-      const wk = ease(clamp((p - 0.86) / 0.1));
-      word.style.transform = `translate(-50%, calc(-50% + ${(1 - wk) * 110}%))`;
+      // the word rises out of its own line above the fingerprint
+      const wk = ease(clamp((p - 0.84) / 0.12));
+      word.style.transform = `translate(-50%, calc(-100% + ${fp.y - H / 2 - 18}px + ${(1 - wk) * 60}%))`;
       word.style.clipPath = `inset(0 0 ${(1 - wk) * 100}% 0)`;
       const at = p < 0.34 ? 0 : p < 0.72 ? 1 : 2;
       steps.forEach((s, i) => s.classList.toggle("on", i === at));
@@ -160,10 +163,8 @@ export default function Explode() {
         ))}
         <div className="xe-scan" />
         <div className="xe-word">
-          <div className="st-stamp t-safe xe-stamp">
-            <span>Safe</span>
-          </div>
-          <span>22 clean · 2 to watch · nothing hidden</span>
+          <span className="xe-cap">24 checks · 22 clean · 2 to watch</span>
+          <b className="t-safe">Safe</b>
         </div>
       </div>
     </section>

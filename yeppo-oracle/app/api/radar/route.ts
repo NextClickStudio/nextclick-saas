@@ -31,8 +31,8 @@ export type RadarCoin = {
   pass?: boolean;
 };
 export type Radar = { at: number; tracked: number; proven: number; coins: RadarCoin[]; sol: number };
-export type BookWallet = { who: string; name?: string | null; emoji?: string | null; wins: number | null; tries: number | null; flips: number | null; creators: number | null; proven?: boolean; hit?: number; last: number | null };
-export type Book = { mine: BookWallet[]; found: BookWallet[] };
+export type BookWallet = { who: string; name?: string | null; emoji?: string | null; wins: number | null; tries: number | null; flips: number | null; creators: number | null; proven?: boolean; hit?: number; last: number | null; mine?: boolean };
+export type Book = { mine: BookWallet[]; found: BookWallet[]; suggested?: BookWallet[] };
 
 const rpc = async <T>(fn: string, body: Record<string, unknown>, ms = 6000): Promise<T> => {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: "POST", headers: DB_HEADERS, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) });

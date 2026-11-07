@@ -17,10 +17,28 @@ export type HotCoin = [string, string, string | null, number, number, number, nu
 
 const cache = new Map<string, { t: number; v: HotCoin[] }>();
 
+/** a post on X that coins launched from in the last hour: [handle, post id, first coin at, coins] with each coin
+ *  [mint, ticker, launched at, trades, market cap SOL, high × launch] (yr_xfeed_s) */
+export type XPost = [string, string | null, number, [string, string | null, number, number, number, number | null][]];
+let feed: { t: number; v: XPost[] } | null = null;
+
 export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
   const acc = await accessOf((q.get("key") ?? "").trim().toUpperCase() || null, q.get("dev"));
   if (!acc.pro) return Response.json({ locked: true, why: LOCKED[acc.reason ?? "nokey"] ?? LOCKED.nokey }, { headers: { ...CORS, "cache-control": "no-store" } });
+  // ?feed=1: the posts on X coins launched from in the last hour, from yeppo's own link of each coin to its post
+  // (no J7 needed). One answer for everyone, kept 20 s
+  if (q.get("feed")) {
+    if (!feed || Date.now() - feed.t > 20_000) {
+      try {
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_xfeed_s`, { method: "POST", headers: DB_HEADERS, body: "{}", signal: AbortSignal.timeout(5000) });
+        if (r.ok) feed = { t: Date.now(), v: (await r.json()) as XPost[] };
+      } catch {
+        /* the last answer stands */
+      }
+    }
+    return Response.json({ posts: feed?.v ?? [], sol: await solPrice() }, { headers: { ...CORS, "cache-control": "private, max-age=10" } });
+  }
   // each word once, with the earliest post it came from (rounded to the minute, so the same feed asks the same thing)
   const since = new Map<string, number>();
   for (const part of (q.get("w") ?? "").toLowerCase().split(",")) {

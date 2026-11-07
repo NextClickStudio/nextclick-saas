@@ -25,7 +25,7 @@ import { nameWord, theCoin } from "@/lib/thecoin";
 import { wave } from "@/lib/wave";
 import { deepData, deepRead } from "@/lib/deep";
 import type { Money, Read } from "@/lib/read";
-import { chainChecks, chainPrefetch, rugChecks, rugReport } from "@/lib/rugcheck";
+import { chainChecks, chainPrefetch, chainRug, rugChecks, rugPending, rugReport } from "@/lib/rugcheck";
 
 export const runtime = "edge";
 // next to the database (eu-west-1): one server region for every user, so the same coin's read is shared by all of
@@ -107,7 +107,21 @@ function traceLater(dev: string, mint: string) {
   );
 }
 
+// the coin's row and its creator's history change once a minute (yr_cc_roll): kept 10 s per coin on each server, so a
+// panel asking every 1.5-3 s doesn't ask the database every time (7 Nov 2026: it was the one uncached call per read)
+const creatorCache = new Map<string, { t: number; v: CreatorRpc }>();
 async function creatorRpc(mint: string, dev: string | null): Promise<CreatorRpc | null> {
+  const ck = `${mint}:${dev ?? ""}`;
+  const hit = creatorCache.get(ck);
+  if (hit && Date.now() - hit.t < 10_000) return hit.v;
+  const v = await creatorFetch(mint, dev);
+  if (v) {
+    while (creatorCache.size >= 600) creatorCache.delete(creatorCache.keys().next().value as string);
+    creatorCache.set(ck, { t: Date.now(), v });
+  }
+  return v ?? hit?.v ?? null;
+}
+async function creatorFetch(mint: string, dev: string | null): Promise<CreatorRpc | null> {
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_creator_s`, {
       method: "POST",
@@ -285,7 +299,10 @@ export async function GET(req: Request) {
   if (!acc.pro) return Response.json(lockedRead(mint, acc.reason), { headers: { ...CORS, "cache-control": "private, no-store" } });
   // everything that does not depend on anything else, at once
   const hot = readCache.get(mint);
-  if (hot && Date.now() - hot.t < 2500) return Response.json(hot.body, { headers: { ...CORS, "cache-control": "private, max-age=2" } });
+  // a coin in its first 3 minutes changes by the second; after that a read 6 s old is as good (the panel follows the
+  // live trades itself)
+  const hotTtl = hot?.body.t0 && Date.now() - hot.body.t0 > 180_000 ? 6000 : 2500;
+  if (hot && Date.now() - hot.t < hotTtl) return Response.json(hot.body, { headers: { ...CORS, "cache-control": "private, max-age=2" } });
   if (Date.now() < rugDownUntil) void chainPrefetch(mint);
   // the coins with the same name start loading as soon as yeppo knows the name (its launch, from the first answer)
   const firstP = creatorRpc(mint, null);
@@ -296,8 +313,13 @@ export async function GET(req: Request) {
   // and its X origin as soon as the launch's metadata and DexScreener's listing are known
   const dexP = dexscreener(mint);
   const originP = Promise.all([firstP, dexP]).then(([f, d]) => originOf(mint, f?.uri ?? null, d?.socialList ?? [], d?.siteList ?? []));
-  const [rug, first, sol, dex, oddsT, named0, origin] = await Promise.all([rugReport(mint), firstP, solPrice(), dexP, oddsTable(), namedP, originP]);
-  rugDownUntil = rug ? 0 : Date.now() + 120_000;
+  const [rugRc, first, sol, dex, oddsT, named0, origin] = await Promise.all([rugReport(mint), firstP, solPrice(), dexP, oddsTable(), namedP, originP]);
+  rugDownUntil = rugRc ? 0 : Date.now() + 120_000;
+  // RugCheck still building this coin's report: the request goes on after this answer, so the next read has it
+  const rugP = rugRc ? null : rugPending(mint);
+  if (rugP) after(() => rugP.then(() => undefined));
+  // and this read doesn't wait for it: the top holders, the creator's share and the authorities from the chain
+  const rug = rugRc ?? (await chainRug(mint, first?.dev ?? null, !!first?.me && !first.me.grad));
   // the deeper checks (same-amount buys, fresh holders, serial creator, copied ticker...) run alongside the rest
   const deepP = deepData(mint, (rug?.tops ?? []).map((t) => t.owner));
   // a coin yeppo did not see launch: ask again with the creator RugCheck names; RugCheck down: the basic checks
@@ -320,7 +342,7 @@ export async function GET(req: Request) {
   if (!rug && !cr && !out) return Response.json({ error: "yeppo is busy, retrying" }, { status: 503, headers: { ...CORS, "cache-control": "no-store" } });
   // what could not be read this time: yeppo never says Momentum without it
   const down: Read["down"] = [];
-  if (!rug) down.push("rugcheck");
+  if (!rugRc) down.push("rugcheck");
   if (!cr) down.push("history");
 
   const checks: Check[] = rug ? rugChecks(rug) : (chain?.checks ?? []);
