@@ -20,3 +20,9 @@
   can now build on it. Radar built: `/api/radar`, `components/Radar.tsx` (side panel empty state + page `/radar`,
   nav link "Radar"). Early call = `signal` + yeppo's full read Safe (server calls /api/read for the top 3 signals).
   Tested the radar SQL with the user's 121 wallets (19 coins touched in 15 min at night, 0 signals). Not deployed yet.
+- 7 Nov night: published (Vercel, commit c12f1be): radar + strategy checklist + radar log call, Deep checks in the
+  read (lib/deep.ts: same-amount buys, fresh top holders via edge yr-fresh, serial creator, copied ticker, recycled X,
+  buyers 5 min, user's filters), Hot on X (verdicts via /api/verdicts, Safe-only switch, your wallets, narratives with
+  Google News headlines via /api/news), new look (warm monochrome tokens, Hanken Grotesk + JetBrains Mono, radar logo,
+  CameraStory home, no fades: .rv moves in). Edge yr-fresh v1 deployed. **Migration 094 NOT applied yet** (the
+  Supabase approval prompt timed out): until then Deep checks and the radar log are silently off.
