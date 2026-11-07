@@ -50,6 +50,8 @@
     const first = (s) => (s || "").match(ADDR)?.find(is32) ?? null;
     if (h.endsWith("pump.fun")) return first(path.match(/^\/(?:coin\/)?([^/?#]+)/)?.[1]);
     if (h === "gmgn.ai") return first(path.match(/\/token\/(?:[^/_]+_)?([^/?#]+)/)?.[1]);
+    // Axiom's newer coin pages carry the coin itself: axiom.trade/token/<mint>?chain=sol
+    if (h.endsWith("axiom.trade") && /^\/token\//.test(path)) return first(path.match(/^\/token\/([^/?#]+)/)?.[1]);
     if (h.endsWith("bullx.io")) return first(q.get("address"));
     if (h === "birdeye.so" || h === "solscan.io") return first(path.match(/\/token\/([^/?#]+)/)?.[1]);
     if (h === "jup.ag") return (path.match(ADDR) || []).filter(is32).find((a) => a !== "So11111111111111111111111111111111111111112") ?? null;

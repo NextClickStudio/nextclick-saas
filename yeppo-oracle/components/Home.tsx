@@ -1,22 +1,36 @@
 import Link from "next/link";
 import JsonLd from "./JsonLd";
-import { SITE_URL } from "@/lib/config";
-import CameraStory from "./CameraStory";
-import Chrome3D from "./Chrome3D";
+import { DB_HEADERS } from "@/lib/access";
+import { SITE_URL, SUPABASE_URL } from "@/lib/config";
 import Nav, { Footer } from "./Nav";
 import Search from "./Search";
+import Scope from "./Scope";
+import Explode from "./Explode";
+import { CHECKS } from "@/lib/checks";
+import { Clock, Odo, PostLoop, RadarLoop } from "./Bits2";
 
-// The home, built like a product page and not like a landing template: a chrome wordmark with the facts beside it,
-// the camera story through one read, the full list of checks under one big number, the radar and the X feed in the
-// product's own words, the guides as plain rows, the price, the FAQ.
+// The home as an instrument, not a landing page: a faceplate with the radar scope reading coins, the week's real
+// numbers on rolling counters and the real calls on a tape; then one read taken apart on scroll; then the radar and
+// the X feed side by side as working examples; then price, guides and questions packed in one block.
 
-const SPEC = ["Every pump.fun launch, read live", "Launch bundle read from the chain", "Real balances, not seen trades", "164,673 coins read last week", "Open now"];
+/** [mint, ticker, call, × after the call, called at] (yr_wins_s, kept 10 min) */
+type Win = [string, string | null, string, number, number];
+async function wins(): Promise<Win[]> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yr_wins_s`, { method: "POST", headers: DB_HEADERS, body: "{}", next: { revalidate: 600 } });
+    if (!r.ok) return [];
+    const v = (await r.json()) as Win[];
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
 
-const CHECKS = [
-  "Launch bundle", "Insiders on real balances", "Snipers", "Silent early group", "Big wallets", "Linked wallets", "Same-amount buys",
-  "Fresh holder wallets", "Top 10 holders", "Creator's past coins", "Serial launcher", "Creator's funder", "Rug network behind the funder",
-  "Mint authority", "Freeze authority", "Liquidity locked", "Hidden bundle", "Ticker copies", "X origin", "Recycled X account",
-  "Buyers against sellers", "Odds of a 2x", "Top traders in", "Holders selling now",
+// the week of 28 Oct to 4 Nov 2026, from yeppo's own tables (also in the Discord launch post)
+const WEEK: [number, string][] = [
+  [164673, "coins read in a week"],
+  [12050, "bundled launches flagged"],
+  [991, "rugs spotted"],
 ];
 
 const ROWS: [string, string][] = [
@@ -25,146 +39,158 @@ const ROWS: [string, string][] = [
   ["Read a creator before you buy", "/learn/dev-wallet-checker"],
   ["Wallets that move together", "/learn/bubble-map-memecoin"],
   ["When momentum lies", "/learn/when-to-buy-memecoin"],
-  ["Use it on GMGN, Axiom and pump.fun", "/learn/gmgn-axiom-pump-fun-extension"],
+  ["GMGN, Axiom and pump.fun", "/learn/gmgn-axiom-pump-fun-extension"],
 ];
 
-export default function Home() {
+export default async function Home() {
+  const won = await wins();
   return (
     <>
       <Nav />
-      <section className="hz">
-        <div className="hz-top">
-          <span className="hz-k">Rug checker · pump.fun</span>
-          <ul className="hz-spec">
-            {SPEC.map((s) => (
-              <li key={s}>{s}</li>
+      <section className="xh">
+        <div className="xh-plate">
+          <div className="xh-bar">
+            <span className="x-k">Rug checker · pump.fun · Solana</span>
+            <span className="xh-bar-r">
+              <Clock />
+              <span className="x-live">
+                <i /> reading every launch
+              </span>
+            </span>
+          </div>
+          <div className="xh-main">
+            <div className="xh-copy">
+              <h1>
+                Read the chain,
+                <br />
+                <span>not the chart.</span>
+              </h1>
+              <p className="xh-sub">
+                Open a coin on Axiom, GMGN or pump.fun. In about a second yeppo reads the launch bundle, the real holders, the creator and the money behind them, and gives you one word:{" "}
+                <b className="t-up">Safe</b>, <b className="t-mid">Risky</b> or <b className="t-down">Danger</b>.
+              </p>
+              <div className="xh-act">
+                <Link href="/extension" className="btn btn-go btn-lg">
+                  Add to Chrome
+                </Link>
+                <div className="xh-try">
+                  <Search label="Read it" />
+                </div>
+              </div>
+            </div>
+            <Scope />
+          </div>
+          <div className="xh-nums">
+            {WEEK.map(([n, l]) => (
+              <div key={l}>
+                <Odo n={n} />
+                <span>{l}</span>
+              </div>
             ))}
-          </ul>
-        </div>
-        <Chrome3D />
-        <div className="hz-bot">
-          <h1>The rug checker that reads the chain.</h1>
-          <div className="hz-act">
-            <Link href="/extension" className="btn btn-go btn-lg">
-              Add to Chrome
-            </Link>
-            <div className="hz-try">
-              <Search label="Read it" />
+            <div>
+              <span className="xh-big">
+                <Odo n={CHECKS.length} />
+              </span>
+              <span>checks on every coin</span>
             </div>
           </div>
         </div>
+        {won.length > 0 && (
+          <div className="x-tape" aria-label="Real calls from the last 7 days">
+            <span className="x-tape-k">Real calls · 7 days</span>
+            <div className="x-tape-run">
+              {[0, 1].map((dup) => (
+                <div key={dup} className="x-tape-set" aria-hidden={dup === 1}>
+                  {won.map(([mint, sym, word, up]) => (
+                    <Link key={mint + dup} href={`/c/${mint}`} tabIndex={dup ? -1 : undefined}>
+                      <b>{sym ? `$${sym.replace(/^\$/, "")}` : "coin"}</b>
+                      <span>{word}</span>
+                      <em>×{up.toFixed(1)}</em>
+                    </Link>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
-      <CameraStory />
+      <Explode />
 
       <main className="wrap">
-        <section className="ns" id="how">
-          <span className="ns-k">Every check</span>
-          <div className="ns-split">
-            <div>
-              <b className="ns-big">{CHECKS.length}</b>
-              <h2 className="ns-h">checks, on every coin you open.</h2>
-              <p className="ns-p">One second, one word: Safe, Risky or Danger. Each number comes from the chain or from RugCheck, and when two sources disagree yeppo says so instead of calling the coin clean.</p>
-            </div>
-            <ul className="ns-grid">
-              {CHECKS.map((c) => (
-                <li key={c}>{c}</li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        <section className="ns">
-          <span className="ns-k">Wallet radar</span>
-          <div className="ns-split">
-            <div>
-              <h2 className="ns-h2">Your wallets, followed.</h2>
-              <p className="ns-p">Paste the list Axiom exports. The moment one of your wallets buys, yeppo reads the coin. Two in within fifteen minutes, none out, every check of your rule passing and a Safe read: that is an early call. yeppo also finds wallets worth copying on its own, ready to export back to Axiom.</p>
-              <Link href="/radar" className="btn btn-lg btn-ghost">
-                Open the radar
+        <section className="xs xs-two">
+          <div className="xs-cell">
+            <span className="x-k">Wallet radar</span>
+            <h2>Your wallets buy. yeppo reads the coin.</h2>
+            <p>
+              Paste the wallet list Axiom exports. The moment one of them buys, the coin is read against your rule. Two in within fifteen minutes, none out, every line passing and a Safe read: an early call.
+            </p>
+            <RadarLoop />
+            <div className="xs-foot">
+              <Link href="/radar" className="x-link">
+                Open the radar <i>→</i>
               </Link>
+              <small>example</small>
             </div>
-            <div className="ns-list">
-              {[
-                ["$SEAL", "2 of your wallets · 4 min", "Early call", "up"],
-                ["$BOOK", "a lead wallet is out", "Risky", "mid"],
-                ["$GOAT", "bundle 38%", "Danger", "down"],
-              ].map(([s, l, w, t]) => (
-                <div key={s} className="ns-row">
-                  <b>{s}</b>
-                  <span>{l}</span>
-                  <em className={t}>{w}</em>
-                </div>
-              ))}
+          </div>
+          <div className="xs-cell">
+            <span className="x-k">Hot on X</span>
+            <h2>A post lands. The coins born after it, read.</h2>
+            <p>
+              Connect your J7 feed. yeppo keeps the posts that matter, wires each one to the coins launched after it, drops the bad ones and puts first the coins your own wallets are buying.
+            </p>
+            <PostLoop />
+            <div className="xs-foot">
+              <Link href="/extension" className="x-link">
+                In the panel <i>→</i>
+              </Link>
               <small>example</small>
             </div>
           </div>
         </section>
 
-        <section className="ns">
-          <span className="ns-k">Hot on X</span>
-          <div className="ns-split">
-            <div>
-              <h2 className="ns-h2">A post, the coins born after it, your wallets in them.</h2>
-              <p className="ns-p">Connect your J7 feed. yeppo keeps only the posts that matter, shows the coins launched after each one, keeps the Safe ones and puts first the ones your wallets are buying. The words several posts share become the narratives, with the headlines behind them.</p>
-            </div>
-            <div className="ns-list">
-              {[
-                ["@a large account", "posted 2 min ago"],
-                ["$WHALE", "born after it · 2 of your wallets in · Safe"],
-                ["whale", "4 posts · 23 coins born · 3 Safe"],
-              ].map(([a, b]) => (
-                <div key={a} className="ns-row">
-                  <b>{a}</b>
-                  <span>{b}</span>
-                </div>
-              ))}
-              <small>example</small>
-            </div>
-          </div>
-        </section>
-
-        <section className="ns">
-          <span className="ns-k">Guides</span>
-          <div className="ns-rows">
-            {ROWS.map(([t, h]) => (
-              <Link key={h} href={h} className="ns-link">
-                {t}
-                <i aria-hidden>↗</i>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        <section className="ns">
-          <span className="ns-k">Price</span>
-          <div className="ns-split">
-            <div>
-              <h2 className="ns-h2">One key. Paid in SOL.</h2>
-              <p className="ns-p">Three devices, no account, no email. It never touches your wallet.</p>
-            </div>
-            <div className="ns-price">
+        <section className="xs xs-three">
+          <div className="xs-cell">
+            <span className="x-k">Price</span>
+            <h2>One key, paid in SOL.</h2>
+            <p>Three devices, no account, no email. It never touches your wallet.</p>
+            <div className="x-price">
               <Link href="/pricing">
                 <span>30 days</span>
                 <b>0.2 SOL</b>
+                <i>→</i>
               </Link>
               <Link href="/pricing">
                 <span>90 days</span>
                 <b>0.5 SOL</b>
+                <i>→</i>
               </Link>
             </div>
           </div>
-        </section>
-
-        <section className="ns" id="faq">
-          <span className="ns-k">Questions</span>
-          <div className="faq-list">
-            {FAQ.map(([q, a]) => (
-              <details key={q} className="faq">
-                <summary>{q}</summary>
-                <p>{a}</p>
-              </details>
-            ))}
+          <div className="xs-cell">
+            <span className="x-k">Guides</span>
+            <ol className="x-guides">
+              {ROWS.map(([t, h], i) => (
+                <li key={h}>
+                  <Link href={h}>
+                    <i>{String(i + 1).padStart(2, "0")}</i>
+                    {t}
+                    <em aria-hidden>↗</em>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </div>
+          <div className="xs-cell" id="faq">
+            <span className="x-k">Questions</span>
+            <div className="x-faq">
+              {FAQ.map(([q, a]) => (
+                <details key={q}>
+                  <summary>{q}</summary>
+                  <p>{a}</p>
+                </details>
+              ))}
+            </div>
           </div>
         </section>
       </main>

@@ -5,7 +5,7 @@
 |---|---|
 | Live code | `~/Projects/nextclick-saas` (local branch `yeppo-royale`; remote `NextClickStudio/nextclick-saas`, branch `claude/yeppo-royale`) |
 | Site + extension | `yeppo-oracle/` (Next.js 15.5, React 19, TS); extension in `yeppo-oracle/extension`, zip `public/yeppo-extension.zip` (v3.3.1) |
-| Migrations | `yeppo-royale/supabase/migrations/001…096` (all applied; **next is 097**) |
+| Migrations | `yeppo-royale/supabase/migrations/001…096` (all applied; **next is 098 (097 written: yr_wins_s fix)**) |
 | Edge functions | `yeppo-royale/supabase/functions/*` (MCP `deploy_edge_function`) |
 | Supabase | project ref **`qyobtgubvopzfmomzeuj`**, eu-west-1, Free |
 | Vercel | team `team_Wssh2o4gaRAM3ZGRUB2236zt`, project `yeppo` (`prj_JnXtmG6fciPUMYIl0jMyO2V97Um1`), Hobby, domain yeppo.it |

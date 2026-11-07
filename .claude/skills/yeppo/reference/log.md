@@ -36,3 +36,13 @@
   every coin with >=1 of your wallets (top 4, every 5 s), Hot on X hides posts without new coins and lists your
   wallets' coins first (hot-hits), extension 3.4.0 (radar icons, warm monochrome ui.css, new description), favicon.
   OPEN: user says "opening a coin is still buggy": no server errors seen; need a screenshot / exact behaviour.
+
+## 7 Nov (late) — home as an instrument, extension 3.4.1
+- Extension 3.4.1: content.js reads Axiom's new coin URLs (axiom.trade/token/<mint>?chain=sol). Without it the panel said "no coin open" on Axiom. Users on 3.3.1 still see the old purple logo: they must remove it and load the new zip.
+- Home rebuilt (components/Home.tsx, Scope.tsx, Explode.tsx, Bits2.tsx, lib/checks.ts; CSS block "home as an instrument" at the end of app/y.css, classes x-*, xh-*, xe-*, xs-*, xr-*, xp-*):
+  - hero = faceplate: copy left, canvas radar scope right (example reads: group pulled together, wired, callout, word decoded; pointer reticle reads a wallet), the week's numbers on rolling counters, tape of real calls from yr_wins_s (hidden when empty).
+  - "One read, taken apart": sticky 340vh, card → 24 checks exploded in 3D → scan → collapse into "Safe". Next block slides over the stage (-30vh).
+  - radar + X as looping examples side by side; price / guides / FAQ packed in one row.
+  - CameraStory.tsx and Chrome3D.tsx deleted (three stays in package.json, unused).
+  - CHECKS lives in lib/checks.ts: a server component importing an array from a "use client" file gets a client reference, not the array.
+- yr_wins_s was failing on every call (GROUP BY error), so /record "wins" were empty: fix in migration 097_wins_fix.sql (written; apply only with the user's OK). Next migration: 098.

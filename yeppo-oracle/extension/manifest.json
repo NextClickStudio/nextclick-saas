@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "yeppo",
-  "version": "3.4.0",
+  "version": "3.4.1",
   "description": "yeppo reads the Solana memecoin you are looking at: launch bundle, real holders, the creator and who funded them, same-amount buys, your wallet radar. One word: Safe, Risky or Danger. Needs a yeppo Pro key.",
   "icons": {
     "16": "icons/16.png",
