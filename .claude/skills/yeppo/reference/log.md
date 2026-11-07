@@ -16,3 +16,7 @@
 - 6 Nov: design prototype in the noiz.bio direction published: https://claude.ai/artifact/TNF5XQvCDfJp14ksgjoeCa
   (monochrome, scroll camera, no fades). Waiting for the user's OK before rebuilding the real site.
 - Next (on the Mac, real code): build the Radar panel + /api/radar, the new checks, then the redesign. See plan-6nov.md.
+- 7 Nov: Mac code (handoff zip, live version) committed to branch `claude/yeppo-mac` (PR #7, draft). Cloud sessions
+  can now build on it. Radar built: `/api/radar`, `components/Radar.tsx` (side panel empty state + page `/radar`,
+  nav link "Radar"). Early call = `signal` + yeppo's full read Safe (server calls /api/read for the top 3 signals).
+  Tested the radar SQL with the user's 121 wallets (19 coins touched in 15 min at night, 0 signals). Not deployed yet.
