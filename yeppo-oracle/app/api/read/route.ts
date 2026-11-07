@@ -23,6 +23,7 @@ import { launchRead } from "@/lib/launch";
 import { xSignals } from "@/lib/xsignals";
 import { nameWord, theCoin } from "@/lib/thecoin";
 import { wave } from "@/lib/wave";
+import { deepData, deepRead } from "@/lib/deep";
 import type { Money, Read } from "@/lib/read";
 import { chainChecks, chainPrefetch, rugChecks, rugReport } from "@/lib/rugcheck";
 
@@ -297,6 +298,8 @@ export async function GET(req: Request) {
   const originP = Promise.all([firstP, dexP]).then(([f, d]) => originOf(mint, f?.uri ?? null, d?.socialList ?? [], d?.siteList ?? []));
   const [rug, first, sol, dex, oddsT, named0, origin] = await Promise.all([rugReport(mint), firstP, solPrice(), dexP, oddsTable(), namedP, originP]);
   rugDownUntil = rug ? 0 : Date.now() + 120_000;
+  // the deeper checks (same-amount buys, fresh holders, serial creator, copied ticker...) run alongside the rest
+  const deepP = deepData(mint, (rug?.tops ?? []).map((t) => t.owner));
   // a coin yeppo did not see launch: ask again with the creator RugCheck names; RugCheck down: the basic checks
   // straight from the chain
   const [second, chain] = await Promise.all([
@@ -504,6 +507,13 @@ export async function GET(req: Request) {
     };
   logCall(mint, timing.word, ageS, priceX, odds?.p2 ?? null);
 
+  const mcNow = priceMc != null && sol ? priceMc * sol : (out?.mcap ?? null);
+  const deep = deepRead(await deepP, {
+    tops: rug?.tops ?? [],
+    ageS,
+    mcUsd: mcNow,
+    social: (!!origin && origin.kind !== "none") || (dex?.socialList?.length ?? 0) > 0,
+  });
   const body: Read = {
     mint,
     symbol: me?.sym ?? cr?.birth?.sym ?? out?.symbol ?? null,
@@ -536,6 +546,7 @@ export async function GET(req: Request) {
     thecoin,
     origin,
     xs,
+    deep,
     launch: launch ? { wallets: launch.wallets.length, took: launch.took, now: launchNow } : null,
     // the launch bundle still on its way from the chain: about how many seconds until it is in
     // where the launch read stands: in (exact insiders), reading (countdown, attempt), unavailable (said plainly), null

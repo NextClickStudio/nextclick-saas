@@ -3229,3 +3229,24 @@ a.cp-name[href]:hover {
 .rd-import { margin-top: 12px; }
 .rd-import summary { cursor: pointer; font-size: 12.5px; color: var(--mute); }
 .rd-import textarea { width: 100%; box-sizing: border-box; margin: 6px 0; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 10px; color: var(--fg); font: 12px var(--mono, ui-monospace, monospace); padding: 8px; resize: vertical; }
+.cp-check.warn i { background: var(--mid); color: #201300; }
+.cp-check.dim { color: var(--mute); }
+.cp-check.dim i { background: rgba(255, 255, 255, 0.08); color: var(--mute); }
+.rd-checks { display: grid; gap: 2px; font-size: 11.5px; }
+.rd-checks .ok { color: var(--up); }
+.rd-checks .no { color: var(--down); }
+.rd-checks em { font-style: normal; color: var(--dim); }
+
+/* Hot on X: Safe switch, narratives, verdicts */
+.hot-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.hot-toggle, .hot-topic { all: unset; cursor: pointer; font-size: 11.5px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--mute); }
+.hot-toggle.on { color: var(--up); border-color: color-mix(in srgb, var(--up) 45%, transparent); }
+.hot-topic span { color: var(--dim); }
+.hot-topic.on { color: var(--fg); border-color: color-mix(in srgb, var(--fg) 40%, transparent); }
+.hot-toggle:focus-visible, .hot-topic:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+.hot-news { display: grid; gap: 4px; margin-bottom: 10px; font-size: 12px; }
+.hot-news a { color: inherit; text-decoration: none; }
+.hot-news a:hover { text-decoration: underline; }
+.hot-post.star { border-color: color-mix(in srgb, var(--up) 40%, transparent); }
+.hot-v.up { color: var(--up); } .hot-v.mid { color: var(--mid); } .hot-v.down { color: var(--down); }
+.hot-mine { color: var(--fg); }

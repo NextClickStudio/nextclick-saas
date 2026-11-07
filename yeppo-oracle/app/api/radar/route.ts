@@ -26,6 +26,9 @@ export type RadarCoin = {
   wallets: RadarWallet[];
   /** yeppo's full read, for the signal coins only */
   verdict?: { word: string; why: string } | null;
+  /** the user's rule, line by line: an early call only when every line passes and the read is Safe */
+  checklist?: { label: string; ok: boolean; why: string }[];
+  pass?: boolean;
 };
 export type Radar = { at: number; tracked: number; proven: number; coins: RadarCoin[]; sol: number };
 export type BookWallet = { who: string; name?: string | null; emoji?: string | null; wins: number | null; tries: number | null; flips: number | null; creators: number | null; proven?: boolean; hit?: number; last: number | null };
@@ -40,17 +43,59 @@ const rpc = async <T>(fn: string, body: Record<string, unknown>, ms = 6000): Pro
 // one answer per key for 5 s: the panel polls every 10 s, a second tab or device shares it
 const cache = new Map<string, { t: number; v: Radar }>();
 
+type ReadLite = {
+  decision?: { word?: string; why?: string };
+  checks?: { ok: boolean; label: string }[];
+  money?: { kind: string | null; sol: number | null; rugs: number } | null;
+  mcUsd?: number | null;
+  venue?: string;
+};
+
 /** the full read of a coin through yeppo's own read route (2.5 s cache there): Safe, Risky, Danger or Too early */
-async function verdictOf(origin: string, mint: string, key: string, dev: string | null) {
+async function readOf(origin: string, mint: string, key: string, dev: string | null): Promise<ReadLite | null> {
   try {
     const q = new URLSearchParams({ mint, key });
     if (dev) q.set("dev", dev);
     const r = await fetch(`${origin}/api/read?${q}`, { signal: AbortSignal.timeout(7000) });
-    const j = (await r.json()) as { decision?: { word?: string; why?: string } };
-    return j.decision?.word ? { word: j.decision.word, why: j.decision.why ?? "" } : null;
+    return (await r.json()) as ReadLite;
   } catch {
     return null;
   }
+}
+
+/** the user's rule: BUY only if ALL pass. 2+ of your wallets in within 15 minutes; funded by an exchange or a whale;
+ *  no mint or freeze authority and no liquidity to pull; top 10 under 30%; at least $25K; and yeppo reads it Safe */
+function checklistOf(c: RadarCoin, r: ReadLite | null) {
+  const checks = r?.checks ?? [];
+  const failed = (re: RegExp) => checks.some((k) => !k.ok && re.test(k.label));
+  const top10 = Number(checks.find((k) => /top 10 hold/i.test(k.label))?.label.match(/(\d+)%/)?.[1] ?? NaN);
+  const m = r?.money ?? null;
+  const funded = m?.kind === "exchange" || c.flags.dev_cex ? "exchange" : m?.kind === "wallet" && (m.sol ?? 0) >= 10 ? "whale" : null;
+  const lpBad = failed(/liquid|\blp\b|pool/i);
+  const lines = [
+    { label: "2+ of your wallets in within 15 min", ok: c.own >= 2 && c.out === 0, why: `${c.own} in, ${c.out} out` },
+    {
+      label: "Funded by an exchange or a whale",
+      ok: !!funded && !(m?.rugs ?? 0),
+      why:
+        funded === "exchange"
+          ? "creator paid from an exchange"
+          : funded === "whale"
+            ? `creator paid ${Math.round(m?.sol ?? 0)} SOL by one wallet`
+            : m?.kind
+              ? `creator paid by ${m.kind === "wallet" ? "a small wallet" : m.kind}`
+              : "funding not read yet",
+    },
+    {
+      label: "Mint and freeze revoked, liquidity safe",
+      ok: !failed(/print/i) && !failed(/froz/i) && !lpBad,
+      why: r?.venue === "pump.fun" ? "pump.fun: revoked by the launchpad, no pool to pull yet" : lpBad ? "liquidity can be pulled" : "revoked",
+    },
+    { label: "Top 10 holders under 30%", ok: Number.isFinite(top10) && top10 < 30, why: Number.isFinite(top10) ? `top 10 hold ${top10}%` : "not read yet" },
+    { label: "At least $25K", ok: (r?.mcUsd ?? 0) >= 25_000, why: r?.mcUsd ? `$${Math.round(r.mcUsd / 1000)}K now` : "not read yet" },
+    { label: "yeppo reads it Safe", ok: r?.decision?.word === "Safe", why: r?.decision?.word ?? "not read yet" },
+  ];
+  return { lines, pass: lines.every((l) => l.ok) };
 }
 
 export async function GET(req: Request) {
@@ -69,8 +114,26 @@ export async function GET(req: Request) {
     const [r, sol] = await Promise.all([rpc<Omit<Radar, "sol">>("yr_radar_s", { p_key: key, p_dev: dev }), solPrice()]);
     // the full read for the first three signal coins: an early call needs yeppo's Safe
     const sig = r.coins.filter((c) => c.signal).slice(0, 3);
-    const reads = await Promise.all(sig.map((c) => verdictOf(u.origin, c.mint, key, dev)));
-    sig.forEach((c, i) => (c.verdict = reads[i]));
+    const reads = await Promise.all(sig.map((c) => readOf(u.origin, c.mint, key, dev)));
+    sig.forEach((c, i) => {
+      const rd = reads[i];
+      c.verdict = rd?.decision?.word ? { word: rd.decision.word, why: rd.decision.why ?? "" } : null;
+      const cl = checklistOf(c, rd);
+      c.checklist = cl.lines;
+      c.pass = cl.pass;
+      // every Safe signal goes in the log once (wallets, checklist, reason), to measure the calls later
+      if (c.verdict?.word === "Safe")
+        void rpc("yr_radar_log_s", {
+          p_key: key,
+          p_dev: dev,
+          p_mint: c.mint,
+          p_mc: rd?.mcUsd ?? null,
+          p_wallets: c.wallets.filter((w) => w.own).map((w) => ({ who: w.who, label: w.label, in: w.in })),
+          p_checks: cl.lines,
+          p_pass: cl.pass,
+          p_reason: cl.pass ? "all checks pass" : `failed: ${cl.lines.filter((l) => !l.ok).map((l) => l.label).join(", ")}`,
+        }).catch(() => undefined);
+    });
     const v: Radar = { ...r, sol };
     if (cache.size > 500) cache.clear();
     cache.set(key, { t: Date.now(), v });

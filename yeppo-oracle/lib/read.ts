@@ -3,6 +3,7 @@ import type { Check, Creator, Decision, DevNow, Outlook, Pulse, Risk } from "./d
 import type { LiveBase } from "./live";
 import type { Odds } from "./odds";
 import type { TheCoin } from "./thecoin";
+import type { Deep } from "./deep";
 import type { Origin } from "./origin";
 import type { XSignals } from "./xsignals";
 
@@ -67,6 +68,8 @@ export type Read = {
   origin?: Origin | null;
   /** what X says beyond the link: the same account or post on other coins, and how fast the post spreads */
   xs?: XSignals | null;
+  /** the deeper checks next to the verdict (information: they never change it) */
+  deep?: Deep | null;
   /** the launch bundle read from the chain: wallets of the first 2 blocks, what they took, what they hold now */
   launch?: { wallets: number; took: number; now: number | null } | null;
   /** the launch bundle still on its way from the chain: about how many seconds until it is in */

@@ -68,7 +68,7 @@ function Copy({ text, label }: { text: string; label: string }) {
 }
 
 function CoinRow({ c, sol, now, compact }: { c: RadarCoin; sol: number; now: number; compact?: boolean }) {
-  const call = c.signal && c.verdict?.word === "Safe";
+  const call = c.signal && c.verdict?.word === "Safe" && c.pass === true;
   const since = c.mc_in && c.mc_in > 0 ? c.mc / c.mc_in - 1 : null;
   const tone = c.verdict?.word === "Safe" ? "up" : c.verdict?.word === "Danger" ? "down" : c.verdict?.word === "Risky" ? "mid" : "";
   const href = compact ? `https://yeppo.it/go/${c.mint}` : `/c/${c.mint}`;
@@ -91,7 +91,7 @@ function CoinRow({ c, sol, now, compact }: { c: RadarCoin; sol: number; now: num
       </div>
       <div className="rd-line">
         {call ? (
-          <span className="rd-tag up">Early call · {c.own} of your wallets in, none out · Safe</span>
+          <span className="rd-tag up">Early call · every check passes</span>
         ) : c.out > 0 ? (
           <span className="rd-tag mid">A lead wallet is out</span>
         ) : c.verdict ? (
@@ -107,6 +107,16 @@ function CoinRow({ c, sol, now, compact }: { c: RadarCoin; sol: number; now: num
         {c.flags.bundle >= 0.15 && <span className="rd-tag down">Bundle {Math.round(c.flags.bundle * 100)}%</span>}
         {c.flags.dev_cex && <span className="rd-dim">creator funded by an exchange</span>}
       </div>
+      {c.checklist && (
+        <div className="rd-checks">
+          {c.checklist.map((l) => (
+            <span key={l.label} className={l.ok ? "ok" : "no"} title={l.why}>
+              {l.ok ? "✓" : "✕"} {l.label}
+              <em> · {l.why}</em>
+            </span>
+          ))}
+        </div>
+      )}
     </a>
   );
 }
@@ -212,7 +222,7 @@ export default function Radar({ pkey, pdev, compact }: { pkey: string | null; pd
             ))}
           </div>
           <p className="rd-rule">
-            Early call: 2 or more of your wallets in the same coin within 15 minutes, none of them selling, and yeppo reads it Safe.
+            Early call only when every line passes: 2+ of your wallets in within 15 minutes and none selling, creator funded by an exchange or a whale, mint and freeze revoked, top 10 under 30%, at least $25K, and yeppo reads it Safe.
             Your plan: at most 8% of your wallet, stop at −6%, out when the lead wallet is out. yeppo never trades for you.
           </p>
         </>

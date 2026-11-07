@@ -285,6 +285,29 @@ export default function CoinPanel({
         </div>
       </details>
 
+      {r.deep && r.deep.lines.length > 0 && (
+        <details className="cp-fold" open={r.deep.lines.some((l) => l.tone === "bad")}>
+          <summary>
+            <h3>Deep checks</h3>
+            {(() => {
+              const w = r.deep!.lines.filter((l) => l.tone === "bad" || l.tone === "warn").length;
+              return <span className={`cp-sum ${r.deep!.lines.some((l) => l.tone === "bad") ? "down" : w ? "mid" : "up"}`}>{w ? `${w} to watch` : "nothing odd"}</span>;
+            })()}
+          </summary>
+          <div className="cp-fold-in">
+            <div className="cp-checks">
+              {r.deep.lines.map((l, i) => (
+                <div key={l.text} className={`cp-check ${l.tone === "bad" ? "bad" : l.tone === "warn" ? "warn" : l.tone === "info" ? "dim" : ""}`} style={{ "--i": i } as React.CSSProperties}>
+                  <i>{l.tone === "ok" ? "✓" : l.tone === "info" ? "·" : "!"}</i>
+                  {l.text}
+                </div>
+              ))}
+            </div>
+            <p className="cp-line mute" style={{ fontSize: 11.5, margin: "8px 0 0" }}>Information next to the verdict: these checks don&apos;t change it.</p>
+          </div>
+        </details>
+      )}
+
       <details className="cp-fold">
         <summary>
           <h3>Hot on X</h3>
