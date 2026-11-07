@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import JsonLd from "@/components/JsonLd";
-import Nav, { Footer } from "@/components/Nav";
+import { Paper } from "@/components/Nav";
 import { SITE_URL } from "@/lib/config";
 import { GUIDES } from "@/lib/guides";
 
@@ -15,11 +15,11 @@ export const metadata: Metadata = {
 export default function Page() {
   return (
     <>
-      <Nav />
+      <Paper>
       <main className="page wrap" style={{ maxWidth: 860 }}>
         <div className="page-head">
           <span className="label">Learn</span>
-          <h1>trade memecoins with your eyes open.</h1>
+          <h1>Trade memecoins with your eyes open.</h1>
           <p>Short guides to the checks that matter, with numbers from yeppo&apos;s own record of every pump.fun launch.</p>
         </div>
         <div className="learn-grid">
@@ -32,7 +32,7 @@ export default function Page() {
           ))}
         </div>
       </main>
-      <Footer />
+      </Paper>
       <JsonLd
         data={{
           "@context": "https://schema.org",

@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./y.css";
+import "./paper.css";
 import { SITE_URL } from "@/lib/config";
-import { mono, sans } from "@/lib/fonts";
+import { display, mono, sans } from "@/lib/fonts";
 import JsonLd from "@/components/JsonLd";
 
 const DESCRIPTION =
@@ -39,11 +40,11 @@ export const metadata: Metadata = {
   category: "finance",
 };
 
-export const viewport: Viewport = { themeColor: "#000000", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#efeae0", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
       <body>
         {children}
         <JsonLd

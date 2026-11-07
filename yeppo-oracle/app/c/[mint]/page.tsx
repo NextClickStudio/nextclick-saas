@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import CoinPanel from "@/components/CoinPanel";
-import Nav, { Footer } from "@/components/Nav";
+import { Paper } from "@/components/Nav";
 import Search from "@/components/Search";
 import { redirect } from "next/navigation";
 import { isMint, short } from "@/lib/format";
@@ -47,7 +47,7 @@ export default async function Page({ params, searchParams }: P) {
     );
   return (
     <>
-      <Nav />
+      <Paper>
       <main className="wrap">
         {!isMint(mint) ? (
           <div className="page">
@@ -66,8 +66,18 @@ export default async function Page({ params, searchParams }: P) {
           </div>
         ) : (
           <div className="coin-page">
-            <div className="card" style={{ padding: 14 }}>
-              <CoinPanel mint={mint} />
+            <div className="screen">
+              <div className="p-screen-head">
+                <span>
+                  <i /> File · {short(mint)}
+                </span>
+                <a href={`/go/${mint}`} target="_blank" rel="noreferrer">
+                  Open on Axiom ↗
+                </a>
+              </div>
+              <div className="p-screen-body">
+                <CoinPanel mint={mint} />
+              </div>
             </div>
             <div>
               <span className="label">Read another coin</span>
@@ -103,7 +113,7 @@ export default async function Page({ params, searchParams }: P) {
           </div>
         )}
       </main>
-      <Footer />
+      </Paper>
     </>
   );
 }

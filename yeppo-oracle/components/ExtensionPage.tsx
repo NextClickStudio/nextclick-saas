@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Nav, { Footer } from "./Nav";
+import { Paper } from "./Nav";
 import Reveal from "./Reveal";
 
 const SITES = ["pump.fun", "GMGN", "Axiom", "Photon", "BullX", "DexScreener", "Birdeye", "Jupiter"];
@@ -10,7 +10,7 @@ export default function ExtensionPage() {
   const [copied, setCopied] = useState(false);
   return (
     <>
-      <Nav />
+      <Paper>
       <main className="page wrap">
         <Reveal className="page-head">
           <span className="kicker">
@@ -26,7 +26,7 @@ export default function ExtensionPage() {
             </a>
           </div>
           <p className="hero-note">
-            Version 3.5.0 · installs in a minute · needs a <a href="/pricing">Pro key</a>
+            Version 3.5.1 · installs in a minute · needs a <a href="/pricing">Pro key</a>
           </p>
         </Reveal>
 
@@ -87,7 +87,7 @@ export default function ExtensionPage() {
           <p className="card note">🔒 It only reads the coin address on the page. It never sees your wallet or keys, and it can&apos;t trade.</p>
         </div>
       </main>
-      <Footer />
+      </Paper>
     </>
   );
 }

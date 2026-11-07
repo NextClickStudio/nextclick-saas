@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import JsonLd from "@/components/JsonLd";
-import Nav, { Footer } from "@/components/Nav";
+import { Paper } from "@/components/Nav";
 import { SITE_URL } from "@/lib/config";
 import { GUIDES, guide } from "@/lib/guides";
 
@@ -30,7 +30,7 @@ export default async function Page({ params }: P) {
   const others = GUIDES.filter((o) => o.slug !== g.slug).slice(0, 4);
   return (
     <>
-      <Nav />
+      <Paper>
       <main className="page wrap" style={{ maxWidth: 760 }}>
         <nav className="crumbs mute small" aria-label="Breadcrumb">
           <Link href="/">yeppo</Link> / <Link href="/learn">Learn</Link>
@@ -80,7 +80,7 @@ export default async function Page({ params }: P) {
           ))}
         </div>
       </main>
-      <Footer />
+      </Paper>
       <JsonLd
         data={[
           {

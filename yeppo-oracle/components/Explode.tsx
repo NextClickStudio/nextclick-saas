@@ -30,7 +30,11 @@ export default function Explode() {
       const cols = W >= 1080 ? 6 : W >= 700 ? 4 : 3;
       const rows = Math.ceil(cells.length / cols);
       const side = Math.max(16, W * 0.04), gap = W < 700 ? 4 : 6;
-      const top = W < 700 ? 120 : 132, bottom = 64;
+      // under whatever header the page has (the paper masthead is taller than the old one)
+      const mast = (document.querySelector(".p-mast, .nav") as HTMLElement | null)?.getBoundingClientRect().height ?? 70;
+      const rail = box.querySelector<HTMLElement>(".xe-rail");
+      if (rail) rail.style.top = `${mast + 14}px`;
+      const top = mast + (W < 700 ? 56 : 66), bottom = 48;
       const cw = (W - 2 * side - (cols - 1) * gap) / cols;
       const ch = Math.min(W < 700 ? 66 : 96, (H - top - bottom - (rows - 1) * gap) / rows);
       const gy = top + Math.max(0, (H - top - bottom - (rows * ch + (rows - 1) * gap)) / 2);
@@ -90,7 +94,9 @@ export default function Explode() {
         x = lerp(x, cxw, kc);
         y = lerp(y, cyw, kc);
         s = lerp(s, 0.04, kc);
-        c.style.transform = `translate3d(${x}px, ${y}px, 0) rotateY(${tilt}deg) rotateX(${tx}deg) scale(${s})`;
+        // laid out like index cards on a desk: each one a little off square
+        const rot = (((i * 37) % 7) - 3) * 0.55 * k * (1 - kc);
+        c.style.transform = `translate3d(${x}px, ${y}px, 0) rotateY(${tilt}deg) rotateX(${tx}deg) rotate(${rot}deg) scale(${s})`;
         c.style.clipPath = `inset(0 0 ${lerp(Math.max(0, ch - clipH), 0, k)}px 0)`;
         c.classList.toggle("on", p > 0.42 && by + ch / 2 < scanned + 1);
         c.style.visibility = kc > 0.98 ? "hidden" : "visible";
@@ -122,7 +128,9 @@ export default function Explode() {
     <section className="xe" ref={root} id="how">
       <div className="xe-stage">
         <div className="xe-rail">
-          <span className="x-k">One read, taken apart</span>
+          <span className="p-sec">
+            <i>§3</i> One coin, taken apart
+          </span>
           <ol>
             {["Open a coin", "24 checks, at once", "One word"].map((s, i) => (
               <li key={s} className="xe-step">
@@ -152,7 +160,9 @@ export default function Explode() {
         ))}
         <div className="xe-scan" />
         <div className="xe-word">
-          <b>Safe</b>
+          <div className="st-stamp t-safe xe-stamp">
+            <span>Safe</span>
+          </div>
           <span>22 clean · 2 to watch · nothing hidden</span>
         </div>
       </div>

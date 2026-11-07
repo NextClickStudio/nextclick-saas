@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
-import Nav, { Footer } from "./Nav";
+import { Paper } from "./Nav";
 
 export default function Doc({ title, updated, children }: { title: string; updated: string; children: ReactNode }) {
   return (
     <>
-      <Nav />
+      <Paper>
       <main className="page wrap">
         <div className="page-head">
           <span className="label">Legal</span>
@@ -15,7 +15,7 @@ export default function Doc({ title, updated, children }: { title: string; updat
           {children}
         </article>
       </main>
-      <Footer />
+      </Paper>
     </>
   );
 }

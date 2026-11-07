@@ -5,7 +5,7 @@ import qrcode from "qrcode-generator";
 import { useEffect, useMemo, useState } from "react";
 import { license, pay, savedKey, type License, type Order, type PayPlan } from "@/lib/pay";
 import { readLocal, writeLocal } from "@/lib/supabase";
-import Nav, { Footer } from "./Nav";
+import { Paper } from "./Nav";
 import Reveal from "./Reveal";
 
 const PRO = [
@@ -134,11 +134,11 @@ export default function Pricing() {
 
   return (
     <>
-      <Nav />
+      <Paper>
       <main className="page wrap">
         <Reveal className="page-head">
           <span className="label">Pricing</span>
-          <h1>one key. paid in SOL.</h1>
+          <h1>One key, paid in SOL.</h1>
           <p>No account, no card, no email. Pay from any Solana wallet, get a key, and the extension turns on.</p>
         </Reveal>
 
@@ -252,7 +252,7 @@ export default function Pricing() {
           <a href="mailto:info@yeppo.it">info@yeppo.it</a> with the transaction signature.
         </p>
       </main>
-      <Footer />
+      </Paper>
     </>
   );
 }

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Nav, { Footer } from "@/components/Nav";
+import { Paper } from "@/components/Nav";
 import Reveal from "@/components/Reveal";
 import { DB_HEADERS } from "@/lib/access";
 import { SUPABASE_URL } from "@/lib/config";
@@ -53,7 +53,7 @@ export default async function Page() {
   const total = WORDS.reduce((a, w) => a + sum(w.w)[0], 0);
   return (
     <>
-      <Nav />
+      <Paper>
       <main className="page wrap">
         <Reveal className="page-head">
           <span className="kicker">
@@ -175,7 +175,7 @@ export default async function Page() {
           doubled from there at any point after. Rugs dodged: Don&apos;t buy calls on coins that then lost half from there. Past results don&apos;t promise future ones.
         </p>
       </main>
-      <Footer />
+      </Paper>
     </>
   );
 }
