@@ -33,11 +33,11 @@ async function wins(): Promise<Win[]> {
   }
 }
 
+// the verdicts the panel shows (logged since 7 Nov 2026)
 const WORDS = [
-  { w: "Momentum", t: "up" },
-  { w: "Opportunity", t: "up" },
-  { w: "Wait", t: "mid" },
-  { w: "Don't buy", t: "down" },
+  { w: "Safe", t: "up" },
+  { w: "Risky", t: "mid" },
+  { w: "Danger", t: "down" },
 ];
 const ODDS = ["Odds 0-5%", "Odds 5-10%", "Odds 10-20%", "Odds 20%+"];
 const pc = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "–");
@@ -72,8 +72,8 @@ export default async function Page() {
         ) : (
           <>
             {(() => {
-              const buys = ["Momentum", "Opportunity"].map(sum).reduce((a, r) => [a[0] + r[0], a[1] + r[1]], [0, 0]);
-              const dodged = sum("Don't buy");
+              const buys = sum("Safe");
+              const dodged = sum("Danger");
               const best = won[0];
               return (
                 <div className="rec-hero">
@@ -86,14 +86,14 @@ export default async function Page() {
                     <span className="rec-cap">Rugs dodged</span>
                     <div className="rec-big mono">{dodged[3].toLocaleString("en-US")}</div>
                     <span className="rec-cap">
-                      coins yeppo said Don&apos;t buy that then fell 50% or more ({pc(dodged[3], dodged[0])} of them)
+                      coins yeppo called Danger that then fell 50% or more ({pc(dodged[3], dodged[0])} of them)
                     </span>
                   </Reveal>
                   <Reveal className="card rec-stat t-up" delay={140}>
-                    <span className="rec-cap">Buy calls that went ×2</span>
+                    <span className="rec-cap">Safe coins that went ×2</span>
                     <div className="rec-big mono">{pc(buys[1], buys[0])}</div>
                     <span className="rec-cap">
-                      {buys[1]} of {buys[0]} Momentum and Opportunity calls doubled after the call
+                      {buys[1]} of {buys[0]} coins called Safe doubled after the call
                     </span>
                   </Reveal>
                 </div>
@@ -103,7 +103,7 @@ export default async function Page() {
             {won.length > 0 && (
               <Reveal className="card rec-odds">
                 <h2>Real wins</h2>
-                <p className="mute">Coins yeppo called Momentum or Opportunity this week that then went ×2 or more, from the price at the call.</p>
+                <p className="mute">Coins yeppo called Safe this week that then went ×2 or more, from the price at the call.</p>
                 <div className="rec-wins">
                   {won.map(([mint, sym, word, up, t]) => (
                     <a key={mint + word} href={`/go/${mint}`} target="_blank" rel="noreferrer" className="rec-win">
@@ -132,9 +132,8 @@ export default async function Page() {
                       <span>
                         <b className="mono">{pc(x3, n)}</b> ×3
                       </span>
-                      {/* only a Don't buy is judged on the fall after it (the rug it kept you out of); a buy call is
-                          judged on the ×2 / ×3 from the call: what a coin does after you took profit doesn't count */}
-                      {w === "Don't buy" && (
+                      {/* only a Danger is judged on the fall after it (the rug it kept you out of) */}
+                      {w === "Danger" && (
                         <span>
                           <b className="mono">{pc(down, n)}</b> fell 50% (rugs dodged)
                         </span>

@@ -104,10 +104,10 @@ export function extraChecks(r: Rug): Check[] {
       ok: r.insiders < 0.15,
       label:
         r.insiderWallets === 0
-          ? "No insider group"
+          ? "No linked wallet group"
           : r.insiders < 0.15
-            ? `Insider group holds ${p(r.insiders)}`
-            : `Insider group holds ${p(r.insiders)}. They sell together.`,
+            ? `Linked wallets hold ${p(r.insiders)}`
+            : `Linked wallets hold ${p(r.insiders)}: one group that can sell together.`,
     },
   ];
   if (r.rugged) out.push({ ok: false, label: "Already rugged." });

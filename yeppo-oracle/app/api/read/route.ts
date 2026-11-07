@@ -149,7 +149,7 @@ async function seenBuyers(mint: string, whos: string[]): Promise<Set<string> | n
 /** the call this server showed on a coin, once per coin and word (yr_calls: yeppo's record) */
 const logged = new Set<string>();
 function logCall(mint: string, word: string, ageS: number | null, priceX: number | null, p2: number | null) {
-  if (ageS == null || priceX == null || ageS > 7200 || !["Momentum", "Opportunity", "Wait", "Don't buy"].includes(word)) return;
+  if (ageS == null || priceX == null || ageS > 7200 || !["Momentum", "Opportunity", "Wait", "Don't buy", "Safe", "Risky", "Danger"].includes(word)) return;
   const k = `${mint}:${word}`;
   if (logged.has(k)) return;
   if (logged.size > 20_000) logged.clear();
@@ -506,6 +506,8 @@ export async function GET(req: Request) {
       why: `Nothing wrong found${[insPc, creator ? (creator.total <= 1 ? "creator's first coin" : `creator: ${creator.total} coins, ${creator.rugs} rugged`) : null, `${checks.filter((c) => c.ok).length}/${checks.length} checks safe`].filter(Boolean).length ? `: ${[insPc, creator ? (creator.total <= 1 ? "creator's first coin" : `creator: ${creator.total} coins, ${creator.rugs} rugged`) : null, `${checks.filter((c) => c.ok).length}/${checks.length} checks safe`].filter(Boolean).join(", ")}` : ""}.${!rug ? " Real holders still loading." : ""}`,
     };
   logCall(mint, timing.word, ageS, priceX, odds?.p2 ?? null);
+  // the verdict the viewer sees goes in the Record too, so the Record judges the same word the panel shows
+  if (settled) logCall(mint, decision.word, ageS, priceX, null);
 
   const mcNow = priceMc != null && sol ? priceMc * sol : (out?.mcap ?? null);
   const deep = deepRead(await deepP, {

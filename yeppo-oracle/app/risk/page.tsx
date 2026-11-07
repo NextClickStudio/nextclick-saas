@@ -12,8 +12,8 @@ export default function Page() {
       </p>
       <h2>What yeppo&apos;s numbers mean</h2>
       <p>
-        &quot;Momentum&quot;, &quot;Wait&quot; and &quot;Don&apos;t buy&quot; sum up facts yeppo can see: safety checks, the creator&apos;s past
-        coins and the last few minutes of trading. They describe what happened, not what will happen. A coin with Momentum can crash a second later, and a
+        &quot;Safe&quot;, &quot;Risky&quot; and &quot;Danger&quot; sum up facts yeppo can see: safety checks, who holds the coin, the
+        creator&apos;s past coins and the money behind them. They describe what happened, not what will happen. A Safe coin can crash a second later, and a
         creator with a clean record can rug this time.
       </p>
       <h2>What yeppo cannot see</h2>
