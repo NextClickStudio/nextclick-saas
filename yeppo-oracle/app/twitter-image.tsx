@@ -24,7 +24,7 @@ export default function Image() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 18, fontSize: 40, fontWeight: 700 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg,#5b6cff,#ff5fd2,#45d6ff)" }} />
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: "#f2f1ec" }} />
           yeppo
         </div>
         <div style={{ display: "flex", flexDirection: "column", fontSize: 76, fontWeight: 800, lineHeight: 1.05, letterSpacing: -2 }}>

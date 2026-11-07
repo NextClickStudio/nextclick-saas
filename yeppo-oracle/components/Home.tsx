@@ -1,60 +1,16 @@
 import Link from "next/link";
 import JsonLd from "./JsonLd";
 import { SITE_URL } from "@/lib/config";
-import Demo from "./Demo";
+import CameraStory from "./CameraStory";
 import Nav, { Footer } from "./Nav";
 import Reveal from "./Reveal";
-import Search from "./Search";
 
-const SITES = ["pump.fun", "GMGN", "Axiom", "Photon", "BullX", "DexScreener", "Birdeye", "Jupiter"];
 
 export default function Home() {
   return (
     <>
       <Nav />
-      <main className="wrap">
-        <section className="hero">
-          <div>
-            <Reveal>
-              <span className="kicker">
-                <i className="live" /> Every pump.fun launch, live
-              </span>
-            </Reveal>
-            <Reveal delay={80}>
-              <h1>
-                know who made it.
-                <br />
-                <span className="grad">catch the move.</span>
-              </h1>
-            </Reveal>
-            <Reveal delay={160}>
-              <p className="lead">Safety, creator, top traders and the exit. On any coin, in one second.</p>
-            </Reveal>
-            <Reveal delay={240} className="hero-cta">
-              <Link href="/extension" className="btn btn-go btn-lg">
-                Add to Chrome
-              </Link>
-              <a href="#how" className="btn btn-lg btn-ghost">
-                How it works
-              </a>
-            </Reveal>
-            <Reveal delay={320} className="hero-try">
-              <Search label="Read it" />
-            </Reveal>
-          </div>
-          <Reveal delay={200}>
-            <Demo />
-          </Reveal>
-        </section>
-      </main>
-
-      <div className="marq" aria-label="Works on">
-        <div className="marq-row">
-          {[...SITES, ...SITES].map((s, i) => (
-            <span key={i}>{s}</span>
-          ))}
-        </div>
-      </div>
+      <CameraStory />
 
       <main className="wrap">
         <section className="sec" id="how">

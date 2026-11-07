@@ -667,7 +667,7 @@ function Holders({
     { k: "Creator", v: devS, c: "var(--dev)" },
     { k: "Bundle", v: bund, c: "var(--down)" },
     { k: "Snipers", v: snip, c: "var(--mid)" },
-    { k: "Big wallets", v: bigW, c: "#5b6cff" },
+    { k: "Big wallets", v: bigW, c: "#a9b4c2" },
     { k: "Everyone else", v: rest, c: "var(--up)" },
   ];
   const ins = devS + bund + snip + bigW;

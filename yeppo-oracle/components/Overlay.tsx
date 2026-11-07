@@ -74,7 +74,7 @@ export default function Overlay({ me, ghosts, sellS, sellX }: { me: [number, num
         </span>
         {lines.length > 0 && (
           <span>
-            <i style={{ background: "#ff5fd2", opacity: 0.6 }} />
+            <i style={{ background: "#d9a3a0", opacity: 0.6 }} />
             creator&apos;s last {lines.length}
           </span>
         )}
