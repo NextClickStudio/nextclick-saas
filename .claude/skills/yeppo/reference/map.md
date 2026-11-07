@@ -5,7 +5,7 @@
 |---|---|
 | Live code | `~/Projects/nextclick-saas` (local branch `yeppo-royale`; remote `NextClickStudio/nextclick-saas`, branch `claude/yeppo-royale`) |
 | Site + extension | `yeppo-oracle/` (Next.js 15.5, React 19, TS); extension in `yeppo-oracle/extension`, zip `public/yeppo-extension.zip` (v3.3.1) |
-| Migrations | `yeppo-royale/supabase/migrations/001…093` (all applied; **next is 094**) |
+| Migrations | `yeppo-royale/supabase/migrations/001…096` (all applied; **next is 097**) |
 | Edge functions | `yeppo-royale/supabase/functions/*` (MCP `deploy_edge_function`) |
 | Supabase | project ref **`qyobtgubvopzfmomzeuj`**, eu-west-1, Free |
 | Vercel | team `team_Wssh2o4gaRAM3ZGRUB2236zt`, project `yeppo` (`prj_JnXtmG6fciPUMYIl0jMyO2V97Um1`), Hobby, domain yeppo.it |
@@ -51,7 +51,7 @@ Browser ─► /api/read (Vercel dub1) ─► guarded RPCs + RugCheck + DexScree
 ## Deploy (each one needs the user's OK first)
 - Site: `cd ~/Projects/nextclick-saas/yeppo-oracle && npx tsc --noEmit -p . && npx next build && npx vercel --prod --yes`,
   then `curl -s https://yeppo.it/api/health`.
-- Migration: write `yeppo-royale/supabase/migrations/094_name.sql`, MCP `apply_migration` (name `094_name`), check with
+- Migration: write `yeppo-royale/supabase/migrations/097_name.sql`, MCP `apply_migration` (name `097_name`), check with
   a SELECT. PL/pgSQL: a variable named like a table alias (e.g. `k`) → "column reference is ambiguous".
 - Edge function: MCP `deploy_edge_function` with the full `index.ts`, `verify_jwt: false` for cron ones (`x-ingest-key`).
 - Extension: bump `extension/manifest.json` + text in `components/ExtensionPage.tsx`, rebuild the zip

@@ -26,3 +26,8 @@
   Google News headlines via /api/news), new look (warm monochrome tokens, Hanken Grotesk + JetBrains Mono, radar logo,
   CameraStory home, no fades: .rv moves in). Edge yr-fresh v1 deployed. **Migration 094 NOT applied yet** (the
   Supabase approval prompt timed out): until then Deep checks and the radar log are silently off.
+- 7 Nov ~01:00: 094 applied (with the user's OK), then 095 (variable `handle` clashed with yr_xlink.handle) and 096
+  (same-amount buys skip quick-buy presets 0.1/0.2/0.5/1 SOL minus fees; same-share needs 0.1%+ bags; deep.ts hides
+  groups under 1% of supply). Checked on live coins: SUIT 3 wallets x 0.782 SOL = 3.6%. Deployed c8ff2af.
+  yr_wfresh still empty until someone opens a coin with a Pro key: check yr_wfresh and edge logs of yr-fresh then.
+  Next migration: 097.
