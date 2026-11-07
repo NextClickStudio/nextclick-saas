@@ -71,9 +71,10 @@ function CoinRow({ c, sol, now, compact }: { c: RadarCoin; sol: number; now: num
   const call = c.signal && c.verdict?.word === "Safe" && c.pass === true;
   const since = c.mc_in && c.mc_in > 0 ? c.mc / c.mc_in - 1 : null;
   const tone = c.verdict?.word === "Safe" ? "up" : c.verdict?.word === "Danger" ? "down" : c.verdict?.word === "Risky" ? "mid" : "";
-  const href = compact ? `https://yeppo.it/go/${c.mint}` : `/c/${c.mint}`;
+  // every coin opens on Axiom, from the site and from the panel
+  const href = `https://yeppo.it/go/${c.mint}`;
   return (
-    <a className={`rd-coin ${call ? "call" : ""} ${c.out > 0 ? "exit" : ""}`} href={href} target={compact ? "_blank" : undefined} rel="noreferrer">
+    <a className={`rd-coin ${call ? "call" : ""} ${c.out > 0 ? "exit" : ""}`} href={href} target="_blank" rel="noreferrer">
       <div className="rd-top">
         <b>{c.sym ? `$${c.sym.replace(/^\$/, "")}` : short(c.mint)}</b>
         {c.t0 ? <span className="rd-dim">{ago(now - c.t0)}</span> : null}

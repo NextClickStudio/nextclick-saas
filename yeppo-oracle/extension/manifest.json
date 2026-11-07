@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "yeppo",
-  "version": "3.4.1",
+  "version": "3.5.0",
   "description": "yeppo reads the Solana memecoin you are looking at: launch bundle, real holders, the creator and who funded them, same-amount buys, your wallet radar. One word: Safe, Risky or Danger. Needs a yeppo Pro key.",
   "icons": {
     "16": "icons/16.png",
@@ -13,7 +13,9 @@
     "default_title": "yeppo",
     "default_icon": {
       "16": "icons/16.png",
-      "32": "icons/32.png"
+      "32": "icons/32.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
     }
   },
   "side_panel": {
@@ -25,7 +27,8 @@
   "permissions": [
     "sidePanel",
     "storage",
-    "cookies"
+    "cookies",
+    "scripting"
   ],
   "content_scripts": [
     {
@@ -70,6 +73,19 @@
     }
   ],
   "host_permissions": [
+    "https://pump.fun/*",
+    "https://*.pump.fun/*",
+    "https://gmgn.ai/*",
+    "https://*.gmgn.ai/*",
+    "https://axiom.trade/*",
+    "https://*.axiom.trade/*",
+    "https://photon-sol.tinyastro.io/*",
+    "https://bullx.io/*",
+    "https://*.bullx.io/*",
+    "https://dexscreener.com/*",
+    "https://birdeye.so/*",
+    "https://solscan.io/*",
+    "https://jup.ag/*",
     "https://j7tracker.io/*",
     "https://*.j7tracker.io/*"
   ]

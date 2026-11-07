@@ -46,3 +46,10 @@
   - CameraStory.tsx and Chrome3D.tsx deleted (three stays in package.json, unused).
   - CHECKS lives in lib/checks.ts: a server component importing an array from a "use client" file gets a client reference, not the array.
 - yr_wins_s was failing on every call (GROUP BY error), so /record "wins" were empty: fix in migration 097_wins_fix.sql, applied 7 Nov (returns 6 calls). Next migration: 098. Deployed 4adc92d to yeppo.it, health ok, zip 3.4.1 live.
+
+## 7 Nov (night) — extension 3.5.0 (Axiom), hero = full-screen scope
+- User: GMGN works, Axiom doesn't load the read. Cause: Axiom's address (/meme/, /token/, /t/) can hold the pool, not the coin; 3.4.1 read /token/<x> as the coin.
+- 3.5.0: every Axiom address goes through background resolveAddr: DexScreener (coin? pool?) → "ends in pump" → the chain (public RPC: getAccountInfo mint? else the last transactions' token balances). The panel also reads the coin from the tab URL itself (host_permissions on the trading sites), so it works without the content script; background injects content.js into open tabs on install/update ("scripting"); content.js copies take over from older ones; panel header shows the version.
+- Tested in real Chromium (channel "chromium", PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS=1 to mock DexScreener/RPC): coin URL, known pool, chain-only pool, SPA navigation, re-injection.
+- Every coin click opens Axiom (/go/<mint>, unchanged: axiom.trade/meme/<pool>): radar rows, creator's past coins, home tape, Record wins.
+- Hero: Scope full mode fills the hero; it sets --sweep/--mx/--my on the section and the headline's filled copy is masked by a conic gradient = the beam lights the outlined headline as it passes. Verdict word lands by the group (right of the headline).

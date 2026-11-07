@@ -47,40 +47,43 @@ export default async function Home() {
   return (
     <>
       <Nav />
-      <section className="xh">
-        <div className="xh-plate">
-          <div className="xh-bar">
-            <span className="x-k">Rug checker · pump.fun · Solana</span>
-            <span className="xh-bar-r">
-              <Clock />
-              <span className="x-live">
-                <i /> reading every launch
-              </span>
+      <section className="xz">
+        <Scope full />
+        <div className="xz-bar">
+          <span className="x-k">Rug checker · pump.fun · Solana</span>
+          <span className="xh-bar-r">
+            <Clock />
+            <span className="x-live">
+              <i /> reading every launch
             </span>
-          </div>
-          <div className="xh-main">
-            <div className="xh-copy">
-              <h1>
-                Read the chain,
-                <br />
-                <span>not the chart.</span>
-              </h1>
-              <p className="xh-sub">
-                Open a coin on Axiom, GMGN or pump.fun. In about a second yeppo reads the launch bundle, the real holders, the creator and the money behind them, and gives you one word:{" "}
-                <b className="t-up">Safe</b>, <b className="t-mid">Risky</b> or <b className="t-down">Danger</b>.
-              </p>
-              <div className="xh-act">
-                <Link href="/extension" className="btn btn-go btn-lg">
-                  Add to Chrome
-                </Link>
-                <div className="xh-try">
-                  <Search label="Read it" />
-                </div>
-              </div>
+          </span>
+        </div>
+        <h1 className="xz-h">
+          <span className="xz-dim">
+            Read the chain,
+            <br />
+            not the chart.
+          </span>
+          <span className="xz-lit" aria-hidden>
+            Read the chain,
+            <br />
+            not the chart.
+          </span>
+        </h1>
+        <div className="xz-deck">
+          <p className="xz-sub">
+            Open a coin on Axiom, GMGN or pump.fun. In about a second yeppo reads the launch bundle, the real holders, the creator and the money behind them:{" "}
+            <b className="t-up">Safe</b>, <b className="t-mid">Risky</b> or <b className="t-down">Danger</b>.
+          </p>
+          <div className="xz-act">
+            <Link href="/extension" className="btn btn-go btn-lg">
+              Add to Chrome
+            </Link>
+            <div className="xh-try">
+              <Search label="Read it" />
             </div>
-            <Scope />
           </div>
-          <div className="xh-nums">
+          <div className="xz-nums">
             {WEEK.map(([n, l]) => (
               <div key={l}>
                 <Odo n={n} />
@@ -88,13 +91,13 @@ export default async function Home() {
               </div>
             ))}
             <div>
-              <span className="xh-big">
-                <Odo n={CHECKS.length} />
-              </span>
+              <Odo n={CHECKS.length} />
               <span>checks on every coin</span>
             </div>
           </div>
         </div>
+      </section>
+      <section className="xt">
         {won.length > 0 && (
           <div className="x-tape" aria-label="Real calls from the last 7 days">
             <span className="x-tape-k">Real calls · 7 days</span>
@@ -102,11 +105,11 @@ export default async function Home() {
               {[0, 1].map((dup) => (
                 <div key={dup} className="x-tape-set" aria-hidden={dup === 1}>
                   {won.map(([mint, sym, word, up]) => (
-                    <Link key={mint + dup} href={`/c/${mint}`} tabIndex={dup ? -1 : undefined}>
+                    <a key={mint + dup} href={`/go/${mint}`} target="_blank" rel="noreferrer" tabIndex={dup ? -1 : undefined}>
                       <b>{sym ? `$${sym.replace(/^\$/, "")}` : "coin"}</b>
                       <span>{word}</span>
                       <em>×{up.toFixed(1)}</em>
-                    </Link>
+                    </a>
                   ))}
                 </div>
               ))}

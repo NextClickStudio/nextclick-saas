@@ -1,7 +1,11 @@
 // yeppo: finds the coin on the trading page and tells the side panel (the toolbar button opens it).
 (() => {
-  if (window.top !== window || window.__yeppo) return;
-  window.__yeppo = true;
+  if (window.top !== window) return;
+  // a newer copy of this script (after the extension is updated, or injected again into a tab that was already open)
+  // takes over; the older copy stops on its next tick
+  const me = Math.random().toString(36).slice(2);
+  window.__yeppo = me;
+  const alive = () => window.__yeppo === me && !!chrome.runtime?.id;
 
   const ADDR = /[1-9A-HJ-NP-Za-km-z]{32,44}/g;
   const NOT_COINS = new Set([
@@ -50,8 +54,6 @@
     const first = (s) => (s || "").match(ADDR)?.find(is32) ?? null;
     if (h.endsWith("pump.fun")) return first(path.match(/^\/(?:coin\/)?([^/?#]+)/)?.[1]);
     if (h === "gmgn.ai") return first(path.match(/\/token\/(?:[^/_]+_)?([^/?#]+)/)?.[1]);
-    // Axiom's newer coin pages carry the coin itself: axiom.trade/token/<mint>?chain=sol
-    if (h.endsWith("axiom.trade") && /^\/token\//.test(path)) return first(path.match(/^\/token\/([^/?#]+)/)?.[1]);
     if (h.endsWith("bullx.io")) return first(q.get("address"));
     if (h === "birdeye.so" || h === "solscan.io") return first(path.match(/\/token\/([^/?#]+)/)?.[1]);
     if (h === "jup.ag") return (path.match(ADDR) || []).filter(is32).find((a) => a !== "So11111111111111111111111111111111111111112") ?? null;
@@ -59,7 +61,8 @@
   }
 
   /** Axiom, Photon and DexScreener put the pool in the URL: read the coin from the page's own links */
-  const POOL_PAGE = () => /^\/(?:meme|lp|en\/lp|solana)\/[1-9A-HJ-NP-Za-km-z]{32,44}/.test(location.pathname);
+  // (Axiom's /token/ and /t/ pages too: the address there can be the coin or its pool, so it is checked the same way)
+const POOL_PAGE = () => /^\/(?:meme|token|t|lp|en\/lp|solana)\/[1-9A-HJ-NP-Za-km-z]{32,44}/.test(location.pathname);
 
   function fromPage() {
     const pool = (location.pathname.match(ADDR) || [])[0];
@@ -115,8 +118,10 @@
   // the coin in this tab, for the side panel (the toolbar button opens it). No badge on the page and no reads from here:
   // the panel reads the coin itself, only while it is open.
   let mint = null;
+  let told = "";
   function setCoin(next) {
-    if (next === mint) return;
+    if (next === mint && told === location.href) return;
+    told = location.href;
     mint = next;
     try {
       chrome.runtime.sendMessage({ t: "coin", mint });
@@ -128,7 +133,8 @@
   // single-page apps change the URL without reloading: look again on every change, a few times while it loads
   let href = "";
   let tries = 0;
-  setInterval(() => {
+  const timer = setInterval(() => {
+    if (!alive()) return clearInterval(timer);
     if (location.href !== href) {
       href = location.href;
       tries = 0;

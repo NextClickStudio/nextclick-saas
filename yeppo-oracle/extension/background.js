@@ -1,31 +1,59 @@
 // yeppo: remembers which coin each tab shows for the side panel (the toolbar button opens it), and puts the open
 // panel's call colour on the toolbar button. It reads nothing itself: only the open panel asks yeppo.it.
 const SITE = "https://yeppo.it";
-const TONE = { up: "#1fd47c", mid: "#ffb23e", down: "#ff5b3d", learn: "#9a85ff" };
+const TONE = { up: "#9be3b4", mid: "#e7b56a", down: "#f08a7e", learn: "#a9b4c2" };
 const MARK = { up: "GO", mid: "WAIT", down: "NO", learn: "" };
-chrome.runtime.onInstalled.addListener(() => chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {}));
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+  void injectOpenTabs();
+});
+// tabs opened before the extension was installed or updated have no content script until they reload: give them one
+async function injectOpenTabs() {
+  const matches = chrome.runtime.getManifest().content_scripts?.[0]?.matches ?? [];
+  for (const tab of await chrome.tabs.query({ url: matches }).catch(() => []))
+    if (tab.id != null) chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] }).catch(() => {});
+}
 chrome.runtime.onStartup.addListener(() => chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {}));
 
 const coinOf = new Map(); // pool or coin address -> coin
+const QUOTE = ["So11111111111111111111111111111111111111112", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"];
+const RPC = "https://api.mainnet-beta.solana.com"; // Solana's free public endpoint
+async function rpc(method, params) {
+  const r = await fetch(RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }), signal: AbortSignal.timeout(6000) });
+  return (await r.json())?.result ?? null;
+}
+/** the chain itself: is the address a coin, or which coin do its latest transactions trade? (for pools DexScreener
+ *  doesn't list yet, like a pump.fun coin minutes old) */
+async function coinFromChain(addr) {
+  const acc = await rpc("getAccountInfo", [addr, { encoding: "jsonParsed" }]);
+  if (acc?.value?.data?.parsed?.type === "mint") return addr;
+  const sigs = (await rpc("getSignaturesForAddress", [addr, { limit: 3 }])) ?? [];
+  for (const s of sigs) {
+    const tx = await rpc("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0 }]);
+    const seen = new Map();
+    for (const b of tx?.meta?.postTokenBalances ?? []) if (b?.mint && !QUOTE.includes(b.mint)) seen.set(b.mint, (seen.get(b.mint) ?? 0) + 1);
+    const best = [...seen].sort((x, y) => y[1] - x[1])[0]?.[0];
+    if (best) return best;
+  }
+  return null;
+}
+async function fromDex(addr) {
+  // the coin itself?
+  const t = await (await fetch(`https://api.dexscreener.com/tokens/v1/solana/${addr}`, { signal: AbortSignal.timeout(5000) })).json();
+  if (Array.isArray(t) && t.some((p) => p?.baseToken?.address === addr)) return addr;
+  // a pool: its coin is the side that isn't SOL or a stablecoin
+  const j = await (await fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${addr}`, { signal: AbortSignal.timeout(5000) })).json();
+  const p = j?.pairs?.[0] ?? j?.pair;
+  if (p?.baseToken?.address) return QUOTE.includes(p.baseToken.address) ? (p.quoteToken?.address ?? null) : p.baseToken.address;
+  return null;
+}
 async function resolveAddr(addr) {
   if (coinOf.has(addr)) return coinOf.get(addr);
-  let mint = null;
-  try {
-    // the coin itself?
-    const t = await (await fetch(`https://api.dexscreener.com/tokens/v1/solana/${addr}`, { signal: AbortSignal.timeout(5000) })).json();
-    if (Array.isArray(t) && t.some((p) => p?.baseToken?.address === addr)) mint = addr;
-    else {
-      // a pool: its coin is the side that isn't SOL or a stablecoin
-      const j = await (await fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${addr}`, { signal: AbortSignal.timeout(5000) })).json();
-      const p = j?.pairs?.[0] ?? j?.pair;
-      const QUOTE = ["So11111111111111111111111111111111111111112", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"];
-      if (p?.baseToken?.address) mint = QUOTE.includes(p.baseToken.address) ? (p.quoteToken?.address ?? null) : p.baseToken.address;
-    }
-  } catch {
-    return null; // not kept: tried again on the next look
-  }
+  let mint = await fromDex(addr).catch(() => null);
   // a brand-new pump.fun coin DexScreener doesn't list yet: its address ends in "pump"
   if (!mint && /pump$/.test(addr)) mint = addr;
+  if (!mint) mint = await coinFromChain(addr).catch(() => null);
+  if (!mint) return null; // not kept: tried again on the next look
   if (coinOf.size > 500) coinOf.clear();
   coinOf.set(addr, mint);
   return mint;
@@ -34,7 +62,7 @@ async function resolveAddr(addr) {
 function badge(tabId, data) {
   const d = data?.decision;
   chrome.action.setBadgeText({ tabId, text: d ? (d.word === "Locked" ? "KEY" : MARK[d.tone] ?? "") : "" }).catch(() => {});
-  if (d) chrome.action.setBadgeBackgroundColor({ tabId, color: TONE[d.tone] ?? "#9a85ff" }).catch(() => {});
+  if (d) chrome.action.setBadgeBackgroundColor({ tabId, color: TONE[d.tone] ?? TONE.learn }).catch(() => {});
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {

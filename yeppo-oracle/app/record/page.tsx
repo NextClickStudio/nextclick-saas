@@ -106,7 +106,7 @@ export default async function Page() {
                 <p className="mute">Coins yeppo called Momentum or Opportunity this week that then went ×2 or more, from the price at the call.</p>
                 <div className="rec-wins">
                   {won.map(([mint, sym, word, up, t]) => (
-                    <a key={mint + word} href={`/c/${mint}`} className="rec-win">
+                    <a key={mint + word} href={`/go/${mint}`} target="_blank" rel="noreferrer" className="rec-win">
                       <b>${(sym ?? "?").replace(/^\$/, "")}</b>
                       <span className="dim">{word}</span>
                       <b className="mono up">×{up >= 10 ? Math.round(up) : up.toFixed(1)}</b>

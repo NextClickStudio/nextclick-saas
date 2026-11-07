@@ -19,7 +19,7 @@ const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 type Blip = { r: number; a: number; x: number; y: number; hx: number; hy: number; lit: number; id: string; sol: number; g: number };
 
-export default function Scope() {
+export default function Scope({ full = false }: { full?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const cv = ref.current;
@@ -38,12 +38,14 @@ export default function Scope() {
     let seed = 7;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     const addr = () => Array.from({ length: 4 }, () => B58[Math.floor(rnd() * 58)]).join("") + "…" + Array.from({ length: 3 }, () => B58[Math.floor(rnd() * 58)]).join("");
-    const blips: Blip[] = Array.from({ length: 96 }, () => {
+    const blips: Blip[] = Array.from({ length: full ? 170 : 96 }, () => {
       const r = 0.12 + Math.sqrt(rnd()) * 0.84;
       const a = rnd() * Math.PI * 2;
       return { r, a, x: 0, y: 0, hx: Math.cos(a) * r, hy: Math.sin(a) * r, lit: -9, id: addr(), sol: Math.round((0.05 + rnd() * rnd() * 4) * 1000) / 1000, g: -1 };
     });
     let W = 0, H = 0, R = 0, cx = 0, cy = 0, dpr = 1;
+    // in full mode the section around the canvas gets the beam's angle, so the page can light text with it
+    const host = full ? (cv.closest("section") as HTMLElement | null) : null;
     const fit = () => {
       const b = cv.getBoundingClientRect();
       dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -51,9 +53,24 @@ export default function Scope() {
       H = b.height;
       cv.width = Math.round(W * dpr);
       cv.height = Math.round(H * dpr);
-      R = Math.min(W, H) / 2 - 26;
-      cx = W / 2;
-      cy = H / 2;
+      if (full) {
+        // the whole hero is the scope: the centre off to the right, the rings running off the screen
+        const wide = W > 900;
+        cx = W * (wide ? 0.7 : 0.5);
+        cy = H * (wide ? 0.48 : 0.34);
+        R = Math.max(W, H) * (wide ? 0.5 : 0.6);
+        // the beam's centre as seen from the headline's own box, for the mask that lights it
+        const h1 = host?.querySelector<HTMLElement>(".xz-h");
+        if (host && h1) {
+          const hb = h1.getBoundingClientRect();
+          host.style.setProperty("--mx", `${b.left + cx - hb.left}px`);
+          host.style.setProperty("--my", `${b.top + cy - hb.top}px`);
+        }
+      } else {
+        R = Math.min(W, H) / 2 - 26;
+        cx = W / 2;
+        cy = H / 2;
+      }
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -65,8 +82,9 @@ export default function Scope() {
       my = e.clientY - b.top;
     };
     const leave = () => ((mx = -1e4), (my = -1e4));
-    cv.addEventListener("pointermove", move);
-    cv.addEventListener("pointerleave", leave);
+    const target: HTMLElement = host ?? cv;
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerleave", leave);
 
     // one read: pick the group around a bearing, pull it together, wire it, stamp the word
     const CYCLE = 6.4;
@@ -75,7 +93,10 @@ export default function Scope() {
       coinI = (coinI + 1) % COINS.length;
       coin = COINS[coinI];
       startT = t;
-      const a = rnd() * Math.PI * 2, r = 0.45 + rnd() * 0.3;
+      // in full mode the group lands where the screen has room for it (right of the headline on wide screens)
+      const rmax = full ? Math.min(0.42, (0.4 * Math.min(W, H)) / Math.max(1, R)) : 0.75;
+      const a = full && W > 900 ? (rnd() - 0.5) * 2.4 : rnd() * Math.PI * 2;
+      const r = full ? rmax * (0.45 + rnd() * 0.55) : 0.45 + rnd() * 0.3;
       gx = Math.cos(a) * r;
       gy = Math.sin(a) * r;
       blips.forEach((b) => (b.g = -1));
@@ -136,6 +157,7 @@ export default function Scope() {
         ctx.closePath();
         ctx.fill();
       }
+      host?.style.setProperty("--sweep", `${(sweep * 180) / Math.PI + 90}deg`);
       ctx.strokeStyle = "rgba(242,241,236,0.75)";
       ctx.beginPath();
       ctx.moveTo(cx, cy);
@@ -150,7 +172,7 @@ export default function Scope() {
         let tx = b.hx, ty = b.hy;
         if (b.g >= 0) {
           const ga = (b.g / Math.max(1, coin.k)) * Math.PI * 2 + t * 0.4;
-          const gr = 0.045 + 0.012 * coin.k;
+          const gr = full ? (30 + 5 * coin.k) / R : 0.045 + 0.012 * coin.k;
           tx = b.hx + (gx + Math.cos(ga) * gr - b.hx) * e;
           ty = b.hy + (gy + Math.sin(ga) * gr - b.hy) * e;
         }
@@ -243,9 +265,15 @@ export default function Scope() {
         const L = word.length, fixed = Math.floor(k * L);
         const glyphs = "#%&*+=?@ABCDEFGHJKLMNPRSTUVXYZ";
         const out = word.split("").map((ch, i) => (i < fixed ? ch : glyphs[Math.floor(((t * 30 + i * 7) % glyphs.length))])).join("");
-        ctx.font = `700 ${Math.round(R * 0.2)}px ${css.getPropertyValue("--sans") || "system-ui"}`;
+        ctx.font = `700 ${Math.round(full ? Math.min(120, Math.max(54, W * 0.07)) : R * 0.2)}px ${css.getPropertyValue("--sans") || "system-ui"}`;
         ctx.fillStyle = col;
-        ctx.fillText(out, cx, cy - R * 0.12);
+        if (full && W > 900) {
+          // on the big hero the word lands by the group it was read from, clear of the headline on the left
+          const wW = ctx.measureText(word).width;
+          const vx = Math.min(W - 24 - wW / 2, Math.max(W * 0.68 + wW / 2, cx + gx * R));
+          const vy = Math.max(170, Math.min(H - 220, cy + gy * R - 80));
+          ctx.fillText(out, vx, vy);
+        } else ctx.fillText(out, cx, cy - (full ? 70 : R * 0.12));
       } else word = "";
 
       // the reticle
@@ -308,12 +336,12 @@ export default function Scope() {
       io.disconnect();
       ro.disconnect();
       document.removeEventListener("visibilitychange", vis);
-      cv.removeEventListener("pointermove", move);
-      cv.removeEventListener("pointerleave", leave);
+      target.removeEventListener("pointermove", move);
+      target.removeEventListener("pointerleave", leave);
     };
   }, []);
   return (
-    <div className="x-scope">
+    <div className={`x-scope ${full ? "full" : ""}`}>
       <canvas ref={ref} aria-label="yeppo's radar reading an example coin: the wallets that bought together are grouped and the coin gets one word" role="img" />
       <span className="x-scope-tag">example read</span>
     </div>

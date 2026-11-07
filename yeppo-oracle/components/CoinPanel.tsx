@@ -243,7 +243,7 @@ export default function CoinPanel({
           {c && c.coins.length > 0 && (
             <div className="cp-coins">
               {c.coins.map((k) => (
-                <a key={k.mint} className="cp-coin" href={`/c/${k.mint}`} target={compact ? "_blank" : undefined} rel="noreferrer">
+                <a key={k.mint} className="cp-coin" href={`https://yeppo.it/go/${k.mint}`} target="_blank" rel="noreferrer">
                   <span>
                     {k.sym ? `$${k.sym}` : short(k.mint)} <span className="when">{ago(now - k.t0)}</span>
                   </span>
