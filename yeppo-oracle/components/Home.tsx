@@ -5,14 +5,13 @@ import { SITE_URL, SUPABASE_URL } from "@/lib/config";
 import { CHECKS } from "@/lib/checks";
 import { Paper } from "./Nav";
 import Search from "./Search";
-import CaseFile from "./CaseFile";
-import Explode from "./Explode";
-import Stamps from "./Stamps";
-import { Odo, PostLoop, RadarLoop } from "./Bits2";
+import { Odo } from "./Bits2";
+import Films from "./bw/Films";
+import { Kinetic, Reveal } from "./bw/Motion";
 
-// The home as a printed report (7 Nov 2026): every coin gets a case file. A masthead, the file on the desk, the week's
-// figures and the real calls set as a ledger, one read taken apart, the three stamps and their rules, the radar and the
-// X feed as working examples, then the back matter (price, guides, questions).
+// The home (8 Nov 2026), black and white: one headline, then the films that show how yeppo works (read a coin, the
+// wallet radar, Hot on X, the install), then what it reads, the three verdicts, the week in numbers and the real calls,
+// the price and the questions. Motion is choreographed in the films; the page itself only rises and draws rules.
 
 /** [mint, ticker, call, × after the call, called at] (yr_wins_s, kept 10 min) */
 type Win = [string, string | null, string, number, number];
@@ -27,99 +26,123 @@ async function wins(): Promise<Win[]> {
   }
 }
 
-// the week of 28 Oct to 4 Nov 2026, from yeppo's own tables (also in the Discord launch post)
-const WEEK: [number, string, string][] = [
-  [164673, "coins read", "every pump.fun launch, from its first block"],
-  [12050, "bundled launches flagged", "a group of wallets buying in the launch block"],
-  [991, "rugs spotted", "creators who dumped in seconds"],
+// the week of 28 Oct to 4 Nov 2026, from yeppo's own tables
+const WEEK: [number, string][] = [
+  [164673, "coins read in a week"],
+  [12050, "bundled launches flagged"],
+  [991, "rugs spotted"],
+  [CHECKS.length, "checks on every coin"],
 ];
-
-const ROWS: [string, string][] = [
+const VERDICTS: { w: string; c: string; head: string; lines: string[] }[] = [
+  { w: "Safe", c: "safe", head: "Nothing wrong found.", lines: ["Every safety check passes", "Insiders under 20%, on real balances", "No big wallet selling", "Creator and their money are clean"] },
+  { w: "Risky", c: "risky", head: "Something to watch in who holds it.", lines: ["Insiders between 20% and 35%", "One wallet holds a large share", "A big holder is selling now", "Everything else passes"] },
+  { w: "Danger", c: "danger", head: "A red flag.", lines: ["A failed safety check", "A creator who dumps their coins", "A hidden or large launch bundle", "Already dumped from its high"] },
+];
+const GUIDES: [string, string][] = [
   ["Check a pump.fun coin for a rug", "/learn/pump-fun-rug-checker"],
   ["Spot a bundled launch", "/learn/memecoin-bundle-checker"],
   ["Read a creator before you buy", "/learn/dev-wallet-checker"],
   ["Wallets that move together", "/learn/bubble-map-memecoin"],
   ["When momentum lies", "/learn/when-to-buy-memecoin"],
-  ["GMGN, Axiom and pump.fun", "/learn/gmgn-axiom-pump-fun-extension"],
 ];
-
 const utc = (t: number) => new Date(t).toISOString().slice(5, 16).replace("T", " ").replace("-", "/");
 
 export default async function Home() {
   const won = await wins();
   return (
-    <Paper className="home">
-      <section className="h-hero">
-        <div className="h-copy">
-          <p className="p-kick">Rug checks for pump.fun, GMGN and Axiom</p>
-          <h1 className="h-h1">
-            Every coin
-            <br />
-            gets a file.
-          </h1>
-          <p className="h-sub">
-            Open a coin and yeppo reads it from the chain in about a second: the launch bundle, the real holders, the creator and the money behind them.
-            Then it stamps it <b className="t-safe">Safe</b>, <b className="t-risky">Risky</b> or <b className="t-danger">Danger</b>.
-          </p>
-          <div className="h-act">
-            <Link href="/extension" className="p-btn p-btn-lg">
+    <Paper className="bw home">
+      <section className="b-hero">
+        <Kinetic lines={["Know the coin", "before you buy it."]} className="b-h1" />
+        <div className="b-hero-r">
+          <Reveal delay={0.5}>
+            <p className="b-lead">
+              A Chrome extension for pump.fun, GMGN and Axiom. Open a coin: yeppo reads it from the chain in about a second — the launch bundle, who really
+              holds it, the creator and the money behind them — and gives you one word.
+            </p>
+          </Reveal>
+          <Reveal delay={0.65} className="b-act">
+            <Link href="/extension" className="b-btn">
               Add to Chrome
             </Link>
-            <div className="h-try">
-              <Search label="Open the file" />
+            <div className="b-try">
+              <Search label="Read" />
             </div>
-          </div>
-          <p className="h-note">Works beside the chart on Axiom, GMGN and pump.fun. It never touches your wallet.</p>
+          </Reveal>
         </div>
-        <CaseFile />
       </section>
 
-      <section className="h-ledger">
-        <div className="h-figs">
-          <p className="p-sec">
-            <i>§1</i> The week on file
-          </p>
-          {WEEK.map(([n, l, note]) => (
-            <div key={l} className="h-fig">
-              <Odo n={n} />
-              <b>{l}</b>
-              <span>{note}</span>
+      <section className="b-films" id="how">
+        <Films />
+      </section>
+
+      <section className="b-sec">
+        <Reveal className="b-head">
+          <span className="b-k">What it reads</span>
+          <h2 className="b-h2">{CHECKS.length} checks, every coin.</h2>
+        </Reveal>
+        <Reveal className="b-checks" delay={0.1}>
+          {CHECKS.map(([n, , src], i) => (
+            <div key={n} style={{ ["--i" as string]: i }}>
+              <i>{String(i + 1).padStart(2, "0")}</i>
+              <span>{n}</span>
+              <em>{src}</em>
             </div>
           ))}
-          <div className="h-fig">
-            <Odo n={CHECKS.length} />
-            <b>checks on every coin</b>
-            <span>from the chain, RugCheck and X</span>
-          </div>
-          <p className="h-src">28 Oct to 4 Nov 2026, from yeppo&apos;s own tables.</p>
+        </Reveal>
+      </section>
+
+      <section className="b-sec">
+        <Reveal className="b-head">
+          <span className="b-k">The verdict</span>
+          <h2 className="b-h2">One word, and the rule behind it.</h2>
+        </Reveal>
+        <div className="b-verdicts">
+          {VERDICTS.map((v, i) => (
+            <Reveal key={v.w} delay={0.08 * i} className="b-verdict">
+              <b className={`b-vw b-${v.c}`}>
+                <i />
+                {v.w}
+              </b>
+              <h3>{v.head}</h3>
+              <ul>
+                {v.lines.map((l) => (
+                  <li key={l}>{l}</li>
+                ))}
+              </ul>
+            </Reveal>
+          ))}
         </div>
-        <div className="h-wins">
-          <p className="p-sec">
-            <i>§2</i> Real calls, last 7 days
-          </p>
+      </section>
+
+      <section className="b-sec">
+        <Reveal className="b-head">
+          <span className="b-k">On the record</span>
+          <h2 className="b-h2">The week, in numbers.</h2>
+        </Reveal>
+        <Reveal className="b-figs" delay={0.1}>
+          {WEEK.map(([n, l]) => (
+            <div key={l}>
+              <Odo n={n} />
+              <span>{l}</span>
+            </div>
+          ))}
+        </Reveal>
+        <Reveal className="b-calls" delay={0.15}>
+          <span className="b-k">Real calls, last 7 days</span>
           {won.length ? (
-            <table className="p-table">
-              <thead>
-                <tr>
-                  <th>Coin</th>
-                  <th>Stamp</th>
-                  <th>Filed (UTC)</th>
-                  <th className="r">Then</th>
-                  <th aria-label="Open on Axiom" />
-                </tr>
-              </thead>
+            <table>
               <tbody>
-                {won.slice(0, 8).map(([mint, sym, word, up, t]) => (
+                {won.slice(0, 6).map(([mint, sym, word, up, t]) => (
                   <tr key={mint}>
                     <td>
                       <b>{sym ? `$${sym.replace(/^\$/, "")}` : "coin"}</b>
                     </td>
                     <td>{word}</td>
-                    <td className="mono">{utc(t)}</td>
-                    <td className="r mono t-safe">×{up.toFixed(1)}</td>
+                    <td className="mono">{utc(t)} UTC</td>
+                    <td className="mono r">×{up.toFixed(1)}</td>
                     <td className="r">
-                      <a href={`/go/${mint}`} target="_blank" rel="noreferrer" aria-label={`Open ${sym ?? "the coin"} on Axiom`}>
-                        Axiom ↗
+                      <a href={`/go/${mint}`} target="_blank" rel="noreferrer">
+                        Open ↗
                       </a>
                     </td>
                   </tr>
@@ -127,108 +150,50 @@ export default async function Home() {
               </tbody>
             </table>
           ) : (
-            <p className="h-empty">The first calls of the week show up here within a few hours.</p>
+            <p className="b-dim">The first calls of the week show up here within a few hours.</p>
           )}
-          <p className="h-src">
+          <p className="b-dim">
             Highest price after the call, against the price at the call. Every call, good and bad, is on the <Link href="/record">record</Link>.
           </p>
-        </div>
+        </Reveal>
       </section>
 
-      <Explode />
-
-      <section className="h-sec" id="stamps">
-        <p className="p-sec">
-          <i>§4</i> Three verdicts, written rules
-        </p>
-        <h2 className="h-h2">One word, and why.</h2>
-        <Stamps />
-      </section>
-
-      <section className="h-sec h-two">
-        <div>
-          <p className="p-sec">
-            <i>§5</i> Wallet radar
-          </p>
-          <h2 className="h-h2">Your wallets buy. yeppo opens the file.</h2>
-          <p className="h-p">
-            Paste the wallet list Axiom exports. The moment one of them buys, the coin is read against your rule. Two in within fifteen minutes, none out,
-            every line passing and a Safe stamp: an early call.
-          </p>
-          <RadarLoop />
-          <p className="h-foot">
-            <Link href="/radar">Open the radar →</Link>
-            <span>example</span>
-          </p>
-        </div>
-        <div>
-          <p className="p-sec">
-            <i>§6</i> Hot on X
-          </p>
-          <h2 className="h-h2">A post lands. The coins born after it, read.</h2>
-          <p className="h-p">
-            Connect your J7 feed. yeppo keeps the posts that matter, ties each one to the coins launched after it, drops the bad ones and puts first the
-            coins your own wallets are buying.
-          </p>
-          <PostLoop />
-          <p className="h-foot">
-            <Link href="/extension">In the panel →</Link>
-            <span>example</span>
-          </p>
-        </div>
-      </section>
-
-      <section className="h-sec h-back">
-        <div>
-          <p className="p-sec">
-            <i>§7</i> Price
-          </p>
-          <div className="p-invoice">
-            <div className="p-inv-row">
-              <span>Pro key, 30 days</span>
-              <i />
+      <section className="b-sec b-back">
+        <Reveal className="b-price">
+          <span className="b-k">Price</span>
+          <h2 className="b-h2">One key, paid in SOL.</h2>
+          <div className="b-plans">
+            <Link href="/pricing">
+              <span>30 days</span>
               <b>0.2 SOL</b>
-            </div>
-            <div className="p-inv-row">
-              <span>Pro key, 90 days</span>
-              <i />
+            </Link>
+            <Link href="/pricing">
+              <span>90 days</span>
               <b>0.5 SOL</b>
-            </div>
-            <p>Three devices. No account, no email, no card.</p>
-            <Link href="/pricing" className="p-btn">
-              Get a key
             </Link>
           </div>
-        </div>
-        <div>
-          <p className="p-sec">
-            <i>§8</i> Guides
-          </p>
-          <ol className="p-index">
-            {ROWS.map(([t, h], i) => (
-              <li key={h}>
-                <Link href={h}>
-                  <i>{String(i + 1).padStart(2, "0")}</i>
-                  <span>{t}</span>
-                  <em aria-hidden>↗</em>
-                </Link>
-              </li>
-            ))}
-          </ol>
-        </div>
-        <div id="faq">
-          <p className="p-sec">
-            <i>§9</i> Questions
-          </p>
-          <div className="p-faq">
-            {FAQ.map(([q, a]) => (
-              <details key={q}>
-                <summary>{q}</summary>
-                <p>{a}</p>
-              </details>
-            ))}
-          </div>
-        </div>
+          <p className="b-dim">Three devices. No account, no email, no card. It never touches your wallet.</p>
+        </Reveal>
+        <Reveal className="b-faq" delay={0.1}>
+          <span className="b-k" id="faq">
+            Questions
+          </span>
+          {FAQ.map(([q, a]) => (
+            <details key={q}>
+              <summary>{q}</summary>
+              <p>{a}</p>
+            </details>
+          ))}
+          <span className="b-k" style={{ marginTop: 28 }}>
+            Guides
+          </span>
+          {GUIDES.map(([t, h]) => (
+            <Link key={h} href={h} className="b-guide">
+              {t}
+              <em aria-hidden>→</em>
+            </Link>
+          ))}
+        </Reveal>
       </section>
       <JsonLd
         data={[

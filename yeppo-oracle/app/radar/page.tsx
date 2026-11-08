@@ -16,7 +16,7 @@ export default function Page() {
           <span className="label">
             <i>§</i> Wallet radar
           </span>
-          <h1>Your wallets buy. yeppo opens the file.</h1>
+          <h1>Your wallets buy. yeppo reads the coin.</h1>
           <p>The coins your wallets enter, read the moment they enter. Every line of your rule is checked; when all of them pass and the stamp is Safe, it is an early call.</p>
         </div>
         <div className="p-tool">

@@ -134,7 +134,7 @@ export function Footer() {
       <div className="p-colo-in">
         <div className="p-colo-brand">
           <Logo />
-          <p>Every coin gets a file: who launched it, who bought it, who paid for it, and one stamp.</p>
+          <p>Know the coin before you buy it: who launched it, who holds it, who paid for it, and one word.</p>
           <Socials />
         </div>
         <nav>
@@ -160,7 +160,7 @@ export function Footer() {
         </nav>
       </div>
       <p className="p-colo-fine">
-        Not financial advice. Most memecoins go to zero. Only trade what you can lose. Set in Archivo and IBM Plex. Read from the Solana chain and
+        Not financial advice. Most memecoins go to zero. Only trade what you can lose. Set in Schibsted Grotesk and IBM Plex Mono. Read from the Solana chain and
         RugCheck.
       </p>
     </footer>
