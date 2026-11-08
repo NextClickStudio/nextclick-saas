@@ -1349,3 +1349,259 @@ body:has(.pp) {
 .pp .page-head h1 + p {
   margin-top: 22px;
 }
+
+/* ---- the 3D world (the home): a sticky stage, the canvas behind, tiny tags pinned to the objects ------------------ */
+.w3 {
+  position: relative;
+  height: 900vh;
+  margin-top: -64px; /* under the masthead: the world starts at the top of the screen */
+}
+.w3-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.w3-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
+  background: #000;
+}
+.w3-canvas {
+  position: absolute;
+  inset: 0;
+}
+.w3-canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+.w3-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.75) 100%);
+}
+/* a tag: a dot on the object, a hairline leader, a small mono box */
+.w3-tag {
+  --c: #fff;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  color: #fff;
+  text-decoration: none;
+  will-change: transform, opacity;
+  font: 500 10px/1.25 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 0 6px #000, 0 0 2px #000;
+}
+.w3-tag.go {
+  pointer-events: auto;
+}
+.w3-tag.red {
+  --c: #ff3b22;
+}
+.w3-tag.green {
+  --c: #5fe3a1;
+}
+.w3-tag.warn {
+  --c: #ffbe55;
+}
+.w3-dot {
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+.w3-lead {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 34px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 3px #000;
+  transform-origin: 0 0;
+  transform: rotate(-45deg);
+}
+.w3-box {
+  position: absolute;
+  left: 24px;
+  bottom: 23px;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 8px;
+  align-items: baseline;
+  padding: 0 0 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+}
+.w3-box em {
+  font-style: normal;
+  color: #7a7a7a;
+}
+.w3-box b {
+  font-weight: 500;
+  color: var(--c);
+}
+.w3-box span {
+  grid-column: 1 / -1;
+  color: #8f8f8f;
+}
+.w3-box em + b + span {
+  grid-column: 2;
+}
+.w3-tag[data-side="l"] .w3-lead {
+  transform: rotate(-135deg);
+}
+.w3-tag[data-side="l"] .w3-box {
+  left: auto;
+  right: 24px;
+  justify-items: end;
+  text-align: right;
+}
+.w3-tag.go .w3-box span {
+  color: #cfcfcf;
+}
+.w3-tag.go:hover .w3-box,
+.w3-tag.go.on .w3-box {
+  border-bottom-color: #fff;
+}
+.w3-tag.go:hover .w3-box span,
+.w3-tag.go.on .w3-box span {
+  color: #fff;
+}
+.w3-tag.go:hover .w3-dot,
+.w3-tag.go.on .w3-dot {
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.14);
+}
+.w3-tag.go:focus-visible .w3-box {
+  outline: 1px solid #fff;
+  outline-offset: 4px;
+}
+.w3-tag.mini {
+  font-size: 9px;
+}
+.w3-tag.mini .w3-lead {
+  width: 22px;
+}
+.w3-tag.mini .w3-box {
+  left: 16px;
+  bottom: 15px;
+}
+.w3-tag.mini[data-side="l"] .w3-box {
+  right: 16px;
+}
+.w3-tag.mini.ok {
+  --c: #fff;
+}
+/* a tag that hangs below its point, and one that stands straight above it */
+.w3-tag[data-dir="d"] .w3-lead {
+  transform: rotate(45deg);
+}
+.w3-tag[data-dir="d"][data-side="l"] .w3-lead {
+  transform: rotate(135deg);
+}
+.w3-tag[data-dir="d"] .w3-box {
+  bottom: auto;
+  top: 23px;
+  padding: 4px 0 0;
+  border-bottom: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.55);
+}
+.w3-tag[data-dir="u"] .w3-lead {
+  width: 22px;
+  transform: rotate(-90deg);
+}
+.w3-tag[data-dir="u"] .w3-box {
+  left: 0;
+  right: auto;
+  bottom: 22px;
+  transform: translateX(-50%);
+  justify-items: center;
+  text-align: center;
+}
+/* the corner read-out: chapter, progress, a word */
+.w3-hud {
+  position: absolute;
+  left: max(16px, 2.4vw);
+  right: max(16px, 2.4vw);
+  bottom: 18px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  align-items: center;
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7a7a7a;
+  pointer-events: none;
+}
+.w3-bar {
+  display: block;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.w3-bar i {
+  display: block;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.6);
+  transform-origin: 0 50%;
+}
+/* no WebGL or reduced motion: the tags become a plain list */
+.w3.off {
+  height: auto;
+  margin-top: 0;
+}
+.w3.off .w3-stage {
+  position: static;
+  height: auto;
+  display: grid;
+  gap: 14px;
+  padding: 18vh max(20px, 5vw) 12vh;
+}
+.w3.off .w3-tag {
+  position: static;
+  width: auto;
+  height: auto;
+  opacity: 1;
+  visibility: visible;
+  font-size: 12px;
+}
+.w3.off .w3-box {
+  position: static;
+}
+.w3.off .w3-tag.mini,
+.w3.off .w3-dot,
+.w3.off .w3-lead,
+.w3.off .w3-canvas,
+.w3.off .w3-hud,
+.w3.off .w3-vignette {
+  display: none;
+}
+.b-filmsec {
+  border-top: 0;
+  padding-bottom: 28px;
+}
+.b-try-wide {
+  max-width: 560px;
+}
+.ext-films {
+  padding: 0;
+  margin: 28px 0 56px;
+}

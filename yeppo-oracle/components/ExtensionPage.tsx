@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Paper } from "./Nav";
 import Reveal from "./Reveal";
+import Films from "./bw/Films";
 
 const SITES = ["pump.fun", "GMGN", "Axiom", "Photon", "BullX", "DexScreener", "Birdeye", "Jupiter"];
 
@@ -29,6 +30,10 @@ export default function ExtensionPage() {
             Version 3.5.1 · installs in a minute · needs a <a href="/pricing">Pro key</a>
           </p>
         </Reveal>
+
+        <section className="b-films ext-films" id="how">
+          <Films />
+        </section>
 
         <span className="label">Install in 4 steps</span>
         <ol className="ext-steps" style={{ marginTop: 12 }}>
