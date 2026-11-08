@@ -109,7 +109,7 @@ export default function ScrollFilm() {
       H = c.clientHeight;
       c.width = Math.round(W * dpr);
       c.height = Math.round(H * dpr);
-      is = W / H > 1 ? H : Math.min(H * 0.86, W * 1.28);
+      is = W / H > 1 ? H : Math.min(H * 0.86, W * 1.04);
       ix = (W - is) / 2;
       iy = W / H > 1 ? 0 : (H - is) / 2 - H * 0.04;
       drawn = -2;
@@ -176,13 +176,15 @@ export default function ScrollFilm() {
         const node = tagEls.current[i];
         if (!node) return;
         const pt = at(g.id, f);
-        const k = pt ? fade(g.id, f) : 0;
+        const k = pt && !(small && g.mini) ? fade(g.id, f) : 0;
         node.style.opacity = k.toFixed(3);
         node.style.visibility = k > 0.01 ? "visible" : "hidden";
         if (!pt) return;
         const x = ix + pt[0] * is, y = iy + pt[1] * is;
         node.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
-        node.dataset.side = g.side ?? (x > W * (small ? 0.5 : 0.6) ? "l" : "r");
+        // on a phone the coin fills the width: its two tags go above and below it, toward the middle
+        const side = small && g.id === "hero_l" ? "r" : small && g.id === "hero_r" ? "l" : g.side;
+        node.dataset.side = side ?? (x > W * (small ? 0.5 : 0.6) ? "l" : "r");
         node.dataset.dir = g.dir ?? "";
       });
       HOTS.forEach(([id, , a, b, rad], i) => {
