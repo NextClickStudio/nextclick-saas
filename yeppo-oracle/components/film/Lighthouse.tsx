@@ -36,6 +36,7 @@ export default function Lighthouse() {
   const cvs = useRef<HTMLCanvasElement>(null);
   const tagEls = useRef<(HTMLElement | null)[]>([]);
   const hotEls = useRef<(HTMLAnchorElement | null)[]>([]);
+  const cursor = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<"load" | "intro" | "live">("load");
   const [loaded, setLoaded] = useState(0);
   const [frame, setFrame] = useState(0);
@@ -43,8 +44,11 @@ export default function Lighthouse() {
   useEffect(() => {
     const box = wrap.current, c = cvs.current;
     if (!box || !c) return;
-    const ctx = c.getContext("2d");
-    if (!ctx) return;
+    // the picture goes through a small shader: a drift that follows the mouse, ripples around the cursor under water,
+    // a glow on the object under the pointer, a little colour fringe and grain. Without WebGL, a plain 2D draw.
+    const gl = c.getContext("webgl", { antialias: false, premultipliedAlpha: false });
+    const ctx = gl ? null : c.getContext("2d");
+    if (!gl && !ctx) return;
     let alive = true;
     const intro: (HTMLImageElement | null)[] = Array(NI).fill(null);
     const scroll: (HTMLImageElement | null)[] = Array(NS).fill(null);
@@ -104,11 +108,95 @@ export default function Lighthouse() {
     const ro = new ResizeObserver(fit);
     ro.observe(c);
     fit();
-    const draw = (im: HTMLImageElement | null) => {
-      if (!im || im === drawn) return;
-      drawn = im;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.drawImage(im, ix, iy, iw, ih);
+    // mouse, eased; hover glow, eased
+    const mouse = { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5, px: -1, py: -1, inside: 0 };
+    const glow = { x: 0.5, y: 0.5, k: 0 };
+    let under = 0, hoverId: string | null = null;
+    const onMove = (e: PointerEvent) => {
+      mouse.tx = e.clientX / Math.max(1, W);
+      mouse.ty = e.clientY / Math.max(1, H);
+      mouse.px = e.clientX;
+      mouse.py = e.clientY;
+      mouse.inside = 1;
+    };
+    const onLeave = () => void (mouse.inside = 0);
+    addEventListener("pointermove", onMove);
+    document.addEventListener("pointerleave", onLeave);
+    let prog: WebGLProgram | null = null, texture: WebGLTexture | null = null;
+    const U: Record<string, WebGLUniformLocation | null> = {};
+    if (gl) {
+      const sh = (type: number, src: string) => {
+        const o = gl.createShader(type)!;
+        gl.shaderSource(o, src);
+        gl.compileShader(o);
+        return o;
+      };
+      prog = gl.createProgram()!;
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, "attribute vec2 p; varying vec2 v; void main(){ v = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }"));
+      gl.attachShader(
+        prog,
+        sh(
+          gl.FRAGMENT_SHADER,
+          [
+            "precision highp float;",
+            "varying vec2 v; uniform sampler2D t; uniform vec2 res; uniform vec4 img; uniform vec2 m; uniform vec3 g; uniform float time, under, has;",
+            "float h(vec2 q){ return fract(sin(dot(q, vec2(12.9898, 78.233))) * 43758.5453); }",
+            "void main(){",
+            "  vec2 px = vec2(v.x, 1.0 - v.y) * res;",
+            "  vec2 d = (m - 0.5);",
+            "  px += d * res * -0.018;",                                   // drift against the mouse
+            "  vec2 c = px / res - m; c.x *= res.x / res.y; float r = length(c);",
+            "  float wave = sin(r * 60.0 - time * 3.0) * exp(-r * 9.0) * under * has;",  // ripples round the cursor, under water
+            "  px += normalize(c + 1e-5) * wave * 7.0;",
+            "  vec2 uv = (px - img.xy) / img.zw; uv = (uv - 0.5) / 1.035 + 0.5;",
+            "  float ca = 0.0012 + 0.004 * exp(-r * 6.0) * has;",
+            "  vec3 col = vec3(texture2D(t, uv + vec2(ca, 0.0)).r, texture2D(t, uv).g, texture2D(t, uv - vec2(ca, 0.0)).b);",
+            "  vec2 gc = px / res - g.xy; gc.x *= res.x / res.y;",
+            "  col += vec3(0.55, 0.8, 1.0) * g.z * (0.22 * exp(-length(gc) * 7.0) + 0.06 * sin(time * 4.0) * exp(-length(gc) * 12.0));",
+            "  col += (h(px + fract(time) * 100.0) - 0.5) * 0.035;",
+            "  vec2 vg = v - 0.5; col *= 1.0 - dot(vg, vg) * 0.9;",
+            "  gl_FragColor = vec4(col, 1.0);",
+            "}",
+          ].join("\n"),
+        ),
+      );
+      gl.linkProgram(prog);
+      gl.useProgram(prog);
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(prog, "p");
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      for (const n of ["t", "res", "img", "m", "g", "time", "under", "has"]) U[n] = gl.getUniformLocation(prog, n);
+      texture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      for (const [k, val] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]])
+        gl.texParameteri(gl.TEXTURE_2D, k, val);
+    }
+    const draw = (im: HTMLImageElement | null, now = performance.now()) => {
+      if (!im) return;
+      if (gl && prog) {
+        if (im !== drawn) {
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, im);
+          drawn = im;
+        }
+        gl.viewport(0, 0, c.width, c.height);
+        gl.uniform1i(U.t, 0);
+        gl.uniform2f(U.res, W, H);
+        gl.uniform4f(U.img, ix, iy, iw, ih);
+        gl.uniform2f(U.m, mouse.x, mouse.y);
+        gl.uniform3f(U.g, glow.x, glow.y, glow.k);
+        gl.uniform1f(U.time, now / 1000);
+        gl.uniform1f(U.under, under);
+        gl.uniform1f(U.has, mouse.inside);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      } else if (ctx && im !== drawn) {
+        drawn = im;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.drawImage(im, ix, iy, iw, ih);
+      }
     };
     const nearest = (arr: (HTMLImageElement | null)[], f: number) => {
       for (let d = 0; d < arr.length; d++) {
@@ -134,8 +222,17 @@ export default function Lighthouse() {
     const tick = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
+      const ease = Math.min(1, dt * 3);
+      mouse.x += (mouse.tx - mouse.x) * ease;
+      mouse.y += (mouse.ty - mouse.y) * ease;
+      const cur_ = cursor.current;
+      if (cur_) {
+        cur_.style.transform = `translate3d(${mouse.px.toFixed(1)}px, ${mouse.py.toFixed(1)}px, 0)`;
+        cur_.classList.toggle("on", !!hoverId);
+        cur_.style.opacity = mouse.inside ? "1" : "0";
+      }
       if (ph === "load") {
-        draw(intro[0]);
+        draw(intro[0], now);
         if (introDone >= NI - 2) {
           ph = "intro";
           t0 = now;
@@ -143,7 +240,7 @@ export default function Lighthouse() {
         }
       } else if (ph === "intro") {
         const f = Math.min(NI - 1, Math.floor(((now - t0) / 1000) * FPS));
-        draw(nearest(intro, f));
+        draw(nearest(intro, f), now);
         if (f >= NI - 1) {
           ph = "live";
           setPhase("live");
@@ -157,7 +254,8 @@ export default function Lighthouse() {
           shown = fi;
           setFrame(fi);
         }
-        draw(nearest(scroll, fi));
+        under = fi >= 56 ? 1 : 0;
+        draw(nearest(scroll, fi), now);
         TAGS.forEach((g, i) => {
           const node = tagEls.current[i];
           if (!node) return;
@@ -170,16 +268,32 @@ export default function Lighthouse() {
           node.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
           node.dataset.side = x > W * 0.6 ? "l" : "r";
         });
+        let hit: string | null = null, hx = glow.x, hy = glow.y;
         HOTS.forEach(([id, , rad], i) => {
           const node = hotEls.current[i];
           if (!node) return;
           const pt = at(id, f);
           if (!pt) return void (node.style.display = "none");
           const x = ix + pt[0] * iw, y = iy + pt[1] * ih + (id === "tower" ? ih * 0.2 : ih * 0.08), r = rad * ih;
+          if (Math.hypot(mouse.px - x, mouse.py - y) < r) {
+            hit = id;
+            hx = x / W;
+            hy = y / H;
+          }
           node.style.display = "block";
           node.style.transform = `translate3d(${(x - r).toFixed(1)}px, ${(y - r).toFixed(1)}px, 0)`;
           node.style.width = node.style.height = `${(2 * r).toFixed(0)}px`;
         });
+        // the object under the pointer: its glow comes up, its tag opens
+        if (hit !== hoverId) {
+          hoverId = hit;
+          TAGS.forEach((g, i) => tagEls.current[i]?.classList.toggle("on", g.id === hit));
+        }
+        if (hit) {
+          glow.x += (hx - glow.x) * 0.3;
+          glow.y += (hy - glow.y) * 0.3;
+        }
+        glow.k += ((hit ? 1 : 0) - glow.k) * Math.min(1, dt * 5);
       }
       raf = requestAnimationFrame(tick);
     };
@@ -188,6 +302,8 @@ export default function Lighthouse() {
       alive = false;
       cancelAnimationFrame(raf);
       ro.disconnect();
+      removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerleave", onLeave);
       document.documentElement.style.overflow = "";
     };
   }, []);
@@ -230,6 +346,7 @@ export default function Lighthouse() {
         {HOTS.map(([id, href], i) => (
           <Link key={id} href={href} className="w3-hot" ref={(n) => void (hotEls.current[i] = n)} aria-label={id} tabIndex={-1} />
         ))}
+        <div ref={cursor} className="lh-cursor" aria-hidden />
         <div className={`lh-hud ${phase === "live" ? "on" : ""}`} aria-hidden>
           <span className="lh-mark">yeppo</span>
           <span className="lh-k">rug checks · pump.fun</span>

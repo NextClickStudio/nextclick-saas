@@ -1701,3 +1701,56 @@ canvas.w3-canvas,
   bottom: 22px;
   transform: translateX(-50%);
 }
+/* the cursor: a small ring that trails the mouse and closes in on an object */
+@media (pointer: fine) {
+  .home-film,
+  .home-film a {
+    cursor: none;
+  }
+}
+.lh-cursor {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.lh-cursor::before,
+.lh-cursor::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.lh-cursor::before {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(220, 238, 255, 0.7);
+  transition: width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s;
+}
+.lh-cursor::after {
+  width: 4px;
+  height: 4px;
+  background: #e8f4ff;
+}
+.lh-cursor.on::before {
+  width: 64px;
+  height: 64px;
+  border-color: rgba(160, 225, 255, 0.95);
+  animation: lh-pulse 1.4s ease-in-out infinite;
+}
+@keyframes lh-pulse {
+  50% {
+    width: 54px;
+    height: 54px;
+  }
+}
+@media (pointer: coarse) {
+  .lh-cursor {
+    display: none;
+  }
+}
