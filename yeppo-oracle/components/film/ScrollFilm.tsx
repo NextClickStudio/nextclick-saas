@@ -126,7 +126,7 @@ export default function ScrollFilm() {
     const fade = (id: string, f: number) => {
       const s = span[id];
       if (!s) return 0;
-      return clamp(Math.min((f - s[0]) / 3, (s[1] - f) / 3, 1));
+      return clamp(Math.min(s[0] === 0 ? 1 : (f - s[0]) / 3, s[1] === NF - 1 ? 1 : (s[1] - f) / 3, 1));
     };
 
     const tick = (now: number) => {
