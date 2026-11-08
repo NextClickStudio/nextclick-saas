@@ -8,7 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { DISCORD_INVITE, INSTAGRAM } from "@/lib/discord";
 
 const LINKS = [
-  { href: "/#how", label: "How it reads" },
+  { href: "/extension#how", label: "How it reads" },
   { href: "/radar", label: "Radar" },
   { href: "/record", label: "Record" },
   { href: "/extension", label: "Extension" },
