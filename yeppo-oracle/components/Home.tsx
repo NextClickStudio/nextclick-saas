@@ -1,15 +1,13 @@
 import JsonLd from "./JsonLd";
 import { SITE_URL } from "@/lib/config";
-import { Paper } from "./Nav";
-import ScrollFilm from "./film/ScrollFilm";
+import Lighthouse from "./film/Lighthouse";
 
-// The home (8 Nov 2026) is one film rendered in Blender and scrubbed by scroll, with no headlines: the objects tell how
-// yeppo works and small tags pinned to them say what each one is. Its last objects lead to the extension, the radar,
-// the record and the price. The films that explain the extension step by step live on the extension page.
+// The home (9 Nov 2026) is one film: a futuristic lighthouse in a night storm that lights up, then a dive down the
+// tower and into the deep. No header and no buttons: the objects in the film are the links to the rest of the site.
 export default function Home() {
   return (
-    <Paper className="bw home">
-      <ScrollFilm />
+    <main className="home-film">
+      <Lighthouse />
       <JsonLd
         data={[
           {
@@ -25,6 +23,6 @@ export default function Home() {
           },
         ]}
       />
-    </Paper>
+    </main>
   );
 }
