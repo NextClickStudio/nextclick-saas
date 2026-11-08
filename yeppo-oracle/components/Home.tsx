@@ -1,15 +1,15 @@
 import JsonLd from "./JsonLd";
 import { SITE_URL } from "@/lib/config";
 import { Paper } from "./Nav";
-import World from "./three/World";
+import ScrollFilm from "./film/ScrollFilm";
 
-// The home (8 Nov 2026) is one 3D world travelled by scroll, with no headlines: the objects tell how yeppo works and
-// small tags pinned to them say what each one is. Its last objects lead to the extension, the radar, the record and
-// the price. The films that explain the extension step by step live on the extension page.
+// The home (8 Nov 2026) is one film rendered in Blender and scrubbed by scroll, with no headlines: the objects tell how
+// yeppo works and small tags pinned to them say what each one is. Its last objects lead to the extension, the radar,
+// the record and the price. The films that explain the extension step by step live on the extension page.
 export default function Home() {
   return (
     <Paper className="bw home">
-      <World />
+      <ScrollFilm />
       <JsonLd
         data={[
           {
