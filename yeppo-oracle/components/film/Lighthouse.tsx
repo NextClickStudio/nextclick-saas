@@ -12,7 +12,7 @@ import Link from "next/link";
 const NI = 60, NS = 120, FPS = 22;
 type Tag = { id: string; n?: string; t: string; v?: string; href?: string; tone?: "red" | "green" };
 const TAGS: Tag[] = [
-  { id: "tower", n: "01", t: "yeppo", v: "the light on every coin ↗", href: "/extension" },
+  { id: "rock", n: "01", t: "yeppo", v: "the light on every coin ↗", href: "/extension" },
   { id: "mine0", t: "Rug", v: "danger · 991 this week", tone: "red" },
   { id: "mine1", t: "Bundle", v: "hidden wallets", tone: "red" },
   { id: "mine2", t: "Dev dump", v: "sold in seconds", tone: "red" },
@@ -22,7 +22,7 @@ const TAGS: Tag[] = [
 ];
 // the objects are links too: [anchor, page, radius as a share of the frame height]
 const HOTS: [string, string, number][] = [
-  ["tower", "/extension", 0.22],
+  ["rock", "/extension", 0.24],
   ["school", "/radar", 0.12],
   ["wreck", "/record", 0.16],
   ["beacon", "/pricing", 0.12],
@@ -102,9 +102,18 @@ export default function Lighthouse() {
       ih = 9 * s;
       ix = (W - iw) / 2;
       iy = (H - ih) / 2;
+      panX = ix;
       drawn = null;
     };
-    let drawn: HTMLImageElement | null = null;
+    let drawn: HTMLImageElement | null = null, panX = 0;
+    // on a narrow screen the picture is wider than the screen: at the end it pans from one object to the next
+    const pan = (f: number) => {
+      if (W >= H) return;
+      const cx = f < 96 ? 0.5 : 0.27 + 0.46 * clamp((f - 98) / 19);
+      const want = Math.min(0, Math.max(W - iw, W / 2 - cx * iw));
+      panX += (want - panX) * 0.12;
+      ix = panX;
+    };
     const ro = new ResizeObserver(fit);
     ro.observe(c);
     fit();
@@ -212,7 +221,12 @@ export default function Lighthouse() {
     const at = (id: string, f: number): [number, number] | null => {
       const a = Math.floor(f), b = Math.ceil(f), A = anchors[`s${a}`]?.[id], B = anchors[`s${b}`]?.[id];
       if (A && B) return [A[0] + (B[0] - A[0]) * (f - a), A[1] + (B[1] - A[1]) * (f - a)];
-      return A ?? B ?? null;
+      if (A ?? B) return A ?? B ?? null;
+      for (let d = 1; d <= 3; d++) {
+        const N = anchors[`s${a + d}`]?.[id];
+        if (N) return N;
+      }
+      return null;
     };
 
     // phases: wait for the intro frames, play them once, then hand over to scroll
@@ -255,12 +269,13 @@ export default function Lighthouse() {
           setFrame(fi);
         }
         under = fi >= 56 ? 1 : 0;
+        pan(f);
         draw(nearest(scroll, fi), now);
         TAGS.forEach((g, i) => {
           const node = tagEls.current[i];
           if (!node) return;
           const pt = at(g.id, f), s = span[g.id];
-          const k = pt && s ? clamp(Math.min(s[0] === 0 ? 1 : (f - s[0]) / 3, s[1] === NS - 1 ? 1 : (s[1] - f) / 3, 1)) : 0;
+          const k = pt && s ? clamp(Math.min(s[0] <= 3 ? 1 : (f - s[0]) / 3, s[1] === NS - 1 ? 1 : (s[1] - f) / 3, 1)) : 0;
           node.style.opacity = k.toFixed(3);
           node.style.visibility = k > 0.01 ? "visible" : "hidden";
           if (!pt) return;
@@ -274,7 +289,7 @@ export default function Lighthouse() {
           if (!node) return;
           const pt = at(id, f);
           if (!pt) return void (node.style.display = "none");
-          const x = ix + pt[0] * iw, y = iy + pt[1] * ih + (id === "tower" ? ih * 0.2 : ih * 0.08), r = rad * ih;
+          const x = ix + pt[0] * iw, y = iy + pt[1] * ih + (id === "rock" ? -ih * 0.32 : ih * 0.08), r = rad * ih;
           if (Math.hypot(mouse.px - x, mouse.py - y) < r) {
             hit = id;
             hx = x / W;
