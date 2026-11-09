@@ -1,13 +1,13 @@
 import JsonLd from "./JsonLd";
 import { SITE_URL } from "@/lib/config";
-import City from "./city/City";
+import Moon from "./moon/Moon";
 
-// The home (9 Nov 2026) is a small neon city block drawn live in 3D. No header and no buttons: the buildings are the
-// links to the rest of the site.
+// The home (9 Nov 2026) is a small moon drawn live in 3D, where memecoins launch. No header and no buttons: the places
+// on the moon are the links to the rest of the site.
 export default function Home() {
   return (
     <main className="home-film">
-      <City />
+      <Moon />
       <JsonLd
         data={[
           {

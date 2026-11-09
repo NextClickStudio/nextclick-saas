@@ -1,0 +1,761 @@
+"use client";
+
+// The home: a small moon you turn with the mouse, drawn live in 3D (sharp at any screen size). Memecoins want to go
+// "to the moon", so the moon is where they launch: rockets rise from a pad after passing a scanner gate that lights
+// green, amber or red; some make it, some blow up (the rugs). Each place on the moon is a page: the scanner gate (the
+// extension), the radio telescope (radar), the mission board (record), the fuel station (the key), the crash crater
+// (what a rug looks like). Models: Kenney Space Kit and Planets (CC0). Drag to turn the moon, click a place to go in.
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+
+type Place = { id: string; n: string; t: string; v: string; href: string; tone?: "red" | "green" };
+const PLACES: Place[] = [
+  { id: "launch", n: "01", t: "Scanner gate", v: "every coin checked before launch ↗", href: "/extension" },
+  { id: "radar", n: "02", t: "Radio telescope", v: "hears wallets moving together ↗", href: "/radar" },
+  { id: "board", n: "03", t: "Mission board", v: "every call, kept ↗", href: "/record" },
+  { id: "fuel", n: "04", t: "Fuel", v: "the key · 0.2 sol / 30 days ↗", href: "/pricing" },
+  { id: "crash", n: "!!", t: "Rug", v: "it launched. it didn't land.", href: "/risk", tone: "red" },
+];
+const MODELS = [
+  "rocket_finsA", "rocket_fuelA", "rocket_sidesA", "rocket_topA", "satelliteDish_large", "satelliteDish_detailed", "satelliteDish",
+  "machine_wireless", "gate_complex", "platform_large", "supports_high", "hangar_largeA", "hangar_roundGlass", "machine_generatorLarge",
+  "machine_barrelLarge", "barrels", "rover", "astronautA", "astronautB", "craterLarge", "crater", "rock_crystalsLargeA", "rock_crystals",
+  "rocks_smallA", "rock_largeA", "meteor_detailed", "structure_detailed", "corridor_detailed",
+];
+const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const easeIO = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+
+export default function Moon() {
+  const router = useRouter();
+  const host = useRef<HTMLDivElement>(null);
+  const tagEls = useRef<(HTMLAnchorElement | null)[]>([]);
+  const [load, setLoad] = useState(0);
+  const [phase, setPhase] = useState<"load" | "live">("load");
+  const [hover, setHover] = useState<string | null>(null);
+
+  useEffect(() => {
+    const el = host.current;
+    if (!el) return;
+    let alive = true;
+    let stop = () => {};
+    (async () => {
+      const THREE = await import("three");
+      const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
+      const { EffectComposer } = await import("three/examples/jsm/postprocessing/EffectComposer.js");
+      const { RenderPass } = await import("three/examples/jsm/postprocessing/RenderPass.js");
+      const { UnrealBloomPass } = await import("three/examples/jsm/postprocessing/UnrealBloomPass.js");
+      const { OutputPass } = await import("three/examples/jsm/postprocessing/OutputPass.js");
+      if (!alive) return;
+      type Obj = InstanceType<typeof THREE.Object3D>;
+      type V3 = InstanceType<typeof THREE.Vector3>;
+      // ---------- load the models ----------
+      const loader = new GLTFLoader();
+      const lib: Record<string, Obj> = {};
+      let done = 0;
+      await Promise.all(
+        MODELS.map(
+          (n) =>
+            new Promise<void>((res) =>
+              loader.load(
+                `/moon/${n}.glb`,
+                (g) => {
+                  g.scene.traverse((o) => {
+                    const m = o as InstanceType<typeof THREE.Mesh>;
+                    if (m.isMesh) {
+                      m.castShadow = m.receiveShadow = true;
+                      const mat = m.material as InstanceType<typeof THREE.MeshStandardMaterial>;
+                      if (mat && "roughness" in mat) {
+                        mat.roughness = Math.max(0.45, mat.roughness ?? 0.6);
+                        if (/crystal/i.test(mat.name)) {
+                          mat.emissive = new THREE.Color(0x9a6bff);
+                          mat.emissiveIntensity = 1.6;
+                        }
+                      }
+                    }
+                  });
+                  lib[n] = g.scene;
+                  setLoad(++done / MODELS.length);
+                  res();
+                },
+                undefined,
+                () => res(),
+              ),
+            ),
+        ),
+      );
+      if (!alive) return;
+      const small = innerWidth < 760;
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+      renderer.setClearColor(0x000000, 0);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.05;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      el.appendChild(renderer.domElement);
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(32, 1, 0.3, 2000);
+      let seed = 5;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      const glow = (hex: number, k = 2.4) => new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), toneMapped: false });
+
+      // ---------- the moon: a low-poly sphere with craters, flat where the bases stand ----------
+      const R = 6;
+      const ZONES: Record<string, V3> = {
+        launch: new THREE.Vector3(0.05, 0.82, 0.57).normalize(),
+        radar: new THREE.Vector3(-0.66, 0.42, 0.62).normalize(),
+        board: new THREE.Vector3(0.68, 0.38, 0.62).normalize(),
+        fuel: new THREE.Vector3(0.36, -0.3, 0.88).normalize(),
+        crash: new THREE.Vector3(-0.42, -0.36, 0.83).normalize(),
+      };
+      const geo = new THREE.IcosahedronGeometry(R, small ? 40 : 64);
+      const craters = Array.from({ length: 26 }, () => ({ c: new THREE.Vector3().randomDirection(), r: 0.08 + rnd() * 0.16, d: 0.06 + rnd() * 0.12 })).filter((cr) =>
+        Object.values(ZONES).every((z) => z.angleTo(cr.c) > 0.62),
+      );
+      const pos = geo.attributes.position;
+      const col = new Float32Array(pos.count * 3);
+      const v = new THREE.Vector3(), base = new THREE.Color(0xb9b3c4), dark = new THREE.Color(0x6f6a80), tint = new THREE.Color();
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).normalize();
+        let h = 0, shade = 0;
+        for (const cr of craters) {
+          const a = v.angleTo(cr.c) / cr.r;
+          if (a < 1.6) {
+            h += a < 1 ? -cr.d * (1 - a * a) : cr.d * 0.35 * Math.sin(((a - 1) / 0.6) * Math.PI);
+            if (a < 1) shade += 0.5 * (1 - a);
+          }
+        }
+        h += 0.03 * Math.sin(v.x * 17.1 + v.y * 9.3) * Math.cos(v.z * 13.7);
+        for (const z of Object.values(ZONES)) {
+          const a = v.angleTo(z);
+          if (a < 0.42) h *= a / 0.42; // level ground for the bases
+        }
+        v.multiplyScalar(R + h);
+        pos.setXYZ(i, v.x, v.y, v.z);
+        tint.copy(base).lerp(dark, clamp(shade + 0.18 * (0.5 + 0.5 * Math.sin(v.x * 1.3 + v.y * 2.1))));
+        col.set([tint.r, tint.g, tint.b], i * 3);
+      }
+      geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+      geo.computeVertexNormals();
+      const moonMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
+      const moon = new THREE.Mesh(geo, moonMat);
+      moon.receiveShadow = moon.castShadow = true;
+      const world = new THREE.Group();
+      world.add(moon);
+      scene.add(world);
+      // a thin glow round the rim
+      const halo = new THREE.Mesh(
+        new THREE.SphereGeometry(R * 1.06, 64, 32),
+        new THREE.ShaderMaterial({
+          uniforms: { c: { value: new THREE.Color(0x8a7dff) } },
+          vertexShader: "varying vec3 n; varying vec3 p; void main(){ n = normalize(normalMatrix * normal); p = (modelViewMatrix * vec4(position,1.0)).xyz; gl_Position = projectionMatrix * vec4(p,1.0); }",
+          fragmentShader: "uniform vec3 c; varying vec3 n; varying vec3 p; void main(){ float f = pow(1.0 - abs(dot(n, normalize(-p))), 3.0); gl_FragColor = vec4(c * f * 0.7, f * 0.6); }",
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          side: THREE.BackSide,
+          depthWrite: false,
+        }),
+      );
+      halo.visible = false;
+      world.add(halo);
+
+      // ---------- placing things on the surface ----------
+      const up = new THREE.Vector3(0, 1, 0);
+      const frame = (dir: V3, yaw = 0) => {
+        const g = new THREE.Group();
+        g.position.copy(dir).multiplyScalar(R - 0.02);
+        g.quaternion.setFromUnitVectors(up, dir);
+        g.rotateY(yaw);
+        g.scale.setScalar(0.42);
+        world.add(g);
+        return g;
+      };
+      const pad = (g: Obj, hex: number, radius = 3.4) => {
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 1.04, 1.2, 48), new THREE.MeshStandardMaterial({ color: 0x3a3650, roughness: 0.7, metalness: 0.4 }));
+        base.position.y = -0.5;
+        base.receiveShadow = base.castShadow = true;
+        g.add(base);
+        const top = new THREE.Mesh(new THREE.CylinderGeometry(radius - 0.25, radius - 0.25, 0.05, 48), new THREE.MeshStandardMaterial({ color: 0x4a4566, roughness: 0.55, metalness: 0.5 }));
+        top.position.y = 0.11;
+        top.receiveShadow = true;
+        g.add(top);
+        const rimL = new THREE.Mesh(new THREE.TorusGeometry(radius - 0.08, 0.045, 8, 96), glow(hex, 1.5));
+        rimL.rotation.x = Math.PI / 2;
+        rimL.position.y = 0.12;
+        g.add(rimL);
+        return rimL;
+      };
+      const put = (g: Obj, name: string, x: number, z: number, s = 1, yaw = 0, y = 0) => {
+        const src = lib[name];
+        if (!src) return null;
+        const o = src.clone(true);
+        o.position.set(x, y, z);
+        o.scale.setScalar(s);
+        o.rotation.y = yaw;
+        g.add(o);
+        return o;
+      };
+      const groups: Record<string, InstanceType<typeof THREE.Group>> = {};
+      const anchors: Record<string, V3> = {};
+      const signTex = (lines: string[], css: string, w = 512, h = 256, size = 54) => {
+        const c = document.createElement("canvas");
+        c.width = w;
+        c.height = h;
+        const g = c.getContext("2d")!;
+        g.fillStyle = "#0b0918";
+        g.fillRect(0, 0, w, h);
+        g.font = `700 ${size}px monospace`;
+        g.textAlign = "center";
+        g.shadowColor = css;
+        g.shadowBlur = 18;
+        g.fillStyle = css;
+        lines.forEach((l, i) => g.fillText(l, w / 2, h / 2 + (i - (lines.length - 1) / 2) * size * 1.2 + size * 0.35));
+        const t = new THREE.CanvasTexture(c);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 8;
+        return t;
+      };
+      const panel = (g: Obj, tex: InstanceType<typeof THREE.Texture>, w: number, h: number, x: number, y: number, z: number, yaw = 0) => {
+        const m = new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(0xffffff).multiplyScalar(1.6), toneMapped: false });
+        const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
+        p.position.set(x, y, z);
+        p.rotation.y = yaw;
+        g.add(p);
+        return m;
+      };
+
+      // 01 · the launch pad and the scanner gate
+      const L = (groups.launch = frame(ZONES.launch, 0.3));
+      pad(L, 0x8f86ff, 4.6);
+      put(L, "platform_large", 0, -0.6, 1.4, 0, 0.12);
+      for (const [x, z] of [[-1.3, -1.9], [1.3, -1.9], [-1.3, 0.7], [1.3, 0.7]]) put(L, "supports_high", x, z, 0.8, 0, 0.12);
+      const gate = put(L, "gate_complex", 0, 2.6, 1.6, 0, 0.12)!;
+      const gateLight = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.06, 10, 48), glow(0x5dffae, 3));
+      gateLight.position.set(0, 1.0, 2.6);
+      L.add(gateLight);
+      const gatePl = new THREE.PointLight(0x5dffae, 12, 8, 2);
+      gatePl.position.set(0, 1.4, 2.6);
+      L.add(gatePl);
+      put(L, "structure_detailed", 3.0, -0.4, 1.0, 0.4, 0.12);
+      put(L, "astronautA", -2.6, 2.0, 0.9, 2.4, 0.12);
+      anchors.launch = new THREE.Vector3(0, 2.2, 2.6);
+      // the scan: a sheet of light that sweeps the rocket before it goes
+      const scanSheet = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.06), glow(0x9df7ff, 3));
+      scanSheet.rotation.x = -Math.PI / 2;
+      L.add(scanSheet);
+      // the shockwave on the ground at lift-off
+      const shock = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.05, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffc48a).multiplyScalar(2.4), transparent: true, opacity: 0, toneMapped: false, side: THREE.DoubleSide }));
+      shock.rotation.x = -Math.PI / 2;
+      shock.position.y = 0.2;
+      L.add(shock);
+      // a rocket, built from parts; it rises, flies off, sometimes blows up; then a new one stands on the pad
+      const buildRocket = () => {
+        const r = new THREE.Group();
+        let y = 0;
+        for (const [n, h] of [["rocket_finsA", 0.7], ["rocket_fuelA", 0.5], ["rocket_fuelA", 0.5], ["rocket_sidesA", 1.0], ["rocket_topA", 0.8]] as [string, number][]) {
+          const o = put(r, n, 0, 0, 1, 0, y);
+          y += h;
+          void o;
+        }
+        r.scale.setScalar(0.85);
+        return r;
+      };
+      const rocket = buildRocket();
+      rocket.position.set(0, 0.26, -0.6);
+      L.add(rocket);
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.32, 1.6, 16, 1, true), glow(0xffa94d, 3));
+      flame.rotation.x = Math.PI;
+      flame.position.y = -0.8;
+      rocket.add(flame);
+      const flameLight = new THREE.PointLight(0xff9a3d, 0, 10, 2);
+      flameLight.position.y = -0.6;
+      rocket.add(flameLight);
+      const puffTex = (() => {
+        const c = document.createElement("canvas");
+        c.width = c.height = 64;
+        const g = c.getContext("2d")!;
+        const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+        gr.addColorStop(0, "rgba(255,255,255,0.9)");
+        gr.addColorStop(1, "rgba(255,255,255,0)");
+        g.fillStyle = gr;
+        g.fillRect(0, 0, 64, 64);
+        return new THREE.CanvasTexture(c);
+      })();
+      const smoke = Array.from({ length: 40 }, () => {
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color: 0xcfc8e6, transparent: true, opacity: 0, depthWrite: false }));
+        L.add(s);
+        return { s, age: 99, vel: new THREE.Vector3() };
+      });
+      const blast = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color: new THREE.Color(0xff4d3d).multiplyScalar(3), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+      L.add(blast);
+      const debris = Array.from({ length: 14 }, () => {
+        const d = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18), new THREE.MeshStandardMaterial({ color: 0x8a8aa0, emissive: 0xff5533, emissiveIntensity: 1.5 }));
+        d.visible = false;
+        L.add(d);
+        return { d, vel: new THREE.Vector3() };
+      });
+      let launchT = 0, launchN = 0, verdict: 0 | 1 | 2 = 0;
+
+      // 02 · the radio telescope
+      const RD = (groups.radar = frame(ZONES.radar, -0.6));
+      pad(RD, 0x5dffae, 3.6);
+      const bigDish = put(RD, "satelliteDish_large", 0, 0, 3.0, 0, 0.12)!;
+      put(RD, "satelliteDish_detailed", 2.2, 1.4, 1.3, 1.2, 0.12);
+      put(RD, "satelliteDish", -2.2, 1.4, 1.2, -0.8, 0.12);
+      put(RD, "machine_wireless", 1.4, -2.0, 1.1, 0.6, 0.12);
+      const pulses = Array.from({ length: 3 }, (_, i) => {
+        const p = new THREE.Mesh(new THREE.TorusGeometry(1, 0.04, 8, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(0x5dffae).multiplyScalar(2.4), transparent: true, opacity: 0, toneMapped: false }));
+        p.rotation.x = Math.PI / 2;
+        RD.add(p);
+        return { p, ph: i / 3 };
+      });
+      anchors.radar = new THREE.Vector3(0, 4.2, 0);
+
+      // 03 · the mission board
+      const BD = (groups.board = frame(ZONES.board, 1.2));
+      pad(BD, 0x7dffc0, 3.6);
+      put(BD, "hangar_largeA", 0, -0.6, 1.3, 0, 0.12);
+      put(BD, "corridor_detailed", -2.4, 0.8, 0.9, Math.PI / 2, 0.12);
+      const boardCanvas = document.createElement("canvas");
+      boardCanvas.width = 512;
+      boardCanvas.height = 1024;
+      const bg = boardCanvas.getContext("2d")!;
+      bg.fillStyle = "#07060f";
+      bg.fillRect(0, 0, 512, 1024);
+      bg.font = "700 34px monospace";
+      for (let k = 0; k < 28; k++) {
+        const ok = rnd() > 0.35;
+        bg.fillStyle = ok ? "#5dffae" : "#ff4d5e";
+        bg.fillText(`${ok ? "▲" : "✕"} $${["PEPE", "WIF", "MOON", "CAT", "FROG", "SEAL", "BONK", "GIGA"][k % 8]}  ${ok ? `${(1 + rnd() * 9).toFixed(1)}x` : "RUG"}`, 24, 50 + k * 36);
+      }
+      const boardTex = new THREE.CanvasTexture(boardCanvas);
+      boardTex.colorSpace = THREE.SRGBColorSpace;
+      boardTex.wrapT = THREE.RepeatWrapping;
+      boardTex.repeat.set(1, 0.45);
+      const boardMat = panel(BD, boardTex, 2.6, 2.2, 0, 2.9, 0.8);
+      const frameM = new THREE.Mesh(new THREE.BoxGeometry(2.9, 2.5, 0.12), new THREE.MeshStandardMaterial({ color: 0x2a2840, metalness: 0.6, roughness: 0.4 }));
+      frameM.position.set(0, 2.9, 0.72);
+      BD.add(frameM);
+      const bl = new THREE.PointLight(0x7dffc0, 10, 7, 2);
+      bl.position.set(0, 2.9, 2);
+      BD.add(bl);
+      anchors.board = new THREE.Vector3(0, 4.4, 0.8);
+
+      // 04 · the fuel station
+      const FU = (groups.fuel = frame(ZONES.fuel, 2.6));
+      pad(FU, 0xff4fc4, 3.4);
+      put(FU, "machine_generatorLarge", 0, -0.4, 1.5, 0, 0.12);
+      put(FU, "machine_barrelLarge", 1.8, 0.4, 1.3, 0, 0.12);
+      put(FU, "barrels", -1.7, 0.6, 1.5, 0.5, 0.12);
+      put(FU, "rover", 0.3, 1.9, 2.2, 2.2, 0.12);
+      put(FU, "astronautB", -1.0, -1.8, 0.9, 0.8, 0.12);
+      const fuelSign = panel(FU, signTex(["KEY", "0.2 SOL"], "#ff4fc4"), 1.8, 0.9, 0, 2.6, 0.2);
+      const fl = new THREE.PointLight(0xff4fc4, 10, 7, 2);
+      fl.position.set(0, 2.6, 1.4);
+      FU.add(fl);
+      anchors.fuel = new THREE.Vector3(0, 3.4, 0);
+
+      // !! · the crash crater: a rocket nose-down in the dust, smoking red
+      const CR = (groups.crash = frame(ZONES.crash, 0.9));
+      pad(CR, 0xff3b4f, 3.4);
+      put(CR, "craterLarge", 0, 0, 3.4, 0, 0.1);
+      const wreck = buildRocket();
+      wreck.rotation.set(2.4, 0.3, 0.2);
+      wreck.position.set(0.2, 1.6, 0.1);
+      CR.add(wreck);
+      put(CR, "meteor_detailed", 1.8, -1.2, 0.8, 1, 0.12);
+      const redPl = new THREE.PointLight(0xff3b2f, 14, 8, 2);
+      redPl.position.set(0, 1.2, 0);
+      CR.add(redPl);
+      const crashSmoke = Array.from({ length: 16 }, (_, i) => {
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color: 0x6b4a5a, transparent: true, opacity: 0, depthWrite: false }));
+        CR.add(s);
+        return { s, t: i / 16 };
+      });
+      anchors.crash = new THREE.Vector3(0, 2.8, 0);
+
+      // lit paths joining the places, running over the ground
+      const pathMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x8f7dff).multiplyScalar(1.8), toneMapped: false, transparent: true, opacity: 0.85 });
+      const hub = ZONES.launch;
+      for (const id of ["radar", "board", "fuel", "crash"]) {
+        const pts: V3[] = [];
+        for (let k = 0; k <= 40; k++) pts.push(new THREE.Vector3().copy(hub).lerp(ZONES[id], k / 40).normalize().multiplyScalar(R + 0.03));
+        const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 60, 0.035, 6, false), pathMat);
+        world.add(tube);
+      }
+      // a few glowing crystal clusters, set halfway along the paths
+      for (const id of ["radar", "board", "fuel", "crash"]) {
+        const d = new THREE.Vector3().copy(ZONES.launch).lerp(ZONES[id], 0.55).normalize();
+        const side = new THREE.Vector3().crossVectors(d, ZONES[id]).normalize().multiplyScalar(0.09);
+        const g = frame(d.clone().add(side).normalize(), 0.7);
+        put(g, "rock_crystalsLargeA", 0, 0, 1.4);
+      }
+      // the far side: a quiet field of rocks, kept away from the places
+      for (const d of [new THREE.Vector3(0, -0.2, -1), new THREE.Vector3(0.7, 0.3, -0.6), new THREE.Vector3(-0.7, 0.2, -0.6), new THREE.Vector3(0, -0.9, -0.3)]) {
+        const g = frame(d.normalize(), 0.4);
+        put(g, "rock_largeA", 0, 0, 2.2);
+        put(g, "rocks_smallA", 1.6, 1, 1.8);
+      }
+      // satellites on tilted orbits, each with a blinking light
+      const sats = [0, 1, 2].map((i) => {
+        const pivot = new THREE.Group();
+        pivot.rotation.set(0.4 + i * 0.5, i * 1.9, 0.2 * i);
+        scene.add(pivot);
+        const sat = new THREE.Group();
+        put(sat, i === 1 ? "satelliteDish_detailed" : "satelliteDish", 0, 0, 0.9);
+        const blink = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), glow(i === 2 ? 0xff4d5e : 0x5dffae, 4));
+        blink.position.y = 0.7;
+        sat.add(blink);
+        pivot.add(sat);
+        const orbit = new THREE.Mesh(new THREE.TorusGeometry(R * (1.55 + i * 0.22), 0.012, 4, 180), new THREE.MeshBasicMaterial({ color: 0x6f64c8, transparent: true, opacity: 0.12 }));
+        orbit.rotation.x = Math.PI / 2;
+        pivot.add(orbit);
+        return { sat, blink, r: R * (1.55 + i * 0.22), sp: 0.12 + i * 0.05, ph: i * 2.1 };
+      });
+      // a ring of glowing dust round the moon
+      const DN = 900;
+      const dp = new Float32Array(DN * 3);
+      const dA = new Float32Array(DN);
+      for (let i = 0; i < DN; i++) {
+        dA[i] = rnd() * Math.PI * 2;
+        const rr = R * (1.3 + rnd() * 0.7);
+        dp.set([Math.cos(dA[i]) * rr, (rnd() - 0.5) * 0.6, Math.sin(dA[i]) * rr], i * 3);
+      }
+      const dustGeo = new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(dp, 3));
+      const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: new THREE.Color(0xb9aaff).multiplyScalar(1.4), size: 0.06, transparent: true, opacity: 0.7, toneMapped: false }));
+      dust.rotation.set(0.35, 0, 0.25);
+      scene.add(dust);
+      // shooting stars
+      const meteors = Array.from({ length: 3 }, () => {
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(0.0, 0.35, 26, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffffff).multiplyScalar(2), transparent: true, opacity: 0, toneMapped: false }));
+        scene.add(m);
+        return { m, t: rnd() * 8, from: new THREE.Vector3(), dir: new THREE.Vector3() };
+      });
+
+      // ---------- sky: stars, two far planets, the sun ----------
+      const SN = 2600;
+      const sp = new Float32Array(SN * 3);
+      for (let i = 0; i < SN; i++) {
+        const d = new THREE.Vector3().randomDirection().multiplyScalar(600 + rnd() * 300);
+        sp.set([d.x, d.y, d.z], i * 3);
+      }
+      const stars = new THREE.Points(new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(sp, 3)), new THREE.PointsMaterial({ color: 0xdcd6ff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0.85 }));
+      scene.add(stars);
+      const tl = new THREE.TextureLoader();
+      const planet = (file: string, size: number, p: [number, number, number]) => {
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tl.load(`/moon/${file}`), transparent: true, depthWrite: false }));
+        (s.material.map as InstanceType<typeof THREE.Texture>).colorSpace = THREE.SRGBColorSpace;
+        s.scale.setScalar(size);
+        s.position.set(...p);
+        scene.add(s);
+        return s;
+      };
+      planet("planet09.png", 44, [-150, 50, -340]);
+      planet("planet05.png", 14, [190, -70, -300]);
+      planet("planet07.png", 10, [90, 110, -300]);
+      scene.add(new THREE.HemisphereLight(0x8f86ff, 0x1a1530, 0.35));
+      const sun = new THREE.DirectionalLight(0xfff1dc, 2.6);
+      sun.position.set(40, 18, 8);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048);
+      Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10, near: 1, far: 100 });
+      sun.shadow.bias = -0.0004;
+      sun.shadow.radius = 3;
+      scene.add(sun);
+      const rim = new THREE.DirectionalLight(0x7b6cff, 1.1);
+      rim.position.set(-30, -8, -20);
+      scene.add(rim);
+
+      // ---------- post ----------
+      const composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+      composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.7, 0.55, 0.78));
+      composer.addPass(new OutputPass());
+      const fit = () => {
+        const w = el.clientWidth, h = el.clientHeight;
+        renderer.setSize(w, h, false);
+        composer.setSize(w, h);
+        camera.aspect = w / h;
+        camera.fov = w / h < 0.8 ? 48 : 32;
+        camera.updateProjectionMatrix();
+      };
+      const ro = new ResizeObserver(fit);
+      ro.observe(el);
+      fit();
+
+      // ---------- turning the moon ----------
+      const spin = { x: 0.35, y: -0.2, tx: 0.35, ty: -0.2 };
+      let dist = small ? 34 : 25, tdist = dist;
+      let drag: { x: number; y: number } | null = null, moved = 0, idle = 0;
+      const ray = new THREE.Raycaster();
+      const ndc = new THREE.Vector2(9, 9);
+      const onDown = (e: PointerEvent) => {
+        drag = { x: e.clientX, y: e.clientY };
+        moved = 0;
+      };
+      const onMove = (e: PointerEvent) => {
+        const r = el.getBoundingClientRect();
+        ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+        if (!drag) return;
+        const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+        moved += Math.abs(dx) + Math.abs(dy);
+        spin.ty += dx * 0.006;
+        spin.tx = clamp(spin.tx + dy * 0.006, -1.2, 1.2);
+        drag = { x: e.clientX, y: e.clientY };
+        idle = 0;
+      };
+      const onUp = () => void (drag = null);
+      const onWheel = (e: WheelEvent) => {
+        tdist = clamp(tdist + e.deltaY * 0.02, 16, 50);
+        idle = 0;
+      };
+      let hovered: string | null = null, flying: { id: string; t0: number; from: { x: number; y: number; d: number } } | null = null;
+      // the turn that brings a place to face the camera
+      const faceSpin = (dir: V3) => ({ y: -Math.atan2(dir.x, dir.z), x: Math.asin(clamp(dir.y, -1, 1)) * 0.85 });
+      const onClick = () => {
+        if (moved > 6 || !hovered || flying) return;
+        flying = { id: hovered, t0: performance.now(), from: { x: spin.x, y: spin.y, d: dist } };
+      };
+      el.addEventListener("pointerdown", onDown);
+      addEventListener("pointermove", onMove);
+      addEventListener("pointerup", onUp);
+      el.addEventListener("wheel", onWheel, { passive: true });
+      el.addEventListener("click", onClick);
+
+      // ---------- the loop ----------
+      const t0 = performance.now();
+      const INTRO = 3200;
+      setPhase("live");
+      const scr = new THREE.Vector3(), tmp = new THREE.Vector3();
+      const verdictCol = [0x5dffae, 0xffc44d, 0xff4d5e];
+      let raf = 0, last = performance.now();
+      const tick = (now: number) => {
+        const dt = Math.min(0.05, (now - last) / 1000);
+        last = now;
+        const t = now / 1000, since = now - t0;
+        idle += dt;
+        if (!drag && !flying && idle > 3) spin.ty += dt * 0.08;
+        if (flying) {
+          const k = easeIO(clamp((now - flying.t0) / 1300));
+          const f = faceSpin(ZONES[flying.id]);
+          let ty = f.y;
+          while (ty - flying.from.y > Math.PI) ty -= Math.PI * 2;
+          while (ty - flying.from.y < -Math.PI) ty += Math.PI * 2;
+          spin.y = spin.ty = flying.from.y + (ty - flying.from.y) * k;
+          spin.x = spin.tx = flying.from.x + (f.x - flying.from.x) * k;
+          dist = tdist = flying.from.d + (13 - flying.from.d) * k;
+          if (k >= 1) {
+            const href = PLACES.find((p) => p.id === flying!.id)!.href;
+            flying = null;
+            router.push(href);
+          }
+        } else {
+          spin.x += (spin.tx - spin.x) * Math.min(1, dt * 5);
+          spin.y += (spin.ty - spin.y) * Math.min(1, dt * 5);
+          dist += (tdist - dist) * Math.min(1, dt * 4);
+        }
+        world.rotation.set(spin.x, spin.y, 0, "XYZ");
+        // the intro: from far away, the moon swings in out of the dark as the sun comes round
+        const ik = easeIO(clamp(since / INTRO));
+        camera.position.set(0, 4 * (1 - ik), dist + (1 - ik) * 140);
+        camera.lookAt(0, 0, 0);
+        sun.intensity = 0.3 + 2.3 * ik;
+        world.rotation.y += (1 - ik) * -1.4;
+
+        // launches: the scanner reads the rocket, it lifts off, then it either flies away or blows up
+        launchT += dt;
+        const CYCLE = 7.5;
+        if (launchT > CYCLE) {
+          launchT = 0;
+          launchN++;
+          verdict = (launchN % 3 === 2 ? 2 : launchN % 4 === 1 ? 1 : 0) as 0 | 1 | 2;
+        }
+        const lt = launchT;
+        const vc = lt < 1.6 ? 0x8f86ff : verdictCol[verdict];
+        (gateLight.material as InstanceType<typeof THREE.MeshBasicMaterial>).color.setHex(vc).multiplyScalar(lt < 1.6 ? 1.5 + Math.sin(t * 20) : 3);
+        gatePl.color.setHex(vc);
+        const lift = lt < 2.4 ? 0 : Math.pow(lt - 2.4, 2) * 1.6;
+        const boom = verdict === 2 && lt > 4.2;
+        rocket.visible = !boom && lt < 6.6;
+        rocket.position.y = 0.26 + lift;
+        rocket.rotation.z = lt > 2.4 ? Math.sin(t * 30) * 0.01 : 0;
+        if (lt < 0.8) rocket.scale.setScalar(0.85 * easeIO(lt / 0.8));
+        const burning = lt > 2.0 && rocket.visible;
+        flame.visible = burning;
+        flame.scale.set(1, 0.8 + Math.random() * 0.5, 1);
+        flameLight.intensity = burning ? 30 + Math.random() * 10 : 0;
+        smoke.forEach((s, i) => {
+          if (burning && s.age > 1.8 && Math.random() < 0.25) {
+            s.age = 0;
+            s.s.position.set(rocket.position.x, Math.max(0.3, rocket.position.y - 0.6), rocket.position.z);
+            s.vel.set((Math.random() - 0.5) * 1.6, lift < 1 ? 0.3 : -0.4, (Math.random() - 0.5) * 1.6);
+          }
+          s.age += dt;
+          s.s.position.addScaledVector(s.vel, dt);
+          const a = s.age / 1.8;
+          s.s.scale.setScalar(0.6 + a * 2.4);
+          (s.s.material as InstanceType<typeof THREE.SpriteMaterial>).opacity = a < 1 ? (1 - a) * 0.45 : 0;
+          void i;
+        });
+        const bk = boom ? clamp((lt - 4.2) / 1.2) : 0;
+        blast.visible = boom && bk < 1;
+        blast.position.set(0, 0.26 + Math.pow(4.2 - 2.4, 2) * 1.6 + 1.5, -0.6);
+        blast.scale.setScalar(1 + bk * 7);
+        (blast.material as InstanceType<typeof THREE.SpriteMaterial>).opacity = boom ? (1 - bk) * 0.9 : 0;
+        debris.forEach((d, i) => {
+          if (boom && lt - dt <= 4.2 + 1e-3) {
+            d.d.position.copy(blast.position);
+            d.vel.set(Math.cos(i) * 3, 2 + (i % 3), Math.sin(i * 1.7) * 3);
+          }
+          d.d.visible = boom && bk < 1;
+          d.vel.y -= dt * 4;
+          d.d.position.addScaledVector(d.vel, dt);
+          d.d.rotation.x += dt * 6;
+        });
+
+        bigDish.rotation.y = Math.sin(t * 0.25) * 0.8;
+        pulses.forEach((p) => {
+          const k = (t * 0.45 + p.ph) % 1;
+          p.p.position.y = 2.6 + k * 2.4;
+          p.p.scale.setScalar(0.5 + k * 1.3);
+          (p.p.material as InstanceType<typeof THREE.MeshBasicMaterial>).opacity = (1 - k) * 0.9;
+        });
+        boardTex.offset.y = (t * 0.05) % 1;
+        fuelSign.color.setScalar(1.6 * (Math.sin(t * 2.2) > -0.85 ? 1 : 0.3));
+        redPl.intensity = 10 + Math.sin(t * 9) * 5 + (Math.random() < 0.05 ? 10 : 0);
+        crashSmoke.forEach((s) => {
+          const k = (t * 0.18 + s.t) % 1;
+          s.s.position.set(Math.sin(s.t * 20) * 0.4, 1.2 + k * 4, Math.cos(s.t * 13) * 0.4);
+          s.s.scale.setScalar(0.8 + k * 2.5);
+          (s.s.material as InstanceType<typeof THREE.SpriteMaterial>).opacity = Math.sin(k * Math.PI) * 0.5;
+        });
+        stars.rotation.y = t * 0.003;
+        sats.forEach((s) => {
+          const a = t * s.sp + s.ph;
+          s.sat.position.set(Math.cos(a) * s.r, 0, Math.sin(a) * s.r);
+          s.sat.rotation.y = -a;
+          s.blink.visible = Math.floor(t * 2 + s.ph) % 2 === 0;
+        });
+        dust.rotation.y = t * 0.03;
+        meteors.forEach((m) => {
+          m.t += dt;
+          if (m.t > 9) {
+            m.t = 0;
+            m.from.set((Math.random() - 0.5) * 300, 80 + Math.random() * 60, -220 - Math.random() * 80);
+            m.dir.set(-0.8 - Math.random() * 0.4, -0.5, 0).normalize();
+            m.m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), m.dir.clone().negate());
+          }
+          const k = m.t / 1.1;
+          m.m.position.copy(m.from).addScaledVector(m.dir, k * 160);
+          (m.m.material as InstanceType<typeof THREE.MeshBasicMaterial>).opacity = k < 1 ? Math.sin(k * Math.PI) * 0.9 : 0;
+        });
+        // the scan sheet sweeps the rocket, the shockwave spreads at lift-off
+        scanSheet.visible = lt < 1.8;
+        scanSheet.position.set(0, 0.4 + (Math.sin(lt * 5) * 0.5 + 0.5) * 3.2, -0.6);
+        const sk = clamp((lt - 2.4) / 0.9);
+        shock.scale.setScalar(0.5 + sk * 3.5);
+        (shock.material as InstanceType<typeof THREE.MeshBasicMaterial>).opacity = lt > 2.4 && sk < 1 ? (1 - sk) * 0.9 : 0;
+
+        // hover: the place under the pointer lifts a little and its tag opens
+        const live = since > INTRO;
+        if (live && !flying) {
+          ray.setFromCamera(ndc, camera);
+          let hit: string | null = null;
+          for (const [id, g] of Object.entries(groups))
+            if (ray.intersectObject(g, true).length) {
+              hit = id;
+              break;
+            }
+          if (hit !== hovered) {
+            hovered = hit;
+            setHover(hit);
+            el.style.cursor = hit ? "pointer" : "grab";
+          }
+        }
+        for (const [id, g] of Object.entries(groups)) {
+          const want = (hovered === id ? 1.08 : 1) * 0.42;
+          g.scale.setScalar(g.scale.x + (want - g.scale.x) * Math.min(1, dt * 8));
+        }
+        // tags follow their places, hidden when the place is round the back of the moon
+        PLACES.forEach((p, i) => {
+          const node = tagEls.current[i];
+          if (!node) return;
+          const g = groups[p.id];
+          tmp.copy(anchors[p.id]);
+          g.localToWorld(tmp);
+          const facing = tmp.clone().normalize().dot(camera.position.clone().normalize());
+          scr.copy(tmp).project(camera);
+          const x = (scr.x * 0.5 + 0.5) * el.clientWidth, y = (-scr.y * 0.5 + 0.5) * el.clientHeight;
+          const vis = live && facing > 0.25 ? clamp((facing - 0.25) / 0.2) : 0;
+          node.style.opacity = vis.toFixed(2);
+          node.style.visibility = vis > 0.02 ? "visible" : "hidden";
+          node.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
+          node.dataset.side = x > el.clientWidth * 0.55 ? "l" : "r";
+        });
+        composer.render();
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      void gate;
+      void boardMat;
+      stop = () => {
+        cancelAnimationFrame(raf);
+        ro.disconnect();
+        el.removeEventListener("pointerdown", onDown);
+        removeEventListener("pointermove", onMove);
+        removeEventListener("pointerup", onUp);
+        el.removeEventListener("wheel", onWheel);
+        el.removeEventListener("click", onClick);
+        composer.dispose();
+        renderer.dispose();
+        renderer.domElement.remove();
+      };
+    })();
+    return () => {
+      alive = false;
+      stop();
+    };
+  }, [router]);
+
+  return (
+    <section className="mn">
+      <h1 className="w3-sr">yeppo: rug checks for pump.fun coins, in the browser</h1>
+      <div ref={host} className="mn-canvas" />
+      {phase === "load" && (
+        <div className="mn-load" aria-hidden>
+          {/* a crescent that fills into a full moon as the models arrive */}
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="30" className="mn-ring" />
+            <circle cx="50" cy="50" r="30" className="mn-fill" style={{ strokeDashoffset: 188.5 * (1 - load) }} />
+          </svg>
+          <span>{String(Math.round(load * 100)).padStart(3, "0")}</span>
+        </div>
+      )}
+      {PLACES.map((p, i) => (
+        <a
+          key={p.id}
+          href={p.href}
+          className={`w3-tag go ${p.tone ?? ""} ${hover === p.id ? "on" : ""}`}
+          ref={(n) => void (tagEls.current[i] = n)}
+          onClick={(e) => {
+            e.preventDefault();
+            router.push(p.href);
+          }}
+        >
+          <i className="w3-dot" />
+          <i className="w3-lead" />
+          <span className="w3-box">
+            <em>{p.n}</em>
+            <b>{p.t}</b>
+            <span>{p.v}</span>
+          </span>
+        </a>
+      ))}
+      <div className={`mn-hud ${phase === "live" ? "on" : ""}`} aria-hidden>
+        <span className="mn-mark">yeppo</span>
+        <span className="mn-k">every coin wants the moon · we check it first</span>
+        <span className="mn-hint">drag to turn the moon · click a place</span>
+      </div>
+    </section>
+  );
+}

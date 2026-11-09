@@ -1832,3 +1832,84 @@ canvas.w3-canvas,
   transform: translateX(-50%);
   white-space: nowrap;
 }
+
+/* ---- the home: the moon ----------------------------------------------------------------------------------------- */
+.mn {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(80% 70% at 60% 40%, #171233 0%, #0a0818 55%, #030209 100%);
+}
+.mn-canvas {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.mn-canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+.mn-load {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.3em;
+  color: #6f68a0;
+}
+.mn-load svg {
+  width: 84px;
+  transform: rotate(-90deg);
+}
+.mn-ring {
+  fill: none;
+  stroke: rgba(160, 150, 230, 0.15);
+  stroke-width: 1;
+}
+.mn-fill {
+  fill: none;
+  stroke: #d9d2ff;
+  stroke-width: 1.2;
+  stroke-dasharray: 188.5;
+  transition: stroke-dashoffset 0.3s ease;
+  filter: drop-shadow(0 0 4px #a99bff);
+}
+.mn-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8f86b8;
+  opacity: 0;
+  transition: opacity 1.6s ease 1.2s;
+}
+.mn-hud.on {
+  opacity: 1;
+}
+.mn-hud > span {
+  position: absolute;
+}
+.mn-mark {
+  left: max(18px, 2.4vw);
+  top: 20px;
+  font: 600 17px var(--font-sans);
+  letter-spacing: -0.03em;
+  text-transform: none;
+  color: #efeaff;
+}
+.mn-k {
+  left: max(18px, 2.4vw);
+  top: 46px;
+}
+.mn-hint {
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
