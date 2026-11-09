@@ -1,0 +1,14 @@
+-- Meme waves, sharper (applied as 049_trends_quality and 050_trends_dedupe):
+--  * words of the same coin names are one wave (the strongest word of each group is kept);
+--  * a wave lists only its coins born in the last 15 minutes that yeppo would not call Don't buy (no rug, bundle under
+--    15%, at least half of their high, ×1.3 over launch, not a coin farm) and that buyers are piling into now
+--    (8+ buys in the last 2 minutes, buys >= sells, price not falling more than 15%), best first by buying wallets
+--    and climb; a creator who left in the first minute halves the score.
+-- The full function is the one in the database (yr_trends_s); see 048_trends.sql for its first form.
+
+-- 051_trends_leader, 052_trends_graduating (applied):
+--  * the wave's coins of the last hour, not 15 minutes; the original (by far the most trades) leads, and a later coin
+--    with the same ticker and a third of its trades or less is marked a copy (listed last, never alerted);
+--  * a coin that finished pump.fun's curve (graduated, or ×10 with 300+ trades) trades on PumpSwap where yeppo's
+--    capture doesn't see it: it is listed as moved, and yeppo.it/api/trends keeps it only while DexScreener shows
+--    buyers leading in the last 5 minutes and the price holding.
