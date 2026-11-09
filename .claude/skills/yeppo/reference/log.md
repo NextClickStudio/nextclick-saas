@@ -80,3 +80,4 @@
 - components/Home.tsx on the branch renders <Moon/>: deploying the branch head would publish the WIP. The live site runs 895dbda (Lighthouse).
 - Still open: QA key deletion (only if the user says "cancella"); new logo (not a Y).
 - 9 Nov: the moon (commit 8e9b0c7) published on yeppo.it at the user's request, to try it live. The lighthouse film is no longer the home.
+- 9 Nov: moon c344656 published (NASA LRO surface, rovers on lit paths, domes, solar arrays, masts, crash rocket fixed). Next: model the hero objects in Blender (bevels, baked light) and export glTF.
