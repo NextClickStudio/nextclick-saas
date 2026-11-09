@@ -79,3 +79,4 @@
 - Current WIP (branch claude/yeppo-mac, NOT deployed): components/moon/Moon.tsx, a small moon you turn with the mouse; Kenney Space Kit + Planets (CC0) in public/moon. User verdict: concept good, execution bad (platforms too close, objects unidentifiable/badly placed, moon pixelated). Next session continues it — brief in HANDOFF.md.
 - components/Home.tsx on the branch renders <Moon/>: deploying the branch head would publish the WIP. The live site runs 895dbda (Lighthouse).
 - Still open: QA key deletion (only if the user says "cancella"); new logo (not a Y).
+- 9 Nov: the moon (commit 8e9b0c7) published on yeppo.it at the user's request, to try it live. The lighthouse film is no longer the home.

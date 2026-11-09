@@ -98,4 +98,4 @@ replies to the user in Italian.
 
 
 ## Home (9 Nov 2026)
-- Live: the lighthouse film (commit 895dbda, components/film/Lighthouse.tsx, frames in public/film2). Branch head: the moon WIP (components/moon/Moon.tsx), not deployed. Full brief for continuing: HANDOFF.md in the export zip.
+- Live: the moon (commit 8e9b0c7, components/moon/Moon.tsx), published to try it; still a work in progress. Previous home: the lighthouse film (895dbda). Full brief for continuing: HANDOFF.md in the export zip.
