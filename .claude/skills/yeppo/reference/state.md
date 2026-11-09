@@ -95,3 +95,7 @@ replies to the user in Italian.
 - The user's list (121 wallets) is in their Axiom export; they import it themselves in the panel once built.
 - Spec for the panel, the new checks and the design: `docs/plan-6nov.md`. Design prototype (approved direction to
   confirm): https://claude.ai/artifact/TNF5XQvCDfJp14ksgjoeCa
+
+
+## Home (9 Nov 2026)
+- Live: the lighthouse film (commit 895dbda, components/film/Lighthouse.tsx, frames in public/film2). Branch head: the moon WIP (components/moon/Moon.tsx), not deployed. Full brief for continuing: HANDOFF.md in the export zip.
