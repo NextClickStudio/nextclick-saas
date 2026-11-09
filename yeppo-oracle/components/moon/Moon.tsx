@@ -18,6 +18,7 @@ const PLACES: Place[] = [
   { id: "crash", n: "!!", t: "Rug", v: "it launched. it didn't land.", href: "/risk", tone: "red" },
 ];
 const MODELS = [
+  "yp_rocket", "yp_tower",
   "rocket_finsA", "rocket_fuelA", "rocket_sidesA", "rocket_topA", "satelliteDish_large", "satelliteDish_detailed", "satelliteDish",
   "machine_wireless", "gate_complex", "platform_large", "supports_high", "hangar_largeA", "hangar_roundGlass", "machine_generatorLarge",
   "machine_barrelLarge", "barrels", "rover", "astronautA", "astronautB", "craterLarge", "crater", "rock_crystalsLargeA", "rock_crystals",
@@ -65,7 +66,7 @@ export default function Moon() {
                     if (m.isMesh) {
                       m.castShadow = m.receiveShadow = true;
                       const mat = m.material as InstanceType<typeof THREE.MeshStandardMaterial>;
-                      if (mat && "roughness" in mat) {
+                      if (mat && "roughness" in mat && !n.startsWith("yp_")) {
                         mat.roughness = Math.max(0.45, mat.roughness ?? 0.6);
                         if (/crystal/i.test(mat.name)) {
                           mat.emissive = new THREE.Color(0x9a6bff);
@@ -221,28 +222,12 @@ export default function Moon() {
       };
       const WHITE = 0xe9e6f5, RED = 0xff4d5e, STEEL = 0x5b5f86, DARKS = 0x2c2a44;
       // a proper rocket: engine bell, white body with a purple band and a lit window, red nose and three fins
+      // the rocket, modelled in Blender (render/assets3d.py): white hull, violet bands, lit window, red nose and fins
       const buildRocket = () => {
         const r = new THREE.Group();
-        mk(new THREE.CylinderGeometry(0.3, 0.46, 0.45, 16), M(DARKS, 0.4, 0.7), r, 0, 0.25, 0);
-        mk(new THREE.CylinderGeometry(0.56, 0.6, 3.0, 20), M(WHITE, 0.45, 0.1), r, 0, 1.95, 0);
-        mk(new THREE.CylinderGeometry(0.62, 0.62, 0.28, 20), M(0x7b5cff, 0.4, 0.3), r, 0, 1.15, 0);
-        mk(new THREE.CylinderGeometry(0.62, 0.62, 0.12, 20), M(0x7b5cff, 0.4, 0.3), r, 0, 3.3, 0);
-        mk(new THREE.ConeGeometry(0.56, 1.35, 20), M(RED, 0.45, 0.15), r, 0, 4.12, 0);
-        const win = mk(new THREE.CylinderGeometry(0.2, 0.2, 0.08, 16), glow(0x8ff7ff, 2), r, 0, 2.6, 0.55);
-        win.rotation.x = Math.PI / 2;
-        const fin = new THREE.Shape();
-        fin.moveTo(0, 0);
-        fin.lineTo(0.75, -0.2);
-        fin.lineTo(0.7, 0.5);
-        fin.lineTo(0, 1.25);
-        fin.closePath();
-        const finGeo = new THREE.ExtrudeGeometry(fin, { depth: 0.1, bevelEnabled: false });
-        finGeo.translate(0, 0, -0.05);
-        for (let k = 0; k < 3; k++) {
-          const f = mk(finGeo, M(RED, 0.45, 0.15), r, 0, 0.45, 0);
-          f.rotation.y = (k * Math.PI * 2) / 3;
-          f.translateX(0.5);
-        }
+        const src = lib.yp_rocket;
+        if (src) r.add(src.clone(true));
+        r.scale.setScalar(0.95);
         return r;
       };
 
@@ -251,17 +236,15 @@ export default function Moon() {
       pad(L, 0x8f86ff, 3.4);
       mk(new THREE.CylinderGeometry(1.35, 1.45, 0.3, 24), M(STEEL, 0.6, 0.5), L, 0, 0.25, 0);
       // service tower: two beams, rungs, an arm reaching the rocket, a red light on top
-      for (const x of [-2.15, -1.65]) mk(new THREE.BoxGeometry(0.16, 6, 0.16), M(STEEL, 0.5, 0.6), L, x, 3.1, -0.25);
-      for (let k = 0; k < 9; k++) mk(new THREE.BoxGeometry(0.62, 0.08, 0.1), M(STEEL, 0.5, 0.6), L, -1.9, 0.6 + k * 0.65, -0.25);
-      mk(new THREE.BoxGeometry(1.4, 0.14, 0.3), M(STEEL, 0.5, 0.6), L, -1.15, 4.2, -0.25);
-      const towerTip = mk(new THREE.SphereGeometry(0.14, 10, 8), glow(0xff3b4f, 3), L, -1.9, 6.2, -0.25);
+      put(L, "yp_tower", -2.1, -0.2, 1, 0, 0.1);
+      const towerTip = new THREE.Object3D();
       // the scanner: two posts and a ring of light that sweeps up and down the rocket and takes the verdict colour
       for (const x of [-1.45, 1.45]) mk(new THREE.BoxGeometry(0.2, 5.6, 0.2), M(DARKS, 0.4, 0.7), L, x, 2.9, 0.9);
       mk(new THREE.BoxGeometry(3.1, 0.22, 0.22), M(DARKS, 0.4, 0.7), L, 0, 5.75, 0.9);
-      const gateLight = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.07, 10, 64), glow(0x5dffae, 3));
+      const gateLight = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.05, 10, 64), glow(0x5dffae, 1.8));
       gateLight.rotation.x = Math.PI / 2;
       L.add(gateLight);
-      const gatePl = new THREE.PointLight(0x5dffae, 14, 9, 2);
+      const gatePl = new THREE.PointLight(0x5dffae, 4, 7, 2);
       gatePl.position.set(0, 2.5, 1.6);
       L.add(gatePl);
       anchors.launch = new THREE.Vector3(0, 6.4, 0);
@@ -652,7 +635,7 @@ export default function Moon() {
         }
         const lt = launchT;
         const vc = lt < 1.6 ? 0x8f86ff : verdictCol[verdict];
-        (gateLight.material as InstanceType<typeof THREE.MeshBasicMaterial>).color.setHex(vc).multiplyScalar(lt < 1.6 ? 1.5 + Math.sin(t * 20) : 3);
+        (gateLight.material as InstanceType<typeof THREE.MeshBasicMaterial>).color.setHex(vc).multiplyScalar(lt < 1.6 ? 1.0 + 0.5 * Math.sin(t * 20) : 1.8);
         gatePl.color.setHex(vc);
         const lift = lt < 2.4 ? 0 : Math.pow(lt - 2.4, 2) * 1.6;
         const boom = verdict === 2 && lt > 4.2;
