@@ -109,36 +109,17 @@ export default function Moon() {
         fuel: new THREE.Vector3(0.1, -0.42, 0.9).normalize(),
         crash: new THREE.Vector3(-0.05, -0.15, -0.99).normalize(),
       };
-      const geo = new THREE.IcosahedronGeometry(R, 9);
-      const craters = Array.from({ length: 20 }, () => ({ c: new THREE.Vector3().randomDirection(), r: 0.14 + rnd() * 0.18, d: 0.12 + rnd() * 0.14 })).filter((cr) =>
-        Object.values(ZONES).every((z) => z.angleTo(cr.c) > 0.62),
-      );
-      const pos = geo.attributes.position;
-      const col = new Float32Array(pos.count * 3);
-      const v = new THREE.Vector3(), base = new THREE.Color(0xb9b3c4), dark = new THREE.Color(0x6f6a80), tint = new THREE.Color();
-      for (let i = 0; i < pos.count; i++) {
-        v.fromBufferAttribute(pos, i).normalize();
-        let h = 0, shade = 0;
-        for (const cr of craters) {
-          const a = v.angleTo(cr.c) / cr.r;
-          if (a < 1.6) {
-            h += a < 1 ? -cr.d * (1 - a * a) : cr.d * 0.35 * Math.sin(((a - 1) / 0.6) * Math.PI);
-            if (a < 1) shade += 0.5 * (1 - a);
-          }
-        }
-        
-        for (const z of Object.values(ZONES)) {
-          const a = v.angleTo(z);
-          if (a < 0.42) h *= a / 0.42; // level ground for the bases
-        }
-        v.multiplyScalar(R + h);
-        pos.setXYZ(i, v.x, v.y, v.z);
-        tint.copy(base).lerp(dark, clamp(shade * 0.8));
-        col.set([tint.r, tint.g, tint.b], i * 3);
-      }
-      geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
-      geo.computeVertexNormals();
-      const moonMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, flatShading: true });
+      // the real Moon (NASA LRO colour and elevation maps, public domain), tinted to the scene's violet
+      const texL = new THREE.TextureLoader();
+      const moonCol = texL.load("/moon/moon_color.jpg");
+      moonCol.colorSpace = THREE.SRGBColorSpace;
+      moonCol.anisotropy = 8;
+      const moonH = texL.load("/moon/moon_height.jpg");
+      const geo = new THREE.SphereGeometry(R, small ? 128 : 256, small ? 64 : 128);
+      const moonMat = new THREE.MeshStandardMaterial({
+        map: moonCol, color: 0xe6defc, bumpMap: moonH, bumpScale: 2.2,
+        displacementMap: moonH, displacementScale: 0.16, displacementBias: -0.1, roughness: 0.95, metalness: 0,
+      });
       const moon = new THREE.Mesh(geo, moonMat);
       moon.receiveShadow = moon.castShadow = true;
       const world = new THREE.Group();
@@ -424,8 +405,8 @@ export default function Moon() {
       pad(CR, 0xff3b4f, 3.0);
       put(CR, "craterLarge", 0, 0, 3.2, 0, 0.1);
       const wreck = buildRocket();
-      wreck.rotation.set(2.5, 0.4, 0.25);
-      wreck.position.set(0.1, 3.4, 0.2);
+      wreck.rotation.set(Math.PI - 0.55, 0.4, 0.2);
+      wreck.position.set(0.2, 3.1, -0.9);
       CR.add(wreck);
       const redPl = new THREE.PointLight(0xff3b2f, 16, 9, 2);
       redPl.position.set(0, 1.2, 0);
@@ -437,6 +418,64 @@ export default function Moon() {
       });
       anchors.crash = new THREE.Vector3(0, 4, 0);
       void towerTip;
+      // ---------- life between the places ----------
+      // lit paths from place to place, each with a rover driving along it
+      const ring = ["launch", "board", "fuel", "crash", "radar"];
+      const pathMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x9b8cff).multiplyScalar(1.6), toneMapped: false, transparent: true, opacity: 0.8 });
+      const routes: InstanceType<typeof THREE.CatmullRomCurve3>[] = [];
+      for (let k = 0; k < ring.length; k++) {
+        const a = ZONES[ring[k]], b = ZONES[ring[(k + 1) % ring.length]];
+        const pts: V3[] = [];
+        for (let j = 0; j <= 48; j++) {
+          const t2 = j / 48;
+          const v2 = new THREE.Vector3().copy(a).lerp(b, t2);
+          if (v2.lengthSq() < 1e-4) v2.set(0, 0, 1);
+          pts.push(v2.normalize().multiplyScalar(R + 0.06));
+        }
+        const curve = new THREE.CatmullRomCurve3(pts);
+        routes.push(curve);
+        world.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 80, 0.028, 6, false), pathMat));
+      }
+      const rovers = routes.map((curve, i) => {
+        const g = new THREE.Group();
+        const body = mk(new THREE.BoxGeometry(0.42, 0.2, 0.28), M(WHITE, 0.5, 0.2), g, 0, 0.2, 0);
+        void body;
+        for (const [x, z] of [[-0.15, 0.16], [0.15, 0.16], [-0.15, -0.16], [0.15, -0.16]]) mk(new THREE.CylinderGeometry(0.07, 0.07, 0.06, 10), M(DARKS), g, x, 0.08, z).rotation.x = Math.PI / 2;
+        mk(new THREE.BoxGeometry(0.06, 0.06, 0.2), glow(0xffe8a8, 3), g, 0.24, 0.22, 0);
+        world.add(g);
+        return { g, curve, t: i * 0.2, sp: 0.05 + (i % 2) * 0.02 };
+      });
+      // habitat domes, solar arrays and beacons, set between the places (never on them)
+      const between = (a: string, b: string, f: number, side: number) => {
+        const d = new THREE.Vector3().copy(ZONES[a]).lerp(ZONES[b], f).normalize();
+        const n = new THREE.Vector3().crossVectors(ZONES[a], ZONES[b]).normalize();
+        return d.addScaledVector(n, side).normalize();
+      };
+      const beacons: InstanceType<typeof THREE.Mesh>[] = [];
+      ring.forEach((id, k) => {
+        const nx = ring[(k + 1) % ring.length];
+        // a glass dome with a warm light inside
+        const g1 = frame(between(id, nx, 0.35, 0.16), k);
+        mk(new THREE.CylinderGeometry(1.25, 1.35, 0.3, 24), M(STEEL, 0.6, 0.5), g1, 0, 0.1, 0);
+        const dome = mk(new THREE.SphereGeometry(1.15, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0xbfd8ff, roughness: 0.1, metalness: 0, transmission: 0.6, transparent: true, opacity: 0.55, thickness: 0.3 }), g1, 0, 0.25, 0);
+        void dome;
+        const warm = new THREE.PointLight(0xffc98a, 6, 4, 2);
+        warm.position.set(0, 0.8, 0);
+        g1.add(warm);
+        mk(new THREE.BoxGeometry(0.5, 0.5, 0.5), M(0x8f86ff, 0.5, 0.3), g1, 0, 0.5, 0);
+        // a row of solar panels
+        const g2 = frame(between(id, nx, 0.62, -0.17), k * 1.3);
+        for (let j = -1; j <= 1; j++) {
+          mk(new THREE.CylinderGeometry(0.05, 0.05, 0.7, 6), M(STEEL), g2, j * 1.1, 0.35, 0);
+          const pnl = mk(new THREE.BoxGeometry(1.0, 0.05, 0.7), new THREE.MeshStandardMaterial({ color: 0x2b3f9e, roughness: 0.25, metalness: 0.7, emissive: 0x101a55, emissiveIntensity: 0.6 }), g2, j * 1.1, 0.72, 0);
+          pnl.rotation.x = -0.5;
+        }
+        // a thin mast with a blinking light
+        const g3 = frame(between(id, nx, 0.5, 0.02), 0);
+        mk(new THREE.CylinderGeometry(0.035, 0.05, 2.2, 6), M(STEEL), g3, 0, 1.1, 0);
+        beacons.push(mk(new THREE.SphereGeometry(0.1, 10, 8), glow(k % 2 ? 0xff4d5e : 0x5dffae, 3.5), g3, 0, 2.25, 0));
+      });
+
       // satellites on tilted orbits, each with a blinking light
       const sats = [0, 1, 2].map((i) => {
         const pivot = new THREE.Group();
@@ -671,6 +710,17 @@ export default function Moon() {
           (s.s.material as InstanceType<typeof THREE.SpriteMaterial>).opacity = Math.sin(k * Math.PI) * 0.5;
         });
         stars.rotation.y = t * 0.003;
+        rovers.forEach((rv) => {
+          rv.t = Number.isFinite(rv.t) ? (rv.t + dt * rv.sp) % 1 : 0;
+          const u = clamp(rv.t, 0, 0.985);
+          const p0 = rv.curve.getPoint(u), p1 = rv.curve.getPoint(u + 0.01);
+          rv.g.position.copy(p0);
+          // lookAt works in world space: carry the direction and the up through the moon's turn
+          rv.g.up.copy(p0).normalize().applyQuaternion(world.quaternion);
+          rv.g.lookAt(world.localToWorld(p1.clone()));
+          rv.g.rotateY(-Math.PI / 2);
+        });
+        beacons.forEach((b, i) => void (b.visible = Math.floor(t * 1.6 + i * 0.7) % 2 === 0));
         sats.forEach((s) => {
           const a = t * s.sp + s.ph;
           s.sat.position.set(Math.cos(a) * s.r, 0, Math.sin(a) * s.r);
