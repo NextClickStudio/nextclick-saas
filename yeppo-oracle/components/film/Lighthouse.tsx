@@ -89,9 +89,9 @@ export default function Lighthouse() {
     };
     for (let k = 0; k < 6; k++) load();
 
-    let W = 0, H = 0, dpr = 1, ix = 0, iy = 0, iw = 0, ih = 0;
+    let W = 0, H = 0, dpr = 1, ix = 0, iy = 0, iw = 0, ih = 0, lastKey = "";
     const fit = () => {
-      dpr = Math.min(2, devicePixelRatio || 1);
+      dpr = 1; // the frames are smaller than the screen anyway: drawing at 2x only costs time
       W = c.clientWidth;
       H = c.clientHeight;
       c.width = Math.round(W * dpr);
@@ -104,6 +104,7 @@ export default function Lighthouse() {
       iy = (H - ih) / 2;
       panX = ix;
       drawn = null;
+      lastKey = "";
     };
     let drawn: HTMLImageElement | null = null, panX = 0;
     // on a narrow screen the picture is wider than the screen: at the end it pans from one object to the next
@@ -158,11 +159,10 @@ export default function Lighthouse() {
             "  float wave = sin(r * 60.0 - time * 3.0) * exp(-r * 9.0) * under * has;",  // ripples round the cursor, under water
             "  px += normalize(c + 1e-5) * wave * 7.0;",
             "  vec2 uv = (px - img.xy) / img.zw; uv = (uv - 0.5) / 1.035 + 0.5;",
-            "  float ca = 0.0012 + 0.004 * exp(-r * 6.0) * has;",
+            "  float ca = 0.0025 * exp(-r * 6.0) * has * under;",
             "  vec3 col = vec3(texture2D(t, uv + vec2(ca, 0.0)).r, texture2D(t, uv).g, texture2D(t, uv - vec2(ca, 0.0)).b);",
             "  vec2 gc = px / res - g.xy; gc.x *= res.x / res.y;",
             "  col += vec3(0.55, 0.8, 1.0) * g.z * (0.22 * exp(-length(gc) * 7.0) + 0.06 * sin(time * 4.0) * exp(-length(gc) * 12.0));",
-            "  col += (h(px + fract(time) * 100.0) - 0.5) * 0.035;",
             "  vec2 vg = v - 0.5; col *= 1.0 - dot(vg, vg) * 0.9;",
             "  gl_FragColor = vec4(col, 1.0);",
             "}",
@@ -183,8 +183,13 @@ export default function Lighthouse() {
       for (const [k, val] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]])
         gl.texParameteri(gl.TEXTURE_2D, k, val);
     }
+    // redraw only when something on screen changes; the ripples under the cursor are the one thing that moves alone
     const draw = (im: HTMLImageElement | null, now = performance.now()) => {
       if (!im) return;
+      const animating = under && mouse.inside;
+      const key = `${im.src}|${ix.toFixed(1)}|${iy.toFixed(1)}|${W}|${H}|${mouse.x.toFixed(4)}|${mouse.y.toFixed(4)}|${glow.k.toFixed(3)}|${glow.x.toFixed(3)}`;
+      if (!animating && key === lastKey) return;
+      lastKey = key;
       if (gl && prog) {
         if (im !== drawn) {
           gl.bindTexture(gl.TEXTURE_2D, texture);
