@@ -537,7 +537,9 @@ export default function Moon() {
       scene.add(rim);
 
       // ---------- post ----------
-      const composer = new EffectComposer(renderer);
+      // the post effects draw into an off-screen picture: give it multisampling, or every edge comes out jagged
+      const rt = new THREE.WebGLRenderTarget(1, 1, { samples: 4, type: THREE.HalfFloatType });
+      const composer = new EffectComposer(renderer, rt);
       composer.addPass(new RenderPass(scene, camera));
       composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.7, 0.55, 0.78));
       composer.addPass(new OutputPass());
@@ -555,7 +557,7 @@ export default function Moon() {
 
       // ---------- turning the moon ----------
       const spin = { x: 0.35, y: -0.2, tx: 0.35, ty: -0.2 };
-      let dist = small ? 44 : 34, tdist = dist;
+      let dist = small ? 31 : 34, tdist = dist;
       let drag: { x: number; y: number } | null = null, moved = 0, idle = 0;
       const ray = new THREE.Raycaster();
       const ndc = new THREE.Vector2(9, 9);
@@ -770,7 +772,7 @@ export default function Moon() {
           node.style.opacity = vis.toFixed(2);
           node.style.visibility = vis > 0.02 ? "visible" : "hidden";
           node.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
-          node.dataset.side = x > el.clientWidth * 0.55 ? "l" : "r";
+          node.dataset.side = x > el.clientWidth * (small ? 0.42 : 0.55) ? "l" : "r";
         });
         composer.render();
         raf = requestAnimationFrame(tick);

@@ -1913,3 +1913,16 @@ canvas.w3-canvas,
   transform: translateX(-50%);
   white-space: nowrap;
 }
+/* on a phone the tags on the moon keep only their name, so they never run off the screen */
+@media (max-width: 760px) {
+  .mn ~ * .w3-box span,
+  .mn .w3-box span {
+    display: none;
+  }
+  .mn .w3-tag {
+    font-size: 9px;
+  }
+  .mn-k {
+    display: none;
+  }
+}
