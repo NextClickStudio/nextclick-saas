@@ -1754,3 +1754,81 @@ canvas.w3-canvas,
     display: none;
   }
 }
+
+/* ---- the home: the neon city block ------------------------------------------------------------------------------ */
+.cy {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(90% 70% at 50% 42%, #1c1236 0%, #0b0818 55%, #040308 100%);
+  overflow: hidden;
+}
+.cy-canvas {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.cy-canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+.cy-load {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  background: #05040a;
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.3em;
+  color: #5c5677;
+}
+.cy-load svg {
+  width: min(320px, 70vw);
+}
+.cy-tube {
+  font: 600 84px var(--font-sans);
+  letter-spacing: -0.04em;
+  fill: none;
+  stroke: #36f3ff;
+  stroke-width: 1.4;
+  stroke-dasharray: 900;
+  filter: drop-shadow(0 0 6px #36f3ff);
+  transition: stroke-dashoffset 0.4s ease;
+}
+.cy-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font: 500 10px var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8f86b8;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+}
+.cy-hud.on {
+  opacity: 1;
+}
+.cy-hud > span {
+  position: absolute;
+}
+.cy-mark {
+  left: max(18px, 2.4vw);
+  top: 20px;
+  font: 600 17px var(--font-sans);
+  letter-spacing: -0.03em;
+  text-transform: none;
+  color: #efeaff;
+}
+.cy-k {
+  left: max(18px, 2.4vw);
+  top: 46px;
+}
+.cy-hint {
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}

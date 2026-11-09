@@ -1,13 +1,13 @@
 import JsonLd from "./JsonLd";
 import { SITE_URL } from "@/lib/config";
-import Lighthouse from "./film/Lighthouse";
+import City from "./city/City";
 
-// The home (9 Nov 2026) is one film: a futuristic lighthouse in a night storm that lights up, then a dive down the
-// tower and into the deep. No header and no buttons: the objects in the film are the links to the rest of the site.
+// The home (9 Nov 2026) is a small neon city block drawn live in 3D. No header and no buttons: the buildings are the
+// links to the rest of the site.
 export default function Home() {
   return (
     <main className="home-film">
-      <Lighthouse />
+      <City />
       <JsonLd
         data={[
           {
