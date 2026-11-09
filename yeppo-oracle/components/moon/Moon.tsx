@@ -18,7 +18,7 @@ const PLACES: Place[] = [
   { id: "crash", n: "!!", t: "Rug", v: "it launched. it didn't land.", href: "/risk", tone: "red" },
 ];
 const MODELS = [
-  "yp_rocket", "yp_tower",
+  "yp_rocket", "yp_tower", "yp_dish",
   "rocket_finsA", "rocket_fuelA", "rocket_sidesA", "rocket_topA", "satelliteDish_large", "satelliteDish_detailed", "satelliteDish",
   "machine_wireless", "gate_complex", "platform_large", "supports_high", "hangar_largeA", "hangar_roundGlass", "machine_generatorLarge",
   "machine_barrelLarge", "barrels", "rover", "astronautA", "astronautB", "craterLarge", "crater", "rock_crystalsLargeA", "rock_crystals",
@@ -316,14 +316,21 @@ export default function Moon() {
         root.scale.setScalar(s);
         return { root, yoke };
       };
-      const big = dishUnit(1);
-      RD.add(big.root);
-      const bigDish = big.yoke;
-      for (const [x, z, sc] of [[2.3, 1.2, 0.42], [-2.3, 1.2, 0.42]]) {
-        const u = dishUnit(sc);
-        u.root.position.set(x, 0.15, z);
-        u.yoke.rotation.y = x > 0 ? -0.5 : 0.5;
-        RD.add(u.root);
+      const dishModel = (sc: number) => {
+        const yoke = new THREE.Group();
+        const src = lib.yp_dish;
+        if (src) yoke.add(src.clone(true));
+        yoke.scale.setScalar(sc);
+        return yoke;
+      };
+      const bigDish = dishModel(1.25);
+      bigDish.position.y = 0.1;
+      RD.add(bigDish);
+      for (const [x, z, sc] of [[2.4, 1.4, 0.45], [-2.4, 1.4, 0.45]]) {
+        const u = dishModel(sc);
+        u.position.set(x, 0.1, z);
+        u.rotation.y = x > 0 ? -0.6 : 0.6;
+        RD.add(u);
       }
       const pulses = Array.from({ length: 3 }, (_, i) => {
         const p = new THREE.Mesh(new THREE.TorusGeometry(1, 0.05, 8, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(0x5dffae).multiplyScalar(2.4), transparent: true, opacity: 0, toneMapped: false }));
