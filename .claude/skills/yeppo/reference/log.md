@@ -82,3 +82,4 @@
 - 9 Nov: the moon (commit 8e9b0c7) published on yeppo.it at the user's request, to try it live. The lighthouse film is no longer the home.
 - 9 Nov: moon c344656 published (NASA LRO surface, rovers on lit paths, domes, solar arrays, masts, crash rocket fixed). Next: model the hero objects in Blender (bevels, baked light) and export glTF.
 - 9 Nov: c5222a2 published (Blender rocket + tower). Then the radio telescope modelled in Blender (render/assets3d_dish.py -> public/moon/yp_dish.glb) and used for the big dish and the two small ones (not yet published).
+- 9 Nov: 51684ae published (Blender radio telescope, MSAA post-processing, phone framing + short tags).

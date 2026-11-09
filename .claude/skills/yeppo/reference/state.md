@@ -98,4 +98,4 @@ replies to the user in Italian.
 
 
 ## Home (9 Nov 2026)
-- Live: the moon (commit c344656, NASA surface, rovers, domes; components/moon/Moon.tsx), published to try it; still a work in progress. Previous home: the lighthouse film (895dbda). Full brief for continuing: HANDOFF.md in the export zip.
+- Live: the moon (commit 51684ae, Blender rocket/tower/dish, NASA surface, rovers, domes; components/moon/Moon.tsx), published to try it; still a work in progress. Previous home: the lighthouse film (895dbda). Full brief for continuing: HANDOFF.md in the export zip.
