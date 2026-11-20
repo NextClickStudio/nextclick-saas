@@ -37,7 +37,7 @@ In locale basta aprire `index.html` con un doppio clic.
 
 ## Da completare
 
-- [ ] Foto della home: ora c’è Casa Selva (tavola sul giardino); sostituire `assets/img/progetti/casa-selva/01-tavola.jpg` o il percorso in `index.html` con quella scelta.
+- [ ] Foto della home: ora c’è il portaprovette di MUSA, intera e con titolo centrato. Per cambiarla basta sostituire il percorso dell’immagine nel blocco `hero` di `index.html` (una foto orizzontale resta intera; per la versione “a tutta altezza” aggiungere la classe `hero--cover`).
 - [ ] Altre foto di Casa Selva: 12 originali sul Drive superano i 10 MB e non sono state importate; ne servono versioni più leggere.
 - [ ] Video delle fondatrici (sul Drive, 61 MB): da comprimere se si vuole inserirlo.
 - [ ] Anno dei progetti (campo `year` in `projects.js`).
