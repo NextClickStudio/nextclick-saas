@@ -234,13 +234,19 @@ strong { font-weight: 500; }
   .hero--cover .hero__img img { height: 70vh; }
 }
 
-/* Hero come la copertina della company profile: blu, logo bianco, riga in maiuscolo */
-.cover { position: relative; background: #1a232f; color: #fff; height: calc(100vh - 72px); min-height: 520px; max-height: 900px; overflow: hidden; }
-.cover__logo { position: absolute; left: 15%; top: 21%; width: 31%; min-width: 200px; max-width: 560px; }
-.cover__logo img { width: 100%; height: auto; }
-.cover__title { position: absolute; left: 0; right: 0; top: 75%; text-align: center; padding: 0 var(--pad); font-size: clamp(13px, 1.55vw, 22px); font-weight: 500; letter-spacing: 0.26em; text-transform: uppercase; line-height: 1.5; }
+/* Apertura della home impaginata come la slide "BRIEF" del riferimento */
+.brief { padding-top: clamp(40px, 5vw, 72px); padding-bottom: clamp(24px, 3vw, 40px); }
+.brief__title { font-size: clamp(22px, 2.2vw, 32px); font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.2; margin-bottom: clamp(28px, 4vw, 56px); }
+.brief__grid { display: grid; grid-template-columns: auto 1fr; gap: clamp(40px, 9vw, 160px); align-items: center; }
+.brief__img img { height: min(calc(100vh - 260px), 720px); min-height: 380px; width: auto; }
+.brief__img figcaption { margin-top: 10px; }
+.brief__text { max-width: 400px; }
+.brief__text > div + div { margin-top: clamp(28px, 4vw, 52px); }
+.brief__text h2 { margin-bottom: 10px; }
+.brief__text p { font-size: 14px; }
+.brief__text .more { margin-top: 14px; }
+.brief__foot { display: flex; justify-content: space-between; gap: 16px; margin-top: clamp(28px, 4vw, 48px); padding-top: 14px; border-top: 1px solid var(--line); }
 @media (max-width: 760px) {
-  .cover { height: 72vh; }
-  .cover__logo { left: 10%; top: 24%; width: 62%; }
-  .cover__title { top: 72%; letter-spacing: 0.2em; }
+  .brief__grid { grid-template-columns: 1fr; }
+  .brief__img img { height: auto; width: 100%; min-height: 0; }
 }

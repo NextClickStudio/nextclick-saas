@@ -8,7 +8,7 @@ Lo stile segue le immagini di riferimento del cliente e le modifiche richieste: 
 
 | File | Contenuto |
 | --- | --- |
-| `index.html` | Home: apertura come la copertina della company profile (blu, logo bianco, “Designing the soul of hospitality”), rimando ad About Aptenia, progetti con descrizione, metodo (accordion), contatti |
+| `index.html` | Home impaginata come la slide “BRIEF” del riferimento: “Designing the soul of hospitality”, foto dello shop MUSA intera, tre blocchi (Studio, Identity Design, Metodo), poi i progetti con descrizione e i contatti |
 | `studio.html` | About Aptenia in una sola pagina discorsiva: chi siamo, i tre ambiti dell’Identity Design, il metodo (`#metodo`), il percorso |
 | `progetti.html` | Tutti i progetti: foto della stessa dimensione e descrizione |
 | `progetto.html?p=<slug>` | Pagina progetto: titolo, scheda (luogo, tipologia, anno, servizi), testo completo, galleria con foto intere, precedente/successivo |
