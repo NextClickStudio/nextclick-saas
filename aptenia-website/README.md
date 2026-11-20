@@ -2,16 +2,16 @@
 
 Portfolio di Aptenia, studio di Hospitality Identity Design.
 Sito statico e semplice: HTML, CSS e un piccolo JavaScript, senza build e senza librerie esterne.
-Lo stile segue le immagini di riferimento del cliente: carta calda, titoli serif maiuscoli, testi piccoli, griglia progetti con frecce, pagina progetto con scheda tecnica.
+Lo stile segue le immagini di riferimento del cliente e le modifiche richieste: carta calda, un solo font sans vicino al Favorit della presentazione, titoli contenuti, foto sempre nelle proporzioni originali.
 
 ## Pagine
 
 | File | Contenuto |
 | --- | --- |
-| `index.html` | Home: immagine con titolo, studio in breve, ultimi progetti con filtri, metodo (accordion), contatti |
-| `studio.html` | Chi siamo, lo studio, cosa facciamo, come lo facciamo (`#metodo`), punti di forza |
-| `progetti.html` | Tutti i progetti con filtri per tipologia |
-| `progetto.html?p=<slug>` | Pagina progetto: titolo, cover, scheda (luogo, tipologia, anno, superficie, servizi), testo, galleria, precedente/successivo |
+| `index.html` | Home: “designing the soul of hospitality” con foto intera, rimando ad About Aptenia, progetti con descrizione, metodo (accordion), contatti |
+| `studio.html` | About Aptenia in una sola pagina discorsiva: chi siamo, i tre ambiti dell’Identity Design, il metodo (`#metodo`), il percorso |
+| `progetti.html` | Tutti i progetti: foto della stessa dimensione e descrizione |
+| `progetto.html?p=<slug>` | Pagina progetto: titolo, scheda (luogo, tipologia, anno, servizi), testo completo, galleria con foto intere, precedente/successivo |
 | `404.html` | Pagina non trovata (usata da Netlify) |
 
 Header e footer sono uguali in tutte le pagine: se cambi un contatto, cambialo in ogni file (o cerca `info@aptenia.it`).
@@ -25,9 +25,10 @@ Foto: JPG sRGB, lato lungo 2000–2400 px per cover e immagini piene, ~1400 px p
 
 ## Stile
 
-`assets/css/style.css`, colori in cima al file: carta `#F1EFEA`, carta scura `#E7E4DD`, blu Aptenia `#1A232F` per testi e pulsanti.
-Font ospitati in locale (`assets/fonts/`, nessuna chiamata a Google): Cormorant Garamond per i titoli maiuscoli, Hanken Grotesk per i testi.
-Animazioni ridotte al minimo: comparsa leggera degli elementi e lieve zoom delle foto al passaggio del mouse.
+`assets/css/style.css`, colori in cima al file: carta `#F1EFEA`, carta scura `#E7E4DD`, blu Aptenia `#1A232F`.
+Font ospitato in locale (`assets/fonts/`): Hanken Grotesk, il più vicino gratuito al Favorit della presentazione. Con una licenza web di Favorit basta aggiungere i file e le regole `@font-face` in `assets/css/fonts.css` e cambiare `--sans` in `style.css`.
+Le foto non vengono mai ritagliate, tranne le copertine nell’elenco progetti, che hanno tutte la stessa proporzione 3:4.
+Animazioni minime: comparsa leggera degli elementi.
 
 ## Pubblicazione
 
@@ -36,6 +37,9 @@ In locale basta aprire `index.html` con un doppio clic.
 
 ## Da completare
 
-- [ ] Nomi, testi, luogo, anno, superficie e foto definitive dei progetti (ora "Progetto Uno/Due" con foto della company profile).
+- [ ] Foto della home: ora c’è Casa Selva (tavola sul giardino); sostituire `assets/img/progetti/casa-selva/01-tavola.jpg` o il percorso in `index.html` con quella scelta.
+- [ ] Altre foto di Casa Selva: 12 originali sul Drive superano i 10 MB e non sono state importate; ne servono versioni più leggere.
+- [ ] Video delle fondatrici (sul Drive, 61 MB): da comprimere se si vuole inserirlo.
+- [ ] Anno dei progetti (campo `year` in `projects.js`).
 - [ ] P.IVA nel footer (commentata in ogni pagina) e privacy policy.
 - [ ] Verificare il telefono `+39 333328627` (9 cifre dopo il +39).
