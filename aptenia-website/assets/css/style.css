@@ -233,3 +233,14 @@ strong { font-weight: 500; }
   .hero--center .hero__title { width: 86%; font-size: 22px; }
   .hero--cover .hero__img img { height: 70vh; }
 }
+
+/* Hero come la copertina della company profile: blu, logo bianco, riga in maiuscolo */
+.cover { position: relative; background: #1a232f; color: #fff; height: calc(100vh - 72px); min-height: 520px; max-height: 900px; overflow: hidden; }
+.cover__logo { position: absolute; left: 15%; top: 21%; width: 31%; min-width: 200px; max-width: 560px; }
+.cover__logo img { width: 100%; height: auto; }
+.cover__title { position: absolute; left: 0; right: 0; top: 75%; text-align: center; padding: 0 var(--pad); font-size: clamp(13px, 1.55vw, 22px); font-weight: 500; letter-spacing: 0.26em; text-transform: uppercase; line-height: 1.5; }
+@media (max-width: 760px) {
+  .cover { height: 72vh; }
+  .cover__logo { left: 10%; top: 24%; width: 62%; }
+  .cover__title { top: 72%; letter-spacing: 0.2em; }
+}

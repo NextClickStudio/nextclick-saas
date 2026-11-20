@@ -8,7 +8,7 @@ Lo stile segue le immagini di riferimento del cliente e le modifiche richieste: 
 
 | File | Contenuto |
 | --- | --- |
-| `index.html` | Home: “designing the soul of hospitality” con foto intera, rimando ad About Aptenia, progetti con descrizione, metodo (accordion), contatti |
+| `index.html` | Home: apertura come la copertina della company profile (blu, logo bianco, “Designing the soul of hospitality”), rimando ad About Aptenia, progetti con descrizione, metodo (accordion), contatti |
 | `studio.html` | About Aptenia in una sola pagina discorsiva: chi siamo, i tre ambiti dell’Identity Design, il metodo (`#metodo`), il percorso |
 | `progetti.html` | Tutti i progetti: foto della stessa dimensione e descrizione |
 | `progetto.html?p=<slug>` | Pagina progetto: titolo, scheda (luogo, tipologia, anno, servizi), testo completo, galleria con foto intere, precedente/successivo |
@@ -37,7 +37,6 @@ In locale basta aprire `index.html` con un doppio clic.
 
 ## Da completare
 
-- [ ] Foto della home: ora c’è il portaprovette di MUSA, intera e con titolo centrato. Per cambiarla basta sostituire il percorso dell’immagine nel blocco `hero` di `index.html` (una foto orizzontale resta intera; per la versione “a tutta altezza” aggiungere la classe `hero--cover`).
 - [ ] Altre foto di Casa Selva: 12 originali sul Drive superano i 10 MB e non sono state importate; ne servono versioni più leggere.
 - [ ] Video delle fondatrici (sul Drive, 61 MB): da comprimere se si vuole inserirlo.
 - [ ] Anno dei progetti (campo `year` in `projects.js`).
