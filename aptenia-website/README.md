@@ -6,15 +6,15 @@ Lo stile segue le immagini di riferimento del cliente e le modifiche richieste: 
 
 ## Pagine
 
-| File | Contenuto |
-| --- | --- |
-| `index.html` | Home: foto dello shop MUSA a tutto schermo come sfondo fisso, con solo “Designing the soul of hospitality” centrato; header trasparente sulla foto. Poi i progetti con descrizione e i contatti. La foto si cambia in `assets/css/style.css` (regola `.hero-full`) |
-| `studio.html` | About Aptenia in una sola pagina discorsiva: chi siamo, i tre ambiti dell’Identity Design, il metodo (`#metodo`), il percorso |
-| `progetti.html` | Tutti i progetti: foto della stessa dimensione e descrizione |
-| `progetto.html?p=<slug>` | Pagina progetto: titolo, scheda (luogo, tipologia, anno, servizi), testo completo, galleria con foto intere, precedente/successivo |
-| `404.html` | Pagina non trovata (usata da Netlify) |
+Il sito segue le reference del cliente (zip "Aptenia inspo"):
 
-Header e footer sono uguali in tutte le pagine: se cambi un contatto, cambialo in ogni file (o cerca `info@aptenia.it`).
+| File | Contenuto | Reference |
+| --- | --- | --- |
+| `index.html` | Foto grande con “DESIGNING THE SOUL OF HOSPITALITY”, About Aptenia (foto + pannello), ultimi progetti, Identity Design (testo + immagine), oggetti su misura, Casa Selva, metodo (accordion), contatti | Sorrento Beach House + Latest works |
+| `studio.html` | About Aptenia, Identity Design, il metodo (`#metodo`) e il percorso, in una sola pagina | Slide “SITE ANALYSIS” / “BRIEF”, Mr. Jones Sofa |
+| `progetti.html` | Tutti i progetti: foto della stessa dimensione con freccia ↘ e descrizione | Latest works |
+| `progetto.html?p=<slug>` | Titolo, “Successivo”, foto orizzontale, scheda + testo, galleria con foto intere, precedente/successivo | #ND1H |
+| `404.html` | Pagina non trovata | |
 
 ## Aggiungere o modificare un progetto
 
@@ -25,9 +25,9 @@ Foto: JPG sRGB, lato lungo 2000–2400 px per cover e immagini piene, ~1400 px p
 
 ## Stile
 
-`assets/css/style.css`, colori in cima al file: carta `#F1EFEA`, carta scura `#E7E4DD`, blu Aptenia `#1A232F`.
-Font ospitato in locale (`assets/fonts/`): Hanken Grotesk, il più vicino gratuito al Favorit della presentazione. Con una licenza web di Favorit basta aggiungere i file e le regole `@font-face` in `assets/css/fonts.css` e cambiare `--sans` in `style.css`.
-Le foto non vengono mai ritagliate, tranne le copertine nell’elenco progetti, che hanno tutte la stessa proporzione 3:4.
+Colori in cima a `assets/css/style.css`: carta `#F3F1EC`, carta scura `#E8E5DE`, testo `#1F2326`.
+Font in locale (`assets/fonts/`): Cormorant Garamond per i titoli maiuscoli (come “SITE ANALYSIS” e “BRIEF” della reference), Hanken Grotesk per i testi (il più vicino gratuito al Favorit della presentazione).
+Foto: originali del Drive in alta qualità. Quelle della home e delle aperture dei progetti (`hero-home.jpg`, `cover-wide.jpg`) sono tagli orizzontali scelti a mano dagli originali; nelle gallerie le foto sono intere.
 Animazioni minime: comparsa leggera degli elementi.
 
 ## Pubblicazione
