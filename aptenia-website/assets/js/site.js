@@ -21,6 +21,15 @@
   }
   $$('[data-year]').forEach((el) => { el.textContent = new Date().getFullYear(); });
 
+  /* ---------- Home: header trasparente sulla foto, pieno dopo averla superata ---------- */
+  const hero = $('.hero-full');
+  const header = $('.header');
+  if (hero && header) {
+    const onScroll = () => header.classList.toggle('is-solid', window.scrollY > hero.offsetHeight - 80);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  }
+
   /* ---------- Elenco progetti: foto della stessa dimensione + descrizione ---------- */
   $$('[data-works]').forEach((list) => {
     list.innerHTML = PROJECTS.map((p) => `

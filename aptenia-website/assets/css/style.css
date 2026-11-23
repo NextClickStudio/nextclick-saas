@@ -250,3 +250,35 @@ strong { font-weight: 500; }
   .brief__grid { grid-template-columns: 1fr; }
   .brief__img img { height: auto; width: 100%; min-height: 0; }
 }
+
+/* HOME — foto a tutto schermo, fissa, con solo il titolo centrato */
+.hero-full {
+  position: relative;
+  height: 100vh; height: 100svh; min-height: 520px;
+  display: flex; align-items: center; justify-content: center;
+  background: #2a2a28 url(../img/progetti/musa/01-shop.jpg) center 55% / cover no-repeat fixed;
+}
+.hero-full::before { content: ""; position: absolute; inset: 0; background: rgba(18, 20, 24, 0.22); }
+.hero-full h1 {
+  position: relative; margin: 0; padding: 0 var(--pad); text-align: center; color: #fff;
+  font-size: clamp(28px, 3.6vw, 54px); font-weight: 300; font-style: italic; line-height: 1.2; letter-spacing: -0.005em;
+  text-shadow: 0 1px 30px rgba(0, 0, 0, 0.25);
+}
+/* Su touch lo sfondo fisso non è supportato bene: resta fermo dentro la sezione */
+@media (hover: none) { .hero-full { background-attachment: scroll; } }
+
+/* Header trasparente sopra la foto, torna normale scorrendo */
+.is-home .header { position: fixed; left: 0; right: 0; background: transparent; transition: background 0.4s; }
+.is-home .header__bar { border-color: rgba(255, 255, 255, 0.35); }
+.is-home .header__logo img { filter: brightness(0) invert(1); transition: filter 0.4s; }
+.is-home .header__nav a { color: #fff; }
+.is-home .header__burger span { background: #fff; }
+.is-home .header.is-solid { background: var(--paper); }
+.is-home .header.is-solid .header__bar { border-color: var(--line); }
+.is-home .header.is-solid .header__logo img { filter: none; }
+.is-home .header.is-solid .header__nav a { color: var(--ink); }
+.is-home .header.is-solid .header__burger span { background: var(--ink); }
+.is-home.menu-open .header { background: var(--paper); }
+.is-home.menu-open .header__logo img { filter: none; }
+.is-home.menu-open .header__burger span { background: var(--ink); }
+@media (max-width: 760px) { .is-home .header__nav a { color: var(--ink); } }
