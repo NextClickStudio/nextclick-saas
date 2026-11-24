@@ -263,3 +263,53 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition: none !important; }
 }
+
+/* ==========================================================================
+   HOME — sezioni a tutto schermo (modifiche 24.11)
+   ========================================================================== */
+.full { position: relative; height: 100vh; height: 100svh; min-height: 520px; overflow: hidden; background: var(--paper-2); }
+.full + .full { margin-top: 0; }
+.full__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.full::after { content: ""; position: absolute; inset: 0; background: rgba(18, 20, 24, 0.26); }
+.full__text { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; text-align: center; color: #fff; padding: 0 var(--pad); }
+.full__title { font-size: clamp(22px, 2.6vw, 38px); letter-spacing: 0.06em; }
+.full__title--sm { font-size: clamp(20px, 2.2vw, 32px); }
+.btn--light { color: #fff; border-color: rgba(255, 255, 255, 0.7); }
+.btn--light:hover { background: #fff; color: var(--ink); border-color: #fff; }
+.full + .footer, main:has(.full) + .footer { margin-top: 0; }
+
+/* ==========================================================================
+   STUDIO — metà foto / metà testo
+   ========================================================================== */
+.about-split { display: grid; grid-template-columns: 1fr 1fr; min-height: calc(100vh - 68px); }
+.about-split__img { position: relative; overflow: hidden; background: var(--paper-2); }
+.about-split__img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 35%; }
+.about-split__text { display: flex; flex-direction: column; justify-content: center; padding: clamp(40px, 7vw, 120px); }
+.about-split__text h1 { margin-bottom: clamp(24px, 3vw, 40px); }
+.about-split__text .prose { max-width: 480px; }
+@media (max-width: 860px) {
+  .about-split { grid-template-columns: 1fr; min-height: 0; }
+  .about-split__img { height: 70vh; }
+}
+
+/* Tre foto con il testo sopra che si "illuminano" al passaggio */
+.panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+.panel { position: relative; aspect-ratio: 3 / 4.4; overflow: hidden; background: var(--paper-2); outline: none; }
+.panel img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(0.9); opacity: 0.22; transition: opacity 0.7s ease, filter 0.7s ease, transform 1.4s ease; }
+.panel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(18,20,24,0.65), rgba(18,20,24,0) 60%); opacity: 0; transition: opacity 0.7s ease; }
+.panel__text { position: absolute; left: 0; right: 0; top: 0; z-index: 1; padding: clamp(22px, 2.6vw, 40px); color: var(--muted); transition: color 0.7s ease; }
+.panel__num { display: block; font-size: clamp(40px, 4vw, 64px); line-height: 1; margin-bottom: 18px; color: rgba(31, 35, 38, 0.3); transition: color 0.7s ease; }
+.panel__text h3 { margin-bottom: 12px; color: var(--ink); transition: color 0.7s ease; }
+.panel__text p { font-size: 13px; line-height: 1.65; max-width: 340px; }
+.panel:hover img, .panel:focus-visible img { opacity: 1; filter: none; transform: scale(1.03); }
+.panel:hover::after, .panel:focus-visible::after { opacity: 1; background: linear-gradient(rgba(18,20,24,0.62), rgba(18,20,24,0.2) 70%); }
+.panel:hover .panel__text, .panel:focus-visible .panel__text,
+.panel:hover .panel__text h3, .panel:focus-visible .panel__text h3,
+.panel:hover .panel__num, .panel:focus-visible .panel__num { color: #fff; }
+/* Su touch (niente hover) le foto restano accese */
+@media (hover: none) {
+  .panel img { opacity: 1; filter: none; }
+  .panel::after { opacity: 1; background: linear-gradient(rgba(18,20,24,0.62), rgba(18,20,24,0.2) 70%); }
+  .panel__text, .panel__text h3, .panel__num { color: #fff !important; }
+}
+@media (max-width: 860px) { .panels { grid-template-columns: 1fr; } .panel { aspect-ratio: 4 / 5; } }

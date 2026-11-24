@@ -10,8 +10,8 @@ Il sito segue le reference del cliente (zip "Aptenia inspo"):
 
 | File | Contenuto | Reference |
 | --- | --- | --- |
-| `index.html` | Foto grande con “DESIGNING THE SOUL OF HOSPITALITY”, About Aptenia (foto + pannello), ultimi progetti, Identity Design (testo + immagine), oggetti su misura, Casa Selva, metodo (accordion), contatti | Sorrento Beach House + Latest works |
-| `studio.html` | About Aptenia, Identity Design, il metodo (`#metodo`) e il percorso, in una sola pagina | Slide “SITE ANALYSIS” / “BRIEF”, Mr. Jones Sofa |
+| `index.html` | Tre foto a tutto schermo: “DESIGNING THE SOUL OF HOSPITALITY” (`assets/img/hero-home.jpg`), “About Aptenia” con tasto allo Studio (`home-about.jpg`), “Progetti” con tasto ai progetti | Modifiche 24.11 |
+| `studio.html` | Metà foto delle fondatrici / metà testo, poi Identity Design e Il metodo come tre foto che si “illuminano” al passaggio del mouse (sempre accese su telefono) | Modifiche 24.11 |
 | `progetti.html` | Tutti i progetti: foto della stessa dimensione con freccia ↘ e descrizione | Latest works |
 | `progetto.html?p=<slug>` | Titolo, “Successivo”, foto orizzontale, scheda + testo, galleria con foto intere, precedente/successivo | #ND1H |
 | `404.html` | Pagina non trovata | |
@@ -36,6 +36,8 @@ Netlify: trascina la cartella (o lo zip) su app.netlify.com/drop. Non serve conf
 In locale basta aprire `index.html` con un doppio clic.
 
 ## Da completare
+
+- [ ] Foto definitiva della home (Drive, HOME › Designing the Soul of Hospitality): supera i 10 MB e non è stata importata. Sostituire `assets/img/hero-home.jpg` con la foto (orizzontale, circa 2880 px di larghezza).
 
 - [ ] Altre foto di Casa Selva: 12 originali sul Drive superano i 10 MB e non sono state importate; ne servono versioni più leggere.
 - [ ] Video delle fondatrici (sul Drive, 61 MB): da comprimere se si vuole inserirlo.
