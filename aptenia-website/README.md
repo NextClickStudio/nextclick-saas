@@ -37,7 +37,7 @@ In locale basta aprire `index.html` con un doppio clic.
 
 ## Da completare
 
-- [ ] Foto definitiva della home (Drive, HOME › Designing the Soul of Hospitality): supera i 10 MB e non è stata importata. Sostituire `assets/img/hero-home.jpg` con la foto (orizzontale, circa 2880 px di larghezza).
+- [ ] Foto definitiva della home (Drive, HOME › Designing the Soul of Hospitality): supera i 10 MB e non è stata importata. Sostituire `assets/img/home-1.jpg` (ora c’è una foto provvisoria) con la foto (orizzontale, circa 2880 px di larghezza).
 
 - [ ] Altre foto di Casa Selva: 12 originali sul Drive superano i 10 MB e non sono state importate; ne servono versioni più leggere.
 - [ ] Video delle fondatrici (sul Drive, 61 MB): da comprimere se si vuole inserirlo.

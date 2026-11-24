@@ -14,7 +14,7 @@
   <link rel="icon" href="assets/img/brand/favicon.svg" type="image/svg+xml">
   <link rel="preload" href="assets/fonts/hanken-grotesk-normal-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="assets/fonts/cormorant-garamond-normal-400-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="assets/img/hero-home.jpg" as="image">
+  <link rel="preload" href="assets/img/home-1.jpg" as="image">
   <link rel="stylesheet" href="assets/css/fonts.css">
   <link rel="stylesheet" href="assets/css/style.css">
 </head>
@@ -33,26 +33,37 @@
     </div>
   </header>
 
-  <main id="main">
-    <section class="full" style="--img: url(../img/hero-home.jpg)">
-      <img class="full__img" src="assets/img/hero-home.jpg" alt="Lo shop di MUSA Lago di Como" fetchpriority="high">
-      <div class="full__text"><h1 class="full__title serif-caps">Designing the soul of hospitality</h1></div>
+  <main id="main" class="home">
+    <section class="frame frame--hero wrap">
+      <div class="frame__media">
+        <img src="assets/img/home-1.jpg" alt="La sala da pranzo di Casa Selva affacciata sul giardino" fetchpriority="high">
+        <div class="frame__center"><h1 class="frame__title serif-caps">Designing the soul of hospitality</h1></div>
+      </div>
+      <div class="frame__cap label"><span>Aptenia — Hospitality Identity Design</span><span>Casa Selva, Brianza comasca</span></div>
     </section>
 
-    <section class="full">
-      <img class="full__img" src="assets/img/home-about.jpg" alt="Le tre fondatrici di Aptenia al lavoro su disegni e campioni di materiali" loading="lazy">
-      <div class="full__text">
-        <h2 class="full__title full__title--sm serif-caps">About Aptenia</h2>
-        <a class="btn btn--light" href="studio.html">Scopri lo studio <span aria-hidden="true">→</span></a>
+    <section class="frame wrap">
+      <div class="frame__media">
+        <img src="assets/img/home-about.jpg" alt="Le tre fondatrici di Aptenia al lavoro su disegni e campioni di materiali" loading="lazy">
+        <div class="frame__corner">
+          <span class="label">Studio</span>
+          <h2 class="frame__title frame__title--sm serif-caps">About Aptenia</h2>
+          <a class="btn btn--light" href="studio.html">Scopri lo studio <span aria-hidden="true">→</span></a>
+        </div>
       </div>
+      <div class="frame__cap label"><span>01</span><span>Le fondatrici</span></div>
     </section>
 
-    <section class="full">
-      <img class="full__img" src="assets/img/progetti/casa-selva/cover-wide.jpg" alt="La tavola di Casa Selva affacciata sul giardino" loading="lazy">
-      <div class="full__text">
-        <h2 class="full__title full__title--sm serif-caps">Progetti</h2>
-        <a class="btn btn--light" href="progetti.html">Vedi i progetti <span aria-hidden="true">→</span></a>
+    <section class="frame wrap">
+      <div class="frame__media">
+        <img src="assets/img/hero-home.jpg" alt="Lo shop di MUSA Lago di Como" loading="lazy">
+        <div class="frame__corner frame__corner--right">
+          <span class="label">Portfolio</span>
+          <h2 class="frame__title frame__title--sm serif-caps">Progetti</h2>
+          <a class="btn btn--light" href="progetti.html">Vedi i progetti <span aria-hidden="true">→</span></a>
+        </div>
       </div>
+      <div class="frame__cap label"><span>02</span><span>MUSA Lago di Como</span></div>
     </section>
   </main>
 
