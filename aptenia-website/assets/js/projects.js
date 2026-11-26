@@ -74,6 +74,7 @@ window.APTENIA_PROJECTS = [
       "Dalla definizione del concept alla progettazione e produzione dei complementi d’arredo, ogni elemento è stato pensato per integrarsi nell’architettura e accompagnare la vita della casa, contribuendo a rendere speciale l’esperienza di chi la abita e di chi vi soggiorna."
     ],
     images: [
+      { src: "assets/img/progetti/casa-selva/04-stender.jpg", alt: "Lo stender su misura in metallo e pelle tra pareti in OSB e parquet", size: "full" },
       { src: "assets/img/progetti/casa-selva/03-ciotole.jpg", alt: "Ciotole in metallo su base in pelle blu accanto a un rivestimento in legno", size: "half" },
       { src: "assets/img/progetti/casa-selva/02-vassoio.jpg", alt: "Vassoio e candela rivestiti in pelle verde e tortora", size: "half" }
     ]

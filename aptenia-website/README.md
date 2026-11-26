@@ -38,15 +38,6 @@ In locale basta aprire `index.html` con un doppio clic.
 
 ## Da completare
 
-Foto del Drive (cartella FOTO) che superano i 10 MB e non si sono potute importare: ora c'è una foto provvisoria nello stesso punto. Basta sostituire il file indicato.
-
-| Foto Drive | File da sostituire |
-| --- | --- |
-| HOME_Designing the soul.jpg | `assets/img/home-1.jpg` (intera, ~2880 px di larghezza) |
-| HOME_Portfolio.jpg | `assets/img/home-3.jpg` |
-| ABOUT_01.jpg | `assets/img/studio/about-01.jpg` |
-| METODO_DESIGN.jpg | `assets/img/studio/metodo-design.jpg` |
-| Altre 12 foto di Casa Selva | aggiungerle in `assets/img/progetti/casa-selva/` e in `projects.js` |
-
-- [ ] Seconda foto della home: “attendi foto giusta” (ora c'è la foto delle fondatrici, `home-about.jpg`).
+- [ ] Seconda foto della home: “attendi foto giusta” (ora c'è la foto delle fondatrici, `assets/img/home-about.jpg`).
+- [ ] Casa Selva: sul Drive ci sono altre 11 foto oltre i 10 MB non ancora importate; aggiungerle in `assets/img/progetti/casa-selva/` e in `projects.js`.
 - [ ] P.IVA nel footer, privacy policy, anno dei progetti, verifica telefono `+39 333328627`.
