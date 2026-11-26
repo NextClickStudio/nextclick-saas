@@ -63,13 +63,11 @@
       else if (a.size === 'half') { gallery += `<div class="g-single g-single--${side++ % 2 ? 'left' : 'right'} reveal">${fig(a)}</div>`; }
       else gallery += `<div class="g-full reveal">${fig(a)}</div>`;
     }
-    const wide = p.wide || p.cover;
+    const wide = p.cover;
 
     page.innerHTML = `
       <div class="project__head">
         <h1 class="project__title">${esc(p.title)}</h1>
-        <p class="project__tag">${[p.category, p.year].filter(Boolean).map(esc).join('<br>')}</p>
-        ${n > 1 ? `<a class="project__next" href="${link(next)}">Successivo</a>` : '<span></span>'}
       </div>
       <figure class="project__cover"><img src="${esc(wide.src)}" alt="${esc(wide.alt)}" decoding="async" fetchpriority="high"></figure>
       <div class="project__body">

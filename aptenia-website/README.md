@@ -10,8 +10,9 @@ Il sito segue le reference del cliente (zip "Aptenia inspo"):
 
 | File | Contenuto | Reference |
 | --- | --- | --- |
-| `index.html` | Tre foto a tutto schermo: “DESIGNING THE SOUL OF HOSPITALITY” (`assets/img/hero-home.jpg`), “About Aptenia” con tasto allo Studio (`home-about.jpg`), “Progetti” con tasto ai progetti | Modifiche 24.11 |
-| `studio.html` | Metà foto delle fondatrici / metà testo, poi Identity Design e Il metodo come tre foto che si “illuminano” al passaggio del mouse (sempre accese su telefono) | Modifiche 24.11 |
+| `index.html` | Tre foto intere (non tagliate) e distanziate: “Designing the soul of hospitality” (`assets/img/home-1.jpg`), “About Aptenia” (`home-about.jpg`), “Progetti” (`home-3.jpg`) | Modifiche 25.11 |
+| `studio.html` | Metà foto / metà testo, poi Identity Design: tre foto che si “illuminano” al passaggio (foto ABOUT_01/02/03) | Modifiche 25.11 |
+| `metodo.html` | Discover, Design, Deliver: tre sezioni metà foto / metà testo, alternate | Modifiche 25.11 |
 | `progetti.html` | Tutti i progetti: foto della stessa dimensione con freccia ↘ e descrizione | Latest works |
 | `progetto.html?p=<slug>` | Titolo, “Successivo”, foto orizzontale, scheda + testo, galleria con foto intere, precedente/successivo | #ND1H |
 | `404.html` | Pagina non trovata | |
@@ -37,10 +38,15 @@ In locale basta aprire `index.html` con un doppio clic.
 
 ## Da completare
 
-- [ ] Foto definitiva della home (Drive, HOME › Designing the Soul of Hospitality): supera i 10 MB e non è stata importata. Sostituire `assets/img/home-1.jpg` (ora c’è una foto provvisoria) con la foto (orizzontale, circa 2880 px di larghezza).
+Foto del Drive (cartella FOTO) che superano i 10 MB e non si sono potute importare: ora c'è una foto provvisoria nello stesso punto. Basta sostituire il file indicato.
 
-- [ ] Altre foto di Casa Selva: 12 originali sul Drive superano i 10 MB e non sono state importate; ne servono versioni più leggere.
-- [ ] Video delle fondatrici (sul Drive, 61 MB): da comprimere se si vuole inserirlo.
-- [ ] Anno dei progetti (campo `year` in `projects.js`).
-- [ ] P.IVA nel footer (commentata in ogni pagina) e privacy policy.
-- [ ] Verificare il telefono `+39 333328627` (9 cifre dopo il +39).
+| Foto Drive | File da sostituire |
+| --- | --- |
+| HOME_Designing the soul.jpg | `assets/img/home-1.jpg` (intera, ~2880 px di larghezza) |
+| HOME_Portfolio.jpg | `assets/img/home-3.jpg` |
+| ABOUT_01.jpg | `assets/img/studio/about-01.jpg` |
+| METODO_DESIGN.jpg | `assets/img/studio/metodo-design.jpg` |
+| Altre 12 foto di Casa Selva | aggiungerle in `assets/img/progetti/casa-selva/` e in `projects.js` |
+
+- [ ] Seconda foto della home: “attendi foto giusta” (ora c'è la foto delle fondatrici, `home-about.jpg`).
+- [ ] P.IVA nel footer, privacy policy, anno dei progetti, verifica telefono `+39 333328627`.
